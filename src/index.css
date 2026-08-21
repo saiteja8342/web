@@ -1049,6 +1049,28 @@ section {
   background-color: rgba(255,255,255,0.02);
 }
 
+@media (max-width: 768px) {
+  .portfolio-filters {
+    gap: 8px;
+    margin-bottom: 24px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+  .portfolio-filters::-webkit-scrollbar {
+    display: none;
+  }
+  .portfolio-filter-pill {
+    padding: 6px 14px;
+    font-size: 0.70rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
 /* Horizontal Carousels & Dynamic Sized Portfolio Cards */
 .carousel-container {
   display: flex;
@@ -1855,6 +1877,15 @@ textarea.contact-input-custom {
   justify-content: center;
   gap: 8px;
   width: 100%;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .magnetic-particle-btn {
+    padding: 13px 20px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
 }
 
 .whatsapp-action-btn {
@@ -2182,14 +2213,14 @@ textarea.contact-input-custom {
 .wa-btn {
   background: #09090D;
   border: 1px solid rgba(34, 197, 94, 0.5);
-  width: 58px;
-  height: 58px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #22c55e;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 25px rgba(34, 197, 94, 0.5), 0 0 50px rgba(34, 197, 94, 0.25);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 25px rgba(34, 197, 94, 0.45);
   cursor: pointer;
   position: relative;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -2199,10 +2230,10 @@ textarea.contact-input-custom {
 .wa-btn::before {
   content: '';
   position: absolute;
-  inset: -8px;
+  inset: -6px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(34, 197, 94, 0.45) 0%, rgba(34, 197, 94, 0.12) 60%, transparent 80%);
-  filter: blur(10px);
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.4) 0%, rgba(34, 197, 94, 0.1) 60%, transparent 80%);
+  filter: blur(8px);
   z-index: -1;
   animation: waPulseGlow 2.5s infinite ease-in-out;
 }
@@ -2212,50 +2243,85 @@ textarea.contact-input-custom {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-8px);
+    transform: translateY(-6px);
   }
 }
 
 @keyframes waPulseGlow {
   0%, 100% {
     transform: scale(0.95);
-    opacity: 0.7;
+    opacity: 0.6;
   }
   50% {
-    transform: scale(1.2);
-    opacity: 1;
+    transform: scale(1.15);
+    opacity: 0.9;
   }
 }
 
 .wa-btn:hover {
   border-color: #22c55e;
-  transform: scale(1.08) translateY(-4px);
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8), 0 0 35px rgba(34, 197, 94, 0.7);
+  transform: scale(1.06) translateY(-3px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8), 0 0 35px rgba(34, 197, 94, 0.6);
 }
 
 .wa-icon {
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
 }
 
 .wa-bubble {
   position: absolute;
-  bottom: 72px;
+  bottom: 68px;
   right: 0;
   left: auto;
   background: var(--card-bg);
   border: 1px solid rgba(34, 197, 94, 0.4);
   color: #FFFFFF;
-  padding: 10px 16px;
+  padding: 8px 14px;
   border-radius: 8px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   white-space: nowrap;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   opacity: 0;
   transform: translateY(10px);
   pointer-events: none;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 10px 25px rgba(0,0,0,0.5), 0 0 20px rgba(34, 197, 94, 0.2);
+}
+
+@media (max-width: 768px) {
+  .wa-widget-container {
+    bottom: 18px;
+    right: 16px;
+  }
+
+  .wa-btn {
+    width: 48px;
+    height: 48px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 18px rgba(34, 197, 94, 0.4);
+  }
+
+  .wa-btn::before {
+    inset: -4px;
+    filter: blur(6px);
+  }
+
+  .wa-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .wa-bubble {
+    bottom: 58px;
+    right: 0;
+    padding: 6px 12px;
+    font-size: 0.70rem;
+    white-space: nowrap;
+  }
+
+  .wa-tooltip {
+    display: none;
+  }
 }
 .wa-bubble.show {
   opacity: 1;
@@ -2601,6 +2667,8 @@ textarea.contact-input-custom {
   cursor: pointer;
   box-shadow: 0 4px 20px rgba(255, 100, 150, 0.15), 0 4px 20px rgba(100, 150, 255, 0.15);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .nav-cta-custom-wrapper:hover {
@@ -2625,10 +2693,35 @@ textarea.contact-input-custom {
   text-decoration: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -1px 0 rgba(0, 0, 0, 0.4);
   transition: background-color 0.2s, color 0.2s;
+  white-space: nowrap;
+  line-height: 1;
 }
 
 .nav-cta-custom-noise:active {
   transform: scale(0.98);
+}
+
+@media (max-width: 768px) {
+  .nav-cta-custom-wrapper {
+    padding: 1px;
+    margin-left: auto;
+  }
+  .nav-cta-custom-noise {
+    padding: 6px 13px;
+    font-size: 0.70rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .nav-cta-custom-wrapper {
+    padding: 1px;
+  }
+  .nav-cta-custom-noise {
+    padding: 5px 10px;
+    font-size: 0.65rem;
+    white-space: nowrap;
+  }
 }
 
 /* Animated Mobile Sidebar Component */
