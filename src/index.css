@@ -477,6 +477,44 @@ h1, h2, h3, h4, .font-serif {
   }
 }
 
+@media (max-width: 768px) {
+  .nav {
+    padding: 14px 0;
+  }
+  .nav.scrolled {
+    padding: 12px 0;
+  }
+  .nav-inner {
+    gap: 8px;
+  }
+  .nav-logo-text-wrap {
+    max-width: 140px;
+  }
+  .nav-logo-brand {
+    font-size: 0.88rem !important;
+  }
+  .nav-logo-subtitle {
+    display: none !important;
+  }
+  .logo-img-circular {
+    width: 34px !important;
+    height: 34px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .nav-logo-text-wrap {
+    max-width: 115px;
+  }
+  .nav-logo-brand {
+    font-size: 0.80rem !important;
+  }
+  .logo-img-circular {
+    width: 30px !important;
+    height: 30px !important;
+  }
+}
+
 /* Mobile Nav Overlay */
 .mobile-nav-overlay {
   position: fixed;
@@ -529,7 +567,7 @@ section {
 @media (max-width: 991px) {
   .hero-grid {
     grid-template-columns: 1fr;
-    gap: 60px;
+    gap: 40px;
   }
   .hero-video-wrapper {
     margin: 0 auto;
@@ -576,6 +614,65 @@ section {
   gap: 20px;
   opacity: 0;
   transform: translateY(20px);
+}
+
+/* Mobile Hero Buttons Styling - Proportional single line layout */
+@media (max-width: 768px) {
+  .hero-btns {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .slide-btn {
+    padding: 11px 18px;
+    font-size: 0.70rem;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .slide-btn-text-wrapper,
+  .slide-btn-text-primary,
+  .slide-btn-text-secondary {
+    white-space: nowrap;
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+@media (max-width: 440px) {
+  .hero-btns {
+    gap: 8px;
+  }
+
+  .slide-btn {
+    padding: 10px 12px;
+    font-size: 0.65rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 340px) {
+  .hero-btns {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .slide-btn {
+    width: 100%;
+    padding: 11px 16px;
+    font-size: 0.72rem;
+  }
 }
 
 .hero-right {
