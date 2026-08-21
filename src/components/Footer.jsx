@@ -77,8 +77,8 @@ export default function Footer() {
             </div>
           </div>
           
-          {/* Column 3 */}
-          <div className="footer-col footer-col-links reveal-element">
+          {/* Column 3 - Services */}
+          <div className="footer-col footer-col-links footer-col-services reveal-element">
             <h4 className="footer-col-title">Services</h4>
             <div className="footer-links">
               <a href="#services" data-hover-type="link">Video Editing</a>
@@ -88,8 +88,8 @@ export default function Footer() {
             </div>
           </div>
           
-          {/* Column 4 */}
-          <div className="footer-col footer-col-links reveal-element">
+          {/* Column 4 - Connect */}
+          <div className="footer-col footer-col-links footer-col-connect reveal-element">
             <h4 className="footer-col-title">Connect</h4>
             <div className="footer-links">
               <a 
