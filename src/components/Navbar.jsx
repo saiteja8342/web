@@ -53,9 +53,9 @@ export default function Navbar() {
               {!logoLoaded && (
                 <div className="skeleton-loader logo-skeleton" aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%' }}></div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-                <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.95rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.01em', lineHeight: '1.2' }}>MotionNodeEdits</span>
-                <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.62rem', color: 'var(--text-secondary)', letterSpacing: '0.01em', marginTop: '2px', fontWeight: '400', textTransform: 'none' }}>AI Video & Avatar Production Studio</span>
+              <div className="nav-logo-text-wrap" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
+                <span className="nav-logo-brand" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.95rem', fontWeight: '700', color: '#FFFFFF', letterSpacing: '0.01em', lineHeight: '1.2' }}>MotionNodeEdits</span>
+                <span className="nav-logo-subtitle" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.62rem', color: 'var(--text-secondary)', letterSpacing: '0.01em', marginTop: '2px', fontWeight: '400', textTransform: 'none' }}>AI Video & Avatar Production Studio</span>
               </div>
             </span>
           </a>

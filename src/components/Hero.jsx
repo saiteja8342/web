@@ -202,15 +202,17 @@ export default function Hero({ isLoaded }) {
                 disablePictureInPicture 
                 className="hero-video"
                 ref={videoRef}
-                src="/assets/videos/show_reel.mp4"
                 poster="/assets/posters/showreel-poster.webp"
                 autoPlay
                 muted
                 loop
                 playsInline
-                preload="metadata"
+                preload="auto"
                 onLoadedData={() => setVideoLoaded(true)}
-              ></video>
+              >
+                <source src="/assets/posters/showreel-hero.mp4" type="video/mp4" />
+                <source src="/assets/videos/show_reel.mp4" type="video/mp4" />
+              </video>
               <div className="hero-video-overlay"></div>
               <div className="hero-vid-controls">
                 <button className="v-btn hero-play-pause" onClick={togglePlay} aria-label="Play Pause">

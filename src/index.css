@@ -313,6 +313,7 @@ h1, h2, h3, h4, .font-serif {
   border: 1px solid #FFFFFF;
   background-color: #FFFFFF;
   color: #000000;
+  white-space: nowrap;
   transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1), color 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -324,6 +325,7 @@ h1, h2, h3, h4, .font-serif {
 .slide-btn-text-wrapper {
   position: relative;
   display: inline-block;
+  white-space: nowrap;
   transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -337,6 +339,7 @@ h1, h2, h3, h4, .font-serif {
   justify-content: center;
   gap: 8px;
   opacity: 1;
+  white-space: nowrap;
   transition: opacity 0.3s ease;
 }
 
@@ -354,6 +357,7 @@ h1, h2, h3, h4, .font-serif {
   justify-content: center;
   gap: 8px;
   opacity: 0;
+  white-space: nowrap;
   transition: opacity 0.3s ease;
 }
 
