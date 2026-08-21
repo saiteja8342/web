@@ -2091,17 +2091,44 @@ textarea.contact-input-custom {
   align-items: center;
   margin-bottom: 80px;
 }
-@media (max-width: 768px) {
-  .footer-top {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 40px;
-  }
-}
 .footer-headline {
   font-size: clamp(2rem, 4vw, 3rem);
   line-height: 1.1;
   text-transform: uppercase;
+}
+
+@media (max-width: 768px) {
+  .footer-top {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 28px;
+    margin-bottom: 48px;
+  }
+
+  .footer-headline {
+    font-size: clamp(0.95rem, 4.4vw, 1.35rem);
+    white-space: nowrap;
+    text-align: center;
+    width: 100%;
+    margin: 0;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+  }
+
+  .footer-headline br,
+  .footer-br-desktop {
+    display: none !important;
+  }
+
+  .footer-cta {
+    align-self: center !important;
+    margin: 0 auto !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
 }
 
 .footer-middle {

@@ -38,7 +38,7 @@ export default function Footer() {
         
         {/* TOP AREA */}
         <div className="footer-top reveal-element">
-          <h2 className="footer-headline">Let's Create Something<br />Exceptional.</h2>
+          <h2 className="footer-headline">Let's Create Something<br className="footer-br-desktop" /> Exceptional.</h2>
           <a href="#contact" className="btn btn-primary footer-cta" data-hover-type="link">
             Start A Project
           </a>
