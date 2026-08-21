@@ -139,8 +139,8 @@ h1, h2, h3, h4, .font-serif {
   font-weight: 300;
 }
 
-/* Custom Cursor */
-@media (pointer: fine) {
+/* Custom Cursor - Desktop Only */
+@media (min-width: 1025px) and (hover: hover) and (pointer: fine) {
   body { cursor: none; }
   a, button, input, textarea, select, .interactive { cursor: none; }
   
@@ -207,6 +207,19 @@ h1, h2, h3, h4, .font-serif {
     will-change: transform;
   }
   .cursor-dot.hidden { opacity: 0; }
+}
+
+@media (max-width: 1024px), (pointer: coarse), (hover: none) {
+  .cursor-ring,
+  .cursor-dot {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+  }
+  body, a, button, input, textarea, select, .interactive {
+    cursor: auto !important;
+  }
 }
 
 /* Loading Screen */

@@ -8,8 +8,18 @@ export default function CustomCursor() {
   const [isTouchDevice, setIsTouchDevice] = useState(true);
 
   useEffect(() => {
-    // Check if touch device or small screen
-    const isTouch = (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || window.innerWidth < 768);
+    // Check if touch device or mobile/tablet screen
+    const checkTouch = () => {
+      return (
+        ('ontouchstart' in window) ||
+        (navigator.maxTouchPoints > 0) ||
+        window.innerWidth <= 1024 ||
+        window.matchMedia('(pointer: coarse)').matches ||
+        window.matchMedia('(hover: none)').matches
+      );
+    };
+
+    const isTouch = checkTouch();
     setIsTouchDevice(isTouch);
     
     if (isTouch) return;
