@@ -2117,13 +2117,17 @@ textarea.contact-input-custom {
   }
 }
 @media (max-width: 768px) {
-  .footer-col-nav {
+  .footer-col-nav,
+  .footer-col-services,
+  .footer-col-connect,
+  .footer-brand-text {
     display: none !important;
   }
-}
-@media (max-width: 480px) {
+
   .footer-middle {
     grid-template-columns: 1fr;
+    margin-bottom: 30px;
+    gap: 0;
   }
 }
 
