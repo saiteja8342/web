@@ -12,28 +12,72 @@ const TILT_MAX = 7;
 function PortfolioCard({ videoSrc, poster, category, title, aspectRatio, proofMetric, dimmed, onHoverStart, onHoverEnd }) {
   const cardRef = useRef(null);
   const videoRef = useRef(null);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isInView, setIsInView] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [spotlight, setSpotlight] = useState({ x: 0, y: 0 });
 
+  // IntersectionObserver: Only load video when in viewport
+  // Unload video buffer when leaving viewport to keep playback and scrolling smooth
+  useEffect(() => {
+    const cardEl = cardRef.current;
+    if (!cardEl) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+        } else {
+          setIsInView(false);
+          setVideoLoaded(false);
+        }
+      },
+      {
+        root: null,
+        rootMargin: '120px 60px', // Preloads next incoming video right before entering view
+        threshold: 0.05
+      }
+    );
+
+    observer.observe(cardEl);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // Handle video load / play when in view, pause & unload when out of view
   useEffect(() => {
     const video = videoRef.current;
+    if (!video) return;
 
-    if (video) {
-      video.play()
-        .then(() => setIsPlaying(true))
-        .catch(() => setIsPlaying(false));
+    if (isInView) {
+      video.src = videoSrc;
+      video.preload = 'auto';
+      video.load();
 
-      const preventContextMenu = (e) => e.preventDefault();
-      video.addEventListener('contextmenu', preventContextMenu);
-
-      return () => {
-        video.removeEventListener('contextmenu', preventContextMenu);
-      };
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => setIsPlaying(true))
+          .catch(() => setIsPlaying(false));
+      }
+    } else {
+      video.pause();
+      setIsPlaying(false);
+      video.removeAttribute('src');
+      video.load();
     }
-  }, []);
+
+    const preventContextMenu = (e) => e.preventDefault();
+    video.addEventListener('contextmenu', preventContextMenu);
+
+    return () => {
+      video.removeEventListener('contextmenu', preventContextMenu);
+    };
+  }, [isInView, videoSrc]);
 
   const handleMouseEnter = () => {
     if (videoRef.current && videoRef.current.paused) {
@@ -151,13 +195,11 @@ function PortfolioCard({ videoSrc, poster, category, title, aspectRatio, proofMe
           controlsList="nodownload" 
           disablePictureInPicture 
           className="w-full h-full object-cover" 
-          src={videoSrc}
           poster={poster}
           muted={isMuted} 
           loop 
           playsInline 
-          preload="auto"
-          autoPlay
+          preload="none"
           ref={videoRef}
           onLoadedData={() => setVideoLoaded(true)}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}

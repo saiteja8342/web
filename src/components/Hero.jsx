@@ -83,24 +83,62 @@ export default function Hero({ isLoaded }) {
     };
   }, [isLoaded]);
 
-  // Video Autoplay block listener
+  const [isInView, setIsInView] = useState(true);
+
+  // IntersectionObserver for Hero Video: Load on viewport entry, unload on exit
+  useEffect(() => {
+    const wrapper = videoWrapperRef.current;
+    if (!wrapper) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+        } else {
+          setIsInView(false);
+        }
+      },
+      {
+        root: null,
+        rootMargin: '100px 0px',
+        threshold: 0.05
+      }
+    );
+
+    observer.observe(wrapper);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // Video Autoplay & lazy loading lifecycle
   useEffect(() => {
     const video = videoRef.current;
+    if (!video) return;
 
-    if (video) {
-      video.play().catch(() => {
-        // Autoplay blocked, keep paused
-        setPaused(true);
-      });
+    if (isInView) {
+      if (!video.src || !video.src.includes('show_reel.mp4')) {
+        video.src = '/assets/videos/show_reel.mp4';
+        video.preload = 'auto';
+        video.load();
+      }
 
-      const preventContextMenu = (e) => e.preventDefault();
-      video.addEventListener('contextmenu', preventContextMenu);
-
-      return () => {
-        video.removeEventListener('contextmenu', preventContextMenu);
-      };
+      video.play()
+        .then(() => setPaused(false))
+        .catch(() => setPaused(true));
+    } else {
+      video.pause();
+      setPaused(true);
     }
-  }, []);
+
+    const preventContextMenu = (e) => e.preventDefault();
+    video.addEventListener('contextmenu', preventContextMenu);
+
+    return () => {
+      video.removeEventListener('contextmenu', preventContextMenu);
+    };
+  }, [isInView]);
 
   // Subtle 3D tilt tracking
   const handleMouseMove = (e) => {
@@ -202,13 +240,11 @@ export default function Hero({ isLoaded }) {
                 disablePictureInPicture 
                 className="hero-video"
                 ref={videoRef}
-                src="/assets/videos/show_reel.mp4"
                 poster="/assets/posters/showreel-poster.webp"
-                autoPlay
                 muted
                 loop
                 playsInline
-                preload="auto"
+                preload="none"
                 onLoadedData={() => setVideoLoaded(true)}
               ></video>
               <div className="hero-video-overlay"></div>
