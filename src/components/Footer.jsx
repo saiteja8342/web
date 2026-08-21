@@ -65,8 +65,8 @@ export default function Footer() {
             </p>
           </div>
           
-          {/* Column 2 */}
-          <div className="footer-col footer-col-links reveal-element">
+          {/* Column 2 - Navigation */}
+          <div className="footer-col footer-col-links footer-col-nav reveal-element">
             <h4 className="footer-col-title">Navigation</h4>
             <div className="footer-links">
               <a href="#" data-hover-type="link">Home</a>

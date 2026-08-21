@@ -2116,6 +2116,11 @@ textarea.contact-input-custom {
     gap: 40px;
   }
 }
+@media (max-width: 768px) {
+  .footer-col-nav {
+    display: none !important;
+  }
+}
 @media (max-width: 480px) {
   .footer-middle {
     grid-template-columns: 1fr;
