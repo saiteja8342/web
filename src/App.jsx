@@ -8,7 +8,7 @@ import CustomCursor from './components/CustomCursor';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import SocialProof from './components/SocialProof';
-import Portfolio from './components/Portfolio';
+import VideoPortfolio from './components/VideoPortfolio';
 import Services from './components/Services';
 import Contact from './components/Contact';
 import WhatsAppWidget from './components/WhatsAppWidget';
@@ -63,8 +63,8 @@ export default function App() {
       {/* SOCIAL PROOF */}
       <SocialProof />
 
-      {/* PORTFOLIO SELECTED WORK */}
-      <Portfolio />
+      {/* CINEMATIC VIDEO PORTFOLIO CAROUSEL */}
+      <VideoPortfolio />
 
       {/* SPOTLIGHT SERVICES */}
       <Services />
