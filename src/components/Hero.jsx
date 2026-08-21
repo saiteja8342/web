@@ -83,62 +83,56 @@ export default function Hero({ isLoaded }) {
     };
   }, [isLoaded]);
 
-  const [isInView, setIsInView] = useState(true);
-
-  // IntersectionObserver for Hero Video: Load on viewport entry, unload on exit
+  // Autoplay immediately on mount and pause/resume based on viewport visibility
   useEffect(() => {
+    const video = videoRef.current;
     const wrapper = videoWrapperRef.current;
+    if (!video) return;
+
+    if (video.readyState >= 2) {
+      setVideoLoaded(true);
+    }
+
+    // Direct initial play attempt
+    video.play()
+      .then(() => setPaused(false))
+      .catch(() => {
+        video.muted = true;
+        video.play()
+          .then(() => setPaused(false))
+          .catch(() => setPaused(true));
+      });
+
     if (!wrapper) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setIsInView(true);
+          video.play()
+            .then(() => setPaused(false))
+            .catch(() => {});
         } else {
-          setIsInView(false);
+          video.pause();
+          setPaused(true);
         }
       },
       {
         root: null,
-        rootMargin: '100px 0px',
+        rootMargin: '150px 0px',
         threshold: 0.05
       }
     );
 
     observer.observe(wrapper);
 
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-
-  // Video Autoplay & lazy loading lifecycle
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (isInView) {
-      if (!video.src || !video.src.includes('show_reel.mp4')) {
-        video.src = '/assets/videos/show_reel.mp4';
-        video.preload = 'auto';
-        video.load();
-      }
-
-      video.play()
-        .then(() => setPaused(false))
-        .catch(() => setPaused(true));
-    } else {
-      video.pause();
-      setPaused(true);
-    }
-
     const preventContextMenu = (e) => e.preventDefault();
     video.addEventListener('contextmenu', preventContextMenu);
 
     return () => {
+      observer.disconnect();
       video.removeEventListener('contextmenu', preventContextMenu);
     };
-  }, [isInView]);
+  }, []);
 
   // Subtle 3D tilt tracking
   const handleMouseMove = (e) => {
@@ -236,16 +230,20 @@ export default function Hero({ isLoaded }) {
                 <div className="skeleton-loader hero-skeleton" aria-hidden="true"></div>
               )}
               <video 
-                controlsList="nodownload" 
-                disablePictureInPicture 
-                className="hero-video"
                 ref={videoRef}
+                src="/assets/videos/show_reel.mp4"
                 poster="/assets/posters/showreel-poster.webp"
+                autoPlay
                 muted
                 loop
                 playsInline
-                preload="none"
+                preload="auto"
+                controlsList="nodownload" 
+                disablePictureInPicture 
+                className="hero-video"
                 onLoadedData={() => setVideoLoaded(true)}
+                onCanPlay={() => setVideoLoaded(true)}
+                onPlaying={() => setVideoLoaded(true)}
               ></video>
               <div className="hero-video-overlay"></div>
               <div className="hero-vid-controls">
