@@ -534,11 +534,7 @@ export default function Portfolio() {
 
         {/* Horizontal Carousel View */}
         <div className="w-full py-4 border-b border-[#ffffff08] reveal-element">
-          <div className="carousel-header" style={{ marginBottom: 16 }}>
-            <span className="caption" style={{ color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
-              Showing {filteredVideos.length} {filteredVideos.length === 1 ? 'project' : 'projects'}
-            </span>
-            
+          <div className="carousel-header" style={{ marginBottom: 16, justifyContent: 'flex-end' }}>
             {/* Scroll Navigation */}
             <div className="carousel-buttons">
               <button

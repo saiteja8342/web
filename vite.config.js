@@ -1,11 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'url'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   build: {
     rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        about: fileURLToPath(new URL('./about.html', import.meta.url)),
+        work: fileURLToPath(new URL('./work.html', import.meta.url)),
+        ourWork: fileURLToPath(new URL('./our-work.html', import.meta.url)),
+      },
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {

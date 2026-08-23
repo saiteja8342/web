@@ -2,20 +2,11 @@ import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function CarouselNavigation({
-  total = 5,
   onPrev,
   onNext
 }) {
-  const formattedTotal = String(total).padStart(2, '0');
-
   return (
-    <div className="carousel-nav-header">
-      <div className="carousel-nav-counter">
-        <span className="carousel-nav-counter-text">
-          SHOWING 01 — {formattedTotal} PROJECTS
-        </span>
-      </div>
-
+    <div className="carousel-nav-header" style={{ justifyContent: 'flex-end' }}>
       <div className="carousel-nav-buttons">
         <button
           type="button"

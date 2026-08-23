@@ -27,11 +27,15 @@ export default function Navbar() {
     setMobileMenuOpen(false);
   };
 
+  const isAboutPage = typeof window !== 'undefined' && window.location.pathname.includes('about');
+  const isWorkPage = typeof window !== 'undefined' && window.location.pathname.includes('work');
+  const isSecondaryPage = isAboutPage || isWorkPage;
+
   return (
     <>
       <nav className={`nav ${scrolled ? 'scrolled' : ''}`} id="nav">
         <div className="container nav-inner">
-          <a href="#" className="nav-logo" data-hover-type="link" style={{ textDecoration: 'none' }}>
+          <a href={isSecondaryPage ? "/" : "#"} className="nav-logo" data-hover-type="link" style={{ textDecoration: 'none' }}>
             <span className="logo-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <img 
                 src="/image/mne_logo.png" 
@@ -61,11 +65,12 @@ export default function Navbar() {
           </a>
 
           <div className="nav-links">
-            <a href="#" data-hover-type="link">Home</a>
-            <a href="#services" data-hover-type="link">Services</a>
-            <a href="#work" data-hover-type="link">Work</a>
-            <a href="#testimonials" data-hover-type="link">Testimonials</a>
-            <a href="#contact" data-hover-type="link">Contact</a>
+            <a href={isSecondaryPage ? "/" : "#"} data-hover-type="link">Home</a>
+            <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">Services</a>
+            <a href="/work.html" className={isWorkPage ? "active" : ""} target={isWorkPage ? "_self" : "_blank"} rel="noopener noreferrer" data-hover-type="link">Our Work</a>
+            <a href="/about.html" className={isAboutPage ? "active" : ""} target={isAboutPage ? "_self" : "_blank"} rel="noopener noreferrer" data-hover-type="link">About Us</a>
+            <a href={isSecondaryPage ? "/#testimonials" : "#testimonials"} data-hover-type="link">Client Reviews</a>
+            <a href={isSecondaryPage ? "/#contact" : "#contact"} data-hover-type="link">Contact</a>
           </div>
 
           <NoiseBackground
@@ -76,7 +81,7 @@ export default function Navbar() {
               "rgb(255, 200, 100)",
             ]}
           >
-            <a href="#contact" className="nav-cta-custom-noise" data-hover-type="link">
+            <a href={isSecondaryPage ? "/#contact" : "#contact"} className="nav-cta-custom-noise" data-hover-type="link">
               Start a project
             </a>
           </NoiseBackground>

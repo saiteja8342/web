@@ -15,8 +15,9 @@ export default function MobileSidebar({ isOpen, onClose }) {
   const links = [
     { label: 'Home', href: '#', icon: <Home className="h-5 w-5 shrink-0 text-white/80" /> },
     { label: 'Services', href: '#services', icon: <Sparkles className="h-5 w-5 shrink-0 text-white/80" /> },
-    { label: 'Work', href: '#work', icon: <Film className="h-5 w-5 shrink-0 text-white/80" /> },
-    { label: 'Testimonials', href: '#testimonials', icon: <Star className="h-5 w-5 shrink-0 text-white/80" /> },
+    { label: 'Our Work', href: '/work.html', target: '_blank', icon: <Film className="h-5 w-5 shrink-0 text-white/80" /> },
+    { label: 'About Us', href: '/about.html', target: '_blank', icon: <Sparkles className="h-5 w-5 shrink-0 text-white/80" /> },
+    { label: 'Client Reviews', href: '#testimonials', icon: <Star className="h-5 w-5 shrink-0 text-white/80" /> },
     { label: 'Contact', href: '#contact', icon: <Mail className="h-5 w-5 shrink-0 text-white/80" /> },
   ];
 
@@ -115,6 +116,8 @@ export default function MobileSidebar({ isOpen, onClose }) {
                 <motion.a
                   key={idx}
                   href={link.href}
+                  target={link.target}
+                  rel={link.target ? "noopener noreferrer" : undefined}
                   variants={linkVariants}
                   onClick={(e) => handleLinkClick(e, link.href)}
                   className="mobile-sidebar-link"
