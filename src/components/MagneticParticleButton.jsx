@@ -10,6 +10,8 @@ export default function MagneticParticleButton({ children, className = '', disab
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
 
+  const startRenderLoopRef = useRef(null);
+
   // Initialize Canvas Particles Loop
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -29,6 +31,11 @@ export default function MagneticParticleButton({ children, className = '', disab
 
     const render = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (particlesRef.current.length === 0) {
+        animationFrameRef.current = null;
+        return;
+      }
 
       particlesRef.current.forEach((p, index) => {
         p.x += p.vx;
@@ -51,10 +58,18 @@ export default function MagneticParticleButton({ children, className = '', disab
         }
       });
 
-      animationFrameRef.current = requestAnimationFrame(render);
+      if (particlesRef.current.length > 0) {
+        animationFrameRef.current = requestAnimationFrame(render);
+      } else {
+        animationFrameRef.current = null;
+      }
     };
 
-    render();
+    startRenderLoopRef.current = () => {
+      if (!animationFrameRef.current) {
+        animationFrameRef.current = requestAnimationFrame(render);
+      }
+    };
 
     return () => {
       window.removeEventListener('resize', updateCanvasSize);
@@ -93,6 +108,10 @@ export default function MagneticParticleButton({ children, className = '', disab
         decay: isClick ? Math.random() * 0.03 + 0.015 : Math.random() * 0.04 + 0.02,
         color
       });
+    }
+
+    if (startRenderLoopRef.current) {
+      startRenderLoopRef.current();
     }
   };
 

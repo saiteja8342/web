@@ -237,7 +237,7 @@ export default function Hero({ isLoaded }) {
                 muted
                 loop
                 playsInline
-                preload="auto"
+                preload="metadata"
                 controlsList="nodownload" 
                 disablePictureInPicture 
                 className="hero-video"

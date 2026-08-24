@@ -37,6 +37,15 @@ export default function BackgroundRippleEffect() {
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
+    let isRunning = false;
+
+    const requestRender = () => {
+      if (!isRunning) {
+        isRunning = true;
+        animationFrameRef.current = requestAnimationFrame(render);
+      }
+    };
+
     // Mouse Move listener on Hero container
     const handleMouseMove = (e) => {
       if (!container) return;
@@ -47,6 +56,7 @@ export default function BackgroundRippleEffect() {
       const col = Math.floor(mouseX / tileSize);
       const row = Math.floor(mouseY / tileSize);
 
+      let activated = false;
       // Trigger hover intensity for target and neighbor tiles
       for (let r = -2; r <= 2; r++) {
         for (let c = -2; c <= 2; c++) {
@@ -57,9 +67,11 @@ export default function BackgroundRippleEffect() {
             const intensity = Math.max(0, 1 - dist / 2.5);
             const index = targetRow * cols + targetCol;
             tilesRef.current[index] = Math.max(tilesRef.current[index], intensity * 0.85);
+            activated = true;
           }
         }
       }
+      if (activated) requestRender();
     };
 
     // Mouse Click listener for expanding wave ripple
@@ -73,19 +85,13 @@ export default function BackgroundRippleEffect() {
         maxRadius: Math.max(rect.width, rect.height) * 0.6,
         alpha: 1
       });
+      requestRender();
     };
 
-    container.addEventListener('mousemove', handleMouseMove);
+    container.addEventListener('mousemove', handleMouseMove, { passive: true });
     container.addEventListener('click', handleClick);
 
-    // Render Animation Loop
-    const render = () => {
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-
-      ctx.clearRect(0, 0, width, height);
-
-      // 1. Draw subtle grid lines
+    const drawGrid = (width, height) => {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.035)';
       ctx.lineWidth = 1;
 
@@ -102,15 +108,30 @@ export default function BackgroundRippleEffect() {
         ctx.lineTo(width, y);
         ctx.stroke();
       }
+    };
+
+    // Render Animation Loop
+    const render = () => {
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      ctx.clearRect(0, 0, width, height);
+
+      // 1. Draw subtle grid lines
+      drawGrid(width, height);
+
+      let hasActiveElements = false;
 
       // 2. Process Click Ripples
-      ripplesRef.current.forEach((ripple, rIndex) => {
+      for (let rIndex = ripplesRef.current.length - 1; rIndex >= 0; rIndex--) {
+        const ripple = ripplesRef.current[rIndex];
         ripple.radius += 12;
         ripple.alpha -= 0.015;
 
         if (ripple.alpha <= 0 || ripple.radius >= ripple.maxRadius) {
           ripplesRef.current.splice(rIndex, 1);
         } else {
+          hasActiveElements = true;
           // Highlight tiles intersected by ripple ring
           for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
@@ -127,7 +148,7 @@ export default function BackgroundRippleEffect() {
             }
           }
         }
-      });
+      }
 
       // 3. Draw Active Tiles
       for (let r = 0; r < rows; r++) {
@@ -136,6 +157,7 @@ export default function BackgroundRippleEffect() {
           let val = tilesRef.current[index];
 
           if (val > 0.01) {
+            hasActiveElements = true;
             const x = c * tileSize;
             const y = r * tileSize;
 
@@ -156,10 +178,15 @@ export default function BackgroundRippleEffect() {
         }
       }
 
-      animationFrameRef.current = requestAnimationFrame(render);
+      if (hasActiveElements) {
+        animationFrameRef.current = requestAnimationFrame(render);
+      } else {
+        isRunning = false;
+      }
     };
 
-    render();
+    // Draw static initial grid once
+    drawGrid(container.clientWidth, container.clientHeight);
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);

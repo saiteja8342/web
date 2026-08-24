@@ -186,22 +186,32 @@ function VideoCardComponent({
           transition: 'transform 0.15s ease-out'
         }}
       >
-        {/* Video Element */}
-        <video
-          ref={videoRef}
-          src={project.video}
-          poster={project.poster}
-          autoPlay={isActive}
-          muted={isMuted}
-          playsInline
-          loop
-          preload="auto"
-          controlsList="nodownload"
-          disablePictureInPicture
-          aria-label={project.title}
-          onContextMenu={preventContextMenu}
-          className="video-card-element"
-        />
+        {/* Video or Lazy Poster Element */}
+        {isActive ? (
+          <video
+            ref={videoRef}
+            src={project.video}
+            poster={project.poster}
+            autoPlay
+            muted={isMuted}
+            playsInline
+            loop
+            preload="metadata"
+            controlsList="nodownload"
+            disablePictureInPicture
+            aria-label={project.title}
+            onContextMenu={preventContextMenu}
+            className="video-card-element"
+          />
+        ) : (
+          <img
+            src={project.poster}
+            alt={project.title}
+            loading="lazy"
+            decoding="async"
+            className="video-card-element"
+          />
+        )}
 
         {/* Center Hover Play/Pause Indicator (56px circle) */}
         <div
