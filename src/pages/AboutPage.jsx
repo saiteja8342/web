@@ -12,7 +12,6 @@ import WhatsAppWidget from '../components/WhatsAppWidget';
 import './about.css';
 import AboutHero from '../components/About/AboutHero';
 import AboutWhoWeAre from '../components/About/AboutWhoWeAre';
-import AboutMission from '../components/About/AboutMission';
 import AboutWhyUs from '../components/About/AboutWhyUs';
 import AboutQualityStandard from '../components/About/AboutQualityStandard';
 import AboutTeam from '../components/About/AboutTeam';
@@ -82,7 +81,6 @@ export default function AboutPage() {
       <main className="about-page-wrapper">
         <AboutHero />
         <AboutWhoWeAre />
-        <AboutMission />
         <AboutWhyUs />
         <AboutQualityStandard />
         <AboutTeam />
