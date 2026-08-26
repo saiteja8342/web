@@ -8,6 +8,18 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import WhatsAppWidget from '../components/WhatsAppWidget';
 
+// Import themed About components
+import './about.css';
+import AboutHero from '../components/About/AboutHero';
+import AboutWhoWeAre from '../components/About/AboutWhoWeAre';
+import AboutMission from '../components/About/AboutMission';
+import AboutWhyUs from '../components/About/AboutWhyUs';
+import AboutQualityStandard from '../components/About/AboutQualityStandard';
+import AboutTeam from '../components/About/AboutTeam';
+import AboutGlobalPresence from '../components/About/AboutGlobalPresence';
+import AboutFinalCTA from '../components/About/AboutFinalCTA';
+import AboutFAQ from '../components/About/AboutFAQ';
+
 gsap.registerPlugin(ScrollTrigger);
 
 export default function AboutPage() {
@@ -34,40 +46,54 @@ export default function AboutPage() {
     gsap.ticker.add(tickerCallback);
     gsap.ticker.lagSmoothing(0);
 
+    // Fade up animations for sections
+    const fadeElements = gsap.utils.toArray('.about-fade-up');
+    fadeElements.forEach((el) => {
+      gsap.fromTo(el,
+        { opacity: 0, y: 28 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.7,
+          ease: 'power3.out',
+          scrollTrigger: {
+            trigger: el,
+            start: 'top 88%',
+            toggleActions: 'play none none none'
+          }
+        }
+      );
+    });
+
     return () => {
       lenis.destroy();
       gsap.ticker.remove(tickerCallback);
+      ScrollTrigger.getAll().forEach(t => t.kill());
     };
   }, []);
 
   return (
     <>
-      {/* CUSTOM CURSOR */}
       <CustomCursor />
-
-      {/* NAVBAR */}
+      
+      {/* Official Site Navigation */}
       <Navbar />
 
-      {/* MAIN THEMED PAGE CONTAINER */}
-      <main 
-        className="about-page-wrapper"
-        style={{
-          minHeight: '70vh',
-          position: 'relative',
-          paddingTop: '120px',
-          paddingBottom: '80px',
-          background: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(120, 119, 198, 0.15), rgba(255, 255, 255, 0))'
-        }}
-      >
-        <div className="container" style={{ minHeight: '40vh' }}>
-          {/* Plain Page Workspace */}
-        </div>
+      <main className="about-page-wrapper">
+        <AboutHero />
+        <AboutWhoWeAre />
+        <AboutMission />
+        <AboutWhyUs />
+        <AboutQualityStandard />
+        <AboutTeam />
+        <AboutGlobalPresence />
+        <AboutFinalCTA />
+        <AboutFAQ />
       </main>
 
-      {/* FLOATING WHATSAPP DRAWERS */}
       <WhatsAppWidget />
-
-      {/* FOOTER */}
+      
+      {/* Official Site Footer */}
       <Footer />
     </>
   );

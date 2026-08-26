@@ -38,6 +38,15 @@ export default function Footer() {
     ScrollTrigger.refresh();
   }, []);
 
+  const handleOpenAiDemo = () => {
+    const waBtn = document.getElementById('waBtn');
+    if (waBtn) {
+      waBtn.click();
+    } else {
+      window.open('https://wa.me/918985351756?text=Hi%20MotionNodeEdits,%20I%20would%20like%20to%20try%20an%20AI%20demo', '_blank');
+    }
+  };
+
   return (
     <footer className="footer-premium footer-ref-style" ref={footerRef}>
       <div className="container">
@@ -50,7 +59,7 @@ export default function Footer() {
           </a>
         </div>
         
-        {/* MAIN THREE-COLUMN REFERENCE FOOTER AREA */}
+        {/* MAIN REFERENCE FOOTER AREA */}
         <div className="footer-main-grid reveal-element">
           
           {/* COLUMN 1: BRAND, STUDIO INFO, PHONE/EMAIL & SOCIALS */}
@@ -150,51 +159,54 @@ export default function Footer() {
             </div>
           </div>
           
-          {/* COLUMN 2: QUICK LINKS */}
-          <div className="footer-links-column">
-            <h4 className="footer-section-title">Quick Links</h4>
-            <ul className="footer-nav-list">
-              <li>
-                <a href={isSecondaryPage ? "/" : "#"} data-hover-type="link">Home</a>
-              </li>
-              <li>
-                <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">Services</a>
-              </li>
-              <li>
-                <a href="/work.html" target={isWorkPage ? "_self" : "_blank"} rel="noopener noreferrer" data-hover-type="link">Our Work</a>
-              </li>
-              <li>
-                <a href="/about.html" target={isAboutPage ? "_self" : "_blank"} rel="noopener noreferrer" data-hover-type="link">About Us</a>
-              </li>
-              <li>
-                <a href={isSecondaryPage ? "/#testimonials" : "#testimonials"} data-hover-type="link">Client Reviews</a>
-              </li>
-              <li>
-                <a href={isSecondaryPage ? "/#contact" : "#contact"} data-hover-type="link">Contact Us</a>
-              </li>
-            </ul>
-          </div>
-          
-          {/* COLUMN 3: SERVICES */}
-          <div className="footer-links-column">
-            <h4 className="footer-section-title">Services</h4>
-            <ul className="footer-nav-list">
-              <li>
-                <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">AI Video Production</a>
-              </li>
-              <li>
-                <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">Video Editing</a>
-              </li>
-              <li>
-                <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">AI Advertisements</a>
-              </li>
-              <li>
-                <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">Social Media Reels & UGC</a>
-              </li>
-              <li>
-                <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">Color Grading & Sound Design</a>
-              </li>
-            </ul>
+          {/* 2-COLUMN GRID WRAPPER FOR QUICK LINKS & SERVICES */}
+          <div className="footer-links-grid-wrapper">
+            {/* QUICK LINKS */}
+            <div className="footer-links-column">
+              <h4 className="footer-section-title">Quick Links</h4>
+              <ul className="footer-nav-list">
+                <li>
+                  <a href={isSecondaryPage ? "/" : "#"} data-hover-type="link">Home</a>
+                </li>
+                <li>
+                  <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">Services</a>
+                </li>
+                <li>
+                  <a href="/work.html" target={isWorkPage ? "_self" : "_blank"} rel="noopener noreferrer" data-hover-type="link">Our Work</a>
+                </li>
+                <li>
+                  <a href="/about.html" target={isAboutPage ? "_self" : "_blank"} rel="noopener noreferrer" data-hover-type="link">About Us</a>
+                </li>
+                <li>
+                  <a href={isSecondaryPage ? "/#testimonials" : "#testimonials"} data-hover-type="link">Client Reviews</a>
+                </li>
+                <li>
+                  <a href={isSecondaryPage ? "/#contact" : "#contact"} data-hover-type="link">Contact Us</a>
+                </li>
+              </ul>
+            </div>
+            
+            {/* SERVICES */}
+            <div className="footer-links-column">
+              <h4 className="footer-section-title">Services</h4>
+              <ul className="footer-nav-list">
+                <li>
+                  <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">AI Video Production</a>
+                </li>
+                <li>
+                  <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">Video Editing</a>
+                </li>
+                <li>
+                  <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">AI Advertisements</a>
+                </li>
+                <li>
+                  <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">Social Media Reels & UGC</a>
+                </li>
+                <li>
+                  <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">Color Grading & Sound Design</a>
+                </li>
+              </ul>
+            </div>
           </div>
 
         </div>
@@ -203,13 +215,23 @@ export default function Footer() {
         <div className="footer-bottom-bar reveal-element">
           <div className="footer-bottom-divider"></div>
           <div className="footer-legal-row">
-            <div className="footer-copyright-text">
-              © 2026 MotionNodeEdits. All rights reserved.
+            <div className="footer-legal-left-group">
+              <div className="footer-copyright-text">
+                © 2026 MotionNodeEdits. All rights reserved.
+              </div>
+              <button 
+                className="footer-ai-demo-pill" 
+                onClick={handleOpenAiDemo}
+                data-hover-type="link"
+                aria-label="Try an AI demo"
+              >
+                Try an AI demo
+              </button>
             </div>
             <div className="footer-legal-links">
               <a href={isSecondaryPage ? "/" : "#"} data-hover-type="link">Privacy Policy</a>
-              <span className="footer-legal-pipe">|</span>
-              <a href={isSecondaryPage ? "/" : "#"} data-hover-type="link">Terms of Service</a>
+              <span className="footer-legal-pipe">||</span>
+              <a href="/terms.html" target="_blank" rel="noopener noreferrer" data-hover-type="link">Terms of Service</a>
             </div>
           </div>
         </div>

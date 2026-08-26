@@ -12,6 +12,7 @@ export default defineConfig({
         about: fileURLToPath(new URL('./about.html', import.meta.url)),
         work: fileURLToPath(new URL('./work.html', import.meta.url)),
         ourWork: fileURLToPath(new URL('./our-work.html', import.meta.url)),
+        terms: fileURLToPath(new URL('./terms.html', import.meta.url)),
       },
       output: {
         manualChunks(id) {
