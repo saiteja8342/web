@@ -15,8 +15,6 @@ import AboutWhoWeAre from '../components/About/AboutWhoWeAre';
 import AboutWhyUs from '../components/About/AboutWhyUs';
 import AboutQualityStandard from '../components/About/AboutQualityStandard';
 import AboutTeam from '../components/About/AboutTeam';
-import AboutGlobalPresence from '../components/About/AboutGlobalPresence';
-import AboutFinalCTA from '../components/About/AboutFinalCTA';
 import AboutFAQ from '../components/About/AboutFAQ';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -84,8 +82,6 @@ export default function AboutPage() {
         <AboutWhyUs />
         <AboutQualityStandard />
         <AboutTeam />
-        <AboutGlobalPresence />
-        <AboutFinalCTA />
         <AboutFAQ />
       </main>
 
