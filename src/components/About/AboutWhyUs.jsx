@@ -1,14 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
+import React from 'react';
 
 export default function AboutWhyUs() {
-  const sectionRef = useRef(null);
-  const cardViewportRef = useRef(null);
-  const cardsRef = useRef([]);
-
   const reasons = [
     { 
       num: '01', 
@@ -32,129 +24,12 @@ export default function AboutWhyUs() {
     },
   ];
 
-  useEffect(() => {
-    const section = sectionRef.current;
-    const cards = cardsRef.current.filter(Boolean);
-
-    if (!section || cards.length === 0) return;
-
-    const mm = gsap.matchMedia();
-
-    mm.add('(min-width: 961px) and (prefers-reduced-motion: no-preference)', () => {
-      // Set initial positions: Card 1 is visible at center; Cards 2, 3, 4 are waiting below
-      gsap.set(cards[0], { y: 0, opacity: 1, scale: 1, zIndex: 4 });
-      for (let i = 1; i < cards.length; i++) {
-        gsap.set(cards[i], { y: 140, opacity: 0, scale: 0.94, zIndex: 4 - i });
-      }
-
-      // Master pinned timeline
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          trigger: section,
-          pin: true,
-          start: 'top top',
-          end: '+=2400',
-          scrub: 0.8,
-          invalidateOnRefresh: true,
-          anticipatePin: 1
-        }
-      });
-
-      // --- STEP 1: Card 01 -> Card 02 ---
-      // Hold Card 01 briefly
-      tl.to({}, { duration: 0.3 });
-      
-      // Card 01 moves UPWARDS and exits; Card 02 moves UPWARDS from bottom into center
-      tl.to(cards[0], { 
-        y: -140, 
-        opacity: 0, 
-        scale: 0.94, 
-        duration: 0.8, 
-        ease: 'power2.inOut' 
-      }, 'step1');
-      tl.to(cards[1], { 
-        y: 0, 
-        opacity: 1, 
-        scale: 1, 
-        duration: 0.8, 
-        ease: 'power2.inOut' 
-      }, 'step1');
-
-      // Hold Card 02 briefly
-      tl.to({}, { duration: 0.4 });
-
-      // --- STEP 2: Card 02 -> Card 03 ---
-      // Card 02 moves UPWARDS and exits; Card 03 moves UPWARDS from bottom into center
-      tl.to(cards[1], { 
-        y: -140, 
-        opacity: 0, 
-        scale: 0.94, 
-        duration: 0.8, 
-        ease: 'power2.inOut' 
-      }, 'step2');
-      tl.to(cards[2], { 
-        y: 0, 
-        opacity: 1, 
-        scale: 1, 
-        duration: 0.8, 
-        ease: 'power2.inOut' 
-      }, 'step2');
-
-      // Hold Card 03 briefly
-      tl.to({}, { duration: 0.4 });
-
-      // --- STEP 3: Card 03 -> Card 04 ---
-      // Card 03 moves UPWARDS and exits; Card 04 moves UPWARDS from bottom into center
-      tl.to(cards[2], { 
-        y: -140, 
-        opacity: 0, 
-        scale: 0.94, 
-        duration: 0.8, 
-        ease: 'power2.inOut' 
-      }, 'step3');
-      tl.to(cards[3], { 
-        y: 0, 
-        opacity: 1, 
-        scale: 1, 
-        duration: 0.8, 
-        ease: 'power2.inOut' 
-      }, 'step3');
-
-      // Hold Card 04 to finish
-      tl.to({}, { duration: 0.4 });
-
-      return () => {
-        tl.kill();
-      };
-    });
-
-    mm.add('(max-width: 960px), (prefers-reduced-motion: reduce)', () => {
-      cards.forEach(c => {
-        gsap.set(c, {
-          y: 0,
-          opacity: 1,
-          scale: 1,
-          position: 'relative'
-        });
-      });
-    });
-
-    const timer = setTimeout(() => {
-      ScrollTrigger.refresh();
-    }, 200);
-
-    return () => {
-      clearTimeout(timer);
-      mm.revert();
-    };
-  }, []);
-
   return (
-    <section ref={sectionRef} className="why-us-stacked-section" id="why-us">
-      <div className="about-container why-us-stacked-container">
+    <section className="why-us-section" id="why-us">
+      <div className="about-container why-us-container">
         
-        {/* LEFT COLUMN: STATIONARY HEADING */}
-        <div className="why-us-fixed-left-col">
+        {/* LEFT COLUMN: STICKY STATIONARY HEADING */}
+        <div className="why-us-left-col about-fade-up">
           <div className="chrome-badge" style={{ marginBottom: '20px' }}>
             WHY WORK WITH US
           </div>
@@ -167,24 +42,16 @@ export default function AboutWhyUs() {
           </p>
         </div>
 
-        {/* RIGHT COLUMN: CARD STACK VIEWPORT */}
-        <div ref={cardViewportRef} className="why-us-card-viewport">
+        {/* RIGHT COLUMN: VERTICAL LIST OF 4 CARDS */}
+        <div className="why-us-right-col">
           {reasons.map((reason, idx) => (
-            <div 
-              key={idx} 
-              ref={(el) => (cardsRef.current[idx] = el)}
-              className="why-us-card-item"
-            >
-              <div className="why-us-card-top-row">
-                <span className="why-us-highlight-num">
-                  {reason.num}
-                </span>
+            <div key={idx} className="why-us-card-item about-fade-up">
+              <div className="why-us-card-num">
+                {reason.num}
               </div>
-
               <h3 className="why-us-card-title">
                 {reason.title}
               </h3>
-              
               <p className="why-us-card-desc">
                 {reason.text}
               </p>
@@ -196,47 +63,41 @@ export default function AboutWhyUs() {
 
       {/* COMPONENT STYLES */}
       <style dangerouslySetInnerHTML={{__html: `
-        .why-us-stacked-section {
+        .why-us-section {
           background-color: var(--about-bg-primary, #050507);
           color: var(--about-text-primary, #FFFFFF);
           position: relative;
           width: 100%;
-          min-height: 100vh;
-          height: 100vh;
-          display: flex;
-          align-items: center;
           border-top: 1px solid var(--about-border, rgba(255, 255, 255, 0.07));
-          overflow: hidden;
+          padding: 120px 0;
           box-sizing: border-box;
-          z-index: 10;
         }
 
-        .why-us-stacked-container {
+        .why-us-container {
           display: grid;
           grid-template-columns: 1fr 1.35fr;
-          gap: 64px;
-          align-items: center;
+          gap: 72px;
+          align-items: flex-start;
           width: 100%;
           padding: 0 40px;
           box-sizing: border-box;
-          position: relative;
         }
 
-        /* Left Stationary Column */
-        .why-us-fixed-left-col {
+        /* Left Column (Stationary Sticky) */
+        .why-us-left-col {
+          position: sticky;
+          top: 120px;
           display: flex;
           flex-direction: column;
           align-items: flex-start;
-          justify-content: center;
-          z-index: 2;
           max-width: 440px;
         }
 
         .why-us-main-heading {
           font-family: var(--about-font-heading, 'Cormorant Garamond', serif) !important;
-          font-size: clamp(32px, 3.8vw, 48px) !important;
+          font-size: clamp(36px, 4.4vw, 54px) !important;
           font-weight: 300;
-          line-height: 1.08;
+          line-height: 1.05;
           color: #FFFFFF;
           text-transform: uppercase;
           letter-spacing: -0.02em;
@@ -245,64 +106,53 @@ export default function AboutWhyUs() {
 
         .why-us-left-sub {
           font-family: var(--about-font-sans, 'Plus Jakarta Sans', sans-serif);
-          font-size: 14.5px;
-          line-height: 1.7;
+          font-size: 15px;
+          line-height: 1.75;
           color: var(--about-text-secondary, #8E8F94);
           font-weight: 300;
           margin: 0;
         }
 
-        /* Right Viewport: Holds cards in the exact same focal center */
-        .why-us-card-viewport {
-          position: relative;
-          height: 320px;
-          width: 100%;
-          max-width: 580px;
+        /* Right Column (Vertical Cards Stack) */
+        .why-us-right-col {
           display: flex;
-          align-items: center;
-          justify-content: center;
+          flex-direction: column;
+          gap: 28px;
+          width: 100%;
         }
 
-        /* Card Items: Overlaid in the center, animating vertically */
+        /* Individual Obsidian Cards */
         .why-us-card-item {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
+          background: rgba(14, 14, 22, 0.75);
+          border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 20px;
-          padding: 38px 42px;
+          padding: 36px 40px;
+          position: relative;
           box-sizing: border-box;
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.75);
-          background-color: rgba(22, 22, 34, 0.96);
+          transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .why-us-card-item:hover {
+          border-color: rgba(255, 255, 255, 0.35);
+          background: rgba(22, 22, 34, 0.9);
+          transform: translateY(-3px);
           box-shadow: 
-            0 0 45px rgba(255, 255, 255, 0.25),
-            0 20px 48px rgba(0, 0, 0, 0.8),
-            inset 0 1px 2px rgba(255, 255, 255, 0.5);
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          will-change: transform, opacity;
+            0 0 35px rgba(255, 255, 255, 0.12),
+            0 16px 44px rgba(0, 0, 0, 0.6);
         }
 
-        .why-us-card-top-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 12px;
-        }
-
-        /* Standout Numbers */
-        .why-us-highlight-num {
+        .why-us-card-num {
           font-family: var(--about-font-heading, 'Cormorant Garamond', serif);
-          font-size: 58px;
-          font-weight: 400;
+          font-size: 64px;
+          font-weight: 300;
           line-height: 1;
           color: #FFFFFF;
+          margin-bottom: 4px;
           letter-spacing: -0.02em;
-          text-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+          text-shadow: 0 0 16px rgba(255, 255, 255, 0.35);
         }
 
         .why-us-card-title {
@@ -310,7 +160,7 @@ export default function AboutWhyUs() {
           font-size: 26px;
           font-weight: 300;
           color: #FFFFFF;
-          margin: 0 0 10px 0;
+          margin: 0 0 12px 0;
           text-transform: uppercase;
           letter-spacing: -0.01em;
         }
@@ -318,50 +168,39 @@ export default function AboutWhyUs() {
         .why-us-card-desc {
           font-family: var(--about-font-sans, 'Plus Jakarta Sans', sans-serif);
           font-size: 14.5px;
-          color: #E2E8F0;
-          line-height: 1.7;
+          color: #A1A1AA;
+          line-height: 1.75;
           margin: 0;
           font-weight: 300;
         }
 
         /* Mobile Responsive */
         @media (max-width: 960px) {
-          .why-us-stacked-section {
-            min-height: auto;
-            height: auto;
-            padding: 70px 0;
+          .why-us-section {
+            padding: 80px 0;
           }
 
-          .why-us-stacked-container {
+          .why-us-container {
             grid-template-columns: 1fr;
             gap: 40px;
-            padding: 0 20px;
+            padding: 0 24px;
           }
 
-          .why-us-card-viewport {
-            height: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+          .why-us-left-col {
+            position: relative;
+            top: auto;
           }
 
           .why-us-card-item {
-            position: relative;
-            top: auto;
-            left: auto;
-            height: auto;
-            min-height: auto;
-            opacity: 1 !important;
-            transform: none !important;
             padding: 28px 24px;
           }
 
           .why-us-main-heading {
-            font-size: 32px !important;
+            font-size: 34px !important;
           }
 
-          .why-us-highlight-num {
-            font-size: 44px;
+          .why-us-card-num {
+            font-size: 48px;
           }
         }
       `}} />
