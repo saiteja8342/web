@@ -168,8 +168,8 @@ import{n as e}from"./rolldown-runtime-CbXtAM7H.js";import{i as t,n,r,t as i}from
             margin-top: 48px;
           }
         }
-      `}})]})}function x(){return(0,y.jsx)(`section`,{className:`about-section`,children:(0,y.jsxs)(`div`,{className:`about-container`,style:{display:`flex`,flexWrap:`wrap`,gap:`48px`,alignItems:`center`},children:[(0,y.jsxs)(`div`,{className:`about-fade-up`,style:{flex:`1 1 50%`,minWidth:`300px`},children:[(0,y.jsx)(`div`,{className:`chrome-badge`,style:{marginBottom:`20px`},children:`WHO WE ARE`}),(0,y.jsxs)(`h2`,{style:{fontSize:`clamp(36px, 5vw, 64px)`,fontWeight:300,lineHeight:1.05,color:`var(--about-text-primary)`,textTransform:`uppercase`,letterSpacing:`-0.03em`},children:[`Built For The`,(0,y.jsx)(`br`,{}),`Next Generation`,(0,y.jsx)(`br`,{}),`Of Video.`]})]}),(0,y.jsxs)(`div`,{className:`about-fade-up`,style:{flex:`1 1 45%`,minWidth:`300px`,display:`flex`,flexDirection:`column`,gap:`20px`},children:[(0,y.jsxs)(`div`,{style:{fontSize:`15px`,color:`var(--about-text-secondary)`,lineHeight:1.8,display:`flex`,flexDirection:`column`,gap:`16px`,fontWeight:300},children:[(0,y.jsx)(`p`,{children:`MotionNodeEdits was created to help brands produce high-quality videos with less effort, faster workflows, and the possibilities of modern AI technology.`}),(0,y.jsx)(`p`,{children:`Businesses need powerful video content for marketing, advertising, branding, and communication — but traditional production can require significant time, resources, and effort.`}),(0,y.jsx)(`p`,{children:`MotionNodeEdits brings AI-powered production into the process to help brands create better video content, faster.`})]}),(0,y.jsx)(`div`,{style:{fontSize:`11px`,textTransform:`uppercase`,letterSpacing:`0.2em`,color:`var(--about-silver-bright)`,marginTop:`8px`,fontWeight:600},children:`EST. 2024 · HYDERABAD, INDIA · GLOBAL CLIENTS`}),(0,y.jsxs)(`div`,{className:`saas-card`,style:{height:`180px`,borderRadius:`16px`,display:`flex`,alignItems:`center`,justifyContent:`space-between`,padding:`24px 32px`,position:`relative`,marginTop:`12px`},children:[(0,y.jsxs)(`div`,{children:[(0,y.jsx)(`div`,{style:{fontSize:`11px`,textTransform:`uppercase`,letterSpacing:`0.15em`,color:`var(--about-text-tertiary)`,marginBottom:`6px`},children:`STUDIO PRODUCTION`}),(0,y.jsx)(`div`,{style:{fontFamily:`var(--about-font-heading)`,fontSize:`24px`,color:`#FFFFFF`,fontWeight:300},children:`High-Fidelity AI Workflows`})]}),(0,y.jsx)(`img`,{src:`/image/mne_logo.png`,alt:`Logo`,style:{width:`48px`,height:`48px`,borderRadius:`50%`,border:`1px solid rgba(255,255,255,0.2)`,opacity:.8}})]})]})]})})}function S(){return(0,y.jsxs)(`section`,{className:`about-section`,style:{position:`relative`,overflow:`hidden`},children:[(0,y.jsx)(`div`,{style:{position:`absolute`,top:`50%`,left:`50%`,transform:`translate(-50%, -50%)`,fontFamily:`var(--about-font-heading)`,fontSize:`clamp(100px, 22vw, 360px)`,fontWeight:300,color:`rgba(255,255,255,0.015)`,whiteSpace:`nowrap`,zIndex:0,pointerEvents:`none`,userSelect:`none`},children:`CREATE.`}),(0,y.jsxs)(`div`,{style:{position:`absolute`,inset:0,zIndex:0,pointerEvents:`none`},children:[(0,y.jsx)(`span`,{className:`about-float`,style:{position:`absolute`,top:`20%`,left:`12%`,fontSize:`11px`,color:`var(--about-silver-dark)`,letterSpacing:`0.2em`,textTransform:`uppercase`,fontWeight:600,opacity:.6},children:`IMAGINE`}),(0,y.jsx)(`span`,{className:`about-float`,style:{position:`absolute`,top:`70%`,left:`10%`,fontSize:`11px`,color:`var(--about-silver-dark)`,letterSpacing:`0.2em`,textTransform:`uppercase`,fontWeight:600,opacity:.6,animationDelay:`1s`},children:`GENERATE`}),(0,y.jsx)(`span`,{className:`about-float`,style:{position:`absolute`,top:`15%`,right:`15%`,fontSize:`11px`,color:`var(--about-silver-dark)`,letterSpacing:`0.2em`,textTransform:`uppercase`,fontWeight:600,opacity:.6,animationDelay:`2s`},children:`EDIT`}),(0,y.jsx)(`span`,{className:`about-float`,style:{position:`absolute`,top:`65%`,right:`12%`,fontSize:`11px`,color:`var(--about-silver-dark)`,letterSpacing:`0.2em`,textTransform:`uppercase`,fontWeight:600,opacity:.6,animationDelay:`0.5s`},children:`REFINE`}),(0,y.jsx)(`span`,{className:`about-float`,style:{position:`absolute`,bottom:`10%`,left:`50%`,fontSize:`11px`,color:`var(--about-silver-dark)`,letterSpacing:`0.2em`,textTransform:`uppercase`,fontWeight:600,opacity:.6,animationDelay:`1.5s`},children:`DELIVER`})]}),(0,y.jsxs)(`div`,{className:`about-container`,style:{position:`relative`,zIndex:1,textAlign:`center`},children:[(0,y.jsx)(`div`,{className:`about-fade-up`,style:{marginBottom:`24px`},children:(0,y.jsx)(`span`,{className:`chrome-badge`,children:`OUR MISSION`})}),(0,y.jsx)(`h2`,{className:`about-fade-up`,style:{fontSize:`clamp(28px, 4.5vw, 60px)`,fontWeight:300,color:`var(--about-text-primary)`,maxWidth:`900px`,margin:`0 auto 32px auto`,lineHeight:1.15,textTransform:`uppercase`,letterSpacing:`-0.02em`},children:`Make high-quality AI video production accessible to brands that want to move faster.`}),(0,y.jsx)(`p`,{className:`about-fade-up`,style:{fontSize:`16px`,color:`var(--about-text-secondary)`,maxWidth:`640px`,margin:`0 auto`,lineHeight:1.8,fontWeight:300},children:`Our mission is to create powerful AI video experiences that help businesses reach their audience, communicate their ideas, and grow through better visual content.`})]})]})}a.registerPlugin(c);function C(){let e=(0,v.useRef)(null),t=(0,v.useRef)(null),n=(0,v.useRef)(null),r=(0,v.useRef)([]);return(0,v.useEffect)(()=>{let i=e.current,o=n.current,s=t.current,l=r.current.filter(Boolean);if(!i||!o||!s||l.length===0)return;let u=a.matchMedia();u.add(`(min-width: 961px) and (prefers-reduced-motion: no-preference)`,()=>{let e=292*(l.length-1),t={opacity:1,scale:1.02,borderColor:`rgba(255, 255, 255, 0.85)`,backgroundColor:`rgba(24, 24, 36, 0.95)`,boxShadow:`0 0 45px rgba(255, 255, 255, 0.28), 0 20px 48px rgba(0, 0, 0, 0.8), inset 0 1px 2px rgba(255, 255, 255, 0.5)`},n={opacity:.28,scale:.96,borderColor:`rgba(255, 255, 255, 0.08)`,backgroundColor:`rgba(12, 12, 18, 0.6)`,boxShadow:`0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.05)`};a.set(l[0],t);for(let e=1;e<l.length;e++)a.set(l[e],n);let r=a.timeline({scrollTrigger:{trigger:i,pin:!0,start:`top top`,end:()=>`+=${Math.max(window.innerHeight*2.5,2400)}`,scrub:.7,invalidateOnRefresh:!0,anticipatePin:1}});return r.to(o,{y:-e,ease:`none`,duration:3},0),r.to(l[0],{...n,duration:.35,ease:`power2.inOut`},.45),r.to(l[1],{...t,duration:.35,ease:`power2.inOut`},.65),r.to(l[1],{...n,duration:.35,ease:`power2.inOut`},1.35),r.to(l[2],{...t,duration:.35,ease:`power2.inOut`},1.55),r.to(l[2],{...n,duration:.35,ease:`power2.inOut`},2.25),r.to(l[3],{...t,duration:.35,ease:`power2.inOut`},2.45),()=>{r.kill()}}),u.add(`(max-width: 960px), (prefers-reduced-motion: reduce)`,()=>{l.forEach(e=>{a.set(e,{opacity:1,scale:1,borderColor:`rgba(255, 255, 255, 0.2)`,backgroundColor:`rgba(16, 16, 24, 0.85)`,boxShadow:`0 8px 30px rgba(0, 0, 0, 0.5)`})}),a.set(o,{y:0})});let d=setTimeout(()=>{c.refresh()},250);return()=>{clearTimeout(d),u.revert()}},[]),(0,y.jsxs)(`section`,{ref:e,className:`why-us-pinned-viewport-section`,id:`why-us`,children:[(0,y.jsxs)(`div`,{className:`about-container why-us-pinned-container`,children:[(0,y.jsxs)(`div`,{className:`why-us-fixed-left-col`,children:[(0,y.jsx)(`div`,{className:`chrome-badge`,style:{marginBottom:`20px`},children:`WHY WORK WITH US`}),(0,y.jsxs)(`h2`,{className:`why-us-main-heading`,children:[`Why`,(0,y.jsx)(`br`,{}),`MotionNodeEdits?`]}),(0,y.jsx)(`p`,{className:`why-us-left-sub`,children:`Built on creative direction, uncompromised quality standards, and modern generative AI technology.`})]}),(0,y.jsx)(`div`,{ref:t,className:`why-us-pinned-viewport`,children:(0,y.jsx)(`div`,{ref:n,className:`why-us-card-track`,children:[{num:`01`,title:`CREATIVITY`,text:`Ideas come first. Every video starts with a clear concept and creative direction before any AI tool is used.`},{num:`02`,title:`QUALITY`,text:`Every frame matters. We review, refine, and edit until the final video meets our quality standard.`},{num:`03`,title:`SPEED`,text:`Move faster without losing the creative vision. AI lets us compress timelines without compressing quality.`},{num:`04`,title:`TECHNOLOGY`,text:`We continuously explore what is next in AI video — using the latest models, tools, and techniques for every project.`}].map((e,t)=>(0,y.jsxs)(`div`,{ref:e=>r.current[t]=e,className:`why-us-card-item`,children:[(0,y.jsx)(`div`,{className:`why-us-card-top-row`,children:(0,y.jsx)(`span`,{className:`why-us-highlight-num`,children:e.num})}),(0,y.jsx)(`h3`,{className:`why-us-card-title`,children:e.title}),(0,y.jsx)(`p`,{className:`why-us-card-desc`,children:e.text})]},t))})})]}),(0,y.jsx)(`style`,{dangerouslySetInnerHTML:{__html:`
-        .why-us-pinned-viewport-section {
+      `}})]})}function x(){return(0,y.jsx)(`section`,{className:`about-section`,children:(0,y.jsxs)(`div`,{className:`about-container`,style:{display:`flex`,flexWrap:`wrap`,gap:`48px`,alignItems:`center`},children:[(0,y.jsxs)(`div`,{className:`about-fade-up`,style:{flex:`1 1 50%`,minWidth:`300px`},children:[(0,y.jsx)(`div`,{className:`chrome-badge`,style:{marginBottom:`20px`},children:`WHO WE ARE`}),(0,y.jsxs)(`h2`,{style:{fontSize:`clamp(36px, 5vw, 64px)`,fontWeight:300,lineHeight:1.05,color:`var(--about-text-primary)`,textTransform:`uppercase`,letterSpacing:`-0.03em`},children:[`Built For The`,(0,y.jsx)(`br`,{}),`Next Generation`,(0,y.jsx)(`br`,{}),`Of Video.`]})]}),(0,y.jsxs)(`div`,{className:`about-fade-up`,style:{flex:`1 1 45%`,minWidth:`300px`,display:`flex`,flexDirection:`column`,gap:`20px`},children:[(0,y.jsxs)(`div`,{style:{fontSize:`15px`,color:`var(--about-text-secondary)`,lineHeight:1.8,display:`flex`,flexDirection:`column`,gap:`16px`,fontWeight:300},children:[(0,y.jsx)(`p`,{children:`MotionNodeEdits was created to help brands produce high-quality videos with less effort, faster workflows, and the possibilities of modern AI technology.`}),(0,y.jsx)(`p`,{children:`Businesses need powerful video content for marketing, advertising, branding, and communication — but traditional production can require significant time, resources, and effort.`}),(0,y.jsx)(`p`,{children:`MotionNodeEdits brings AI-powered production into the process to help brands create better video content, faster.`})]}),(0,y.jsx)(`div`,{style:{fontSize:`11px`,textTransform:`uppercase`,letterSpacing:`0.2em`,color:`var(--about-silver-bright)`,marginTop:`8px`,fontWeight:600},children:`EST. 2024 · HYDERABAD, INDIA · GLOBAL CLIENTS`}),(0,y.jsxs)(`div`,{className:`saas-card`,style:{height:`180px`,borderRadius:`16px`,display:`flex`,alignItems:`center`,justifyContent:`space-between`,padding:`24px 32px`,position:`relative`,marginTop:`12px`},children:[(0,y.jsxs)(`div`,{children:[(0,y.jsx)(`div`,{style:{fontSize:`11px`,textTransform:`uppercase`,letterSpacing:`0.15em`,color:`var(--about-text-tertiary)`,marginBottom:`6px`},children:`STUDIO PRODUCTION`}),(0,y.jsx)(`div`,{style:{fontFamily:`var(--about-font-heading)`,fontSize:`24px`,color:`#FFFFFF`,fontWeight:300},children:`High-Fidelity AI Workflows`})]}),(0,y.jsx)(`img`,{src:`/image/mne_logo.png`,alt:`Logo`,style:{width:`48px`,height:`48px`,borderRadius:`50%`,border:`1px solid rgba(255,255,255,0.2)`,opacity:.8}})]})]})]})})}function S(){return(0,y.jsxs)(`section`,{className:`about-section`,style:{position:`relative`,overflow:`hidden`},children:[(0,y.jsx)(`div`,{style:{position:`absolute`,top:`50%`,left:`50%`,transform:`translate(-50%, -50%)`,fontFamily:`var(--about-font-heading)`,fontSize:`clamp(100px, 22vw, 360px)`,fontWeight:300,color:`rgba(255,255,255,0.015)`,whiteSpace:`nowrap`,zIndex:0,pointerEvents:`none`,userSelect:`none`},children:`CREATE.`}),(0,y.jsxs)(`div`,{style:{position:`absolute`,inset:0,zIndex:0,pointerEvents:`none`},children:[(0,y.jsx)(`span`,{className:`about-float`,style:{position:`absolute`,top:`20%`,left:`12%`,fontSize:`11px`,color:`var(--about-silver-dark)`,letterSpacing:`0.2em`,textTransform:`uppercase`,fontWeight:600,opacity:.6},children:`IMAGINE`}),(0,y.jsx)(`span`,{className:`about-float`,style:{position:`absolute`,top:`70%`,left:`10%`,fontSize:`11px`,color:`var(--about-silver-dark)`,letterSpacing:`0.2em`,textTransform:`uppercase`,fontWeight:600,opacity:.6,animationDelay:`1s`},children:`GENERATE`}),(0,y.jsx)(`span`,{className:`about-float`,style:{position:`absolute`,top:`15%`,right:`15%`,fontSize:`11px`,color:`var(--about-silver-dark)`,letterSpacing:`0.2em`,textTransform:`uppercase`,fontWeight:600,opacity:.6,animationDelay:`2s`},children:`EDIT`}),(0,y.jsx)(`span`,{className:`about-float`,style:{position:`absolute`,top:`65%`,right:`12%`,fontSize:`11px`,color:`var(--about-silver-dark)`,letterSpacing:`0.2em`,textTransform:`uppercase`,fontWeight:600,opacity:.6,animationDelay:`0.5s`},children:`REFINE`}),(0,y.jsx)(`span`,{className:`about-float`,style:{position:`absolute`,bottom:`10%`,left:`50%`,fontSize:`11px`,color:`var(--about-silver-dark)`,letterSpacing:`0.2em`,textTransform:`uppercase`,fontWeight:600,opacity:.6,animationDelay:`1.5s`},children:`DELIVER`})]}),(0,y.jsxs)(`div`,{className:`about-container`,style:{position:`relative`,zIndex:1,textAlign:`center`},children:[(0,y.jsx)(`div`,{className:`about-fade-up`,style:{marginBottom:`24px`},children:(0,y.jsx)(`span`,{className:`chrome-badge`,children:`OUR MISSION`})}),(0,y.jsx)(`h2`,{className:`about-fade-up`,style:{fontSize:`clamp(28px, 4.5vw, 60px)`,fontWeight:300,color:`var(--about-text-primary)`,maxWidth:`900px`,margin:`0 auto 32px auto`,lineHeight:1.15,textTransform:`uppercase`,letterSpacing:`-0.02em`},children:`Make high-quality AI video production accessible to brands that want to move faster.`}),(0,y.jsx)(`p`,{className:`about-fade-up`,style:{fontSize:`16px`,color:`var(--about-text-secondary)`,maxWidth:`640px`,margin:`0 auto`,lineHeight:1.8,fontWeight:300},children:`Our mission is to create powerful AI video experiences that help businesses reach their audience, communicate their ideas, and grow through better visual content.`})]})]})}a.registerPlugin(c);function C(){let e=(0,v.useRef)(null),t=(0,v.useRef)(null),n=(0,v.useRef)([]);return(0,v.useEffect)(()=>{let t=e.current,r=n.current.filter(Boolean);if(!t||r.length===0)return;let i=a.matchMedia();i.add(`(min-width: 961px) and (prefers-reduced-motion: no-preference)`,()=>{a.set(r[0],{y:0,opacity:1,scale:1,zIndex:4});for(let e=1;e<r.length;e++)a.set(r[e],{y:140,opacity:0,scale:.94,zIndex:4-e});let e=a.timeline({scrollTrigger:{trigger:t,pin:!0,start:`top top`,end:`+=2400`,scrub:.8,invalidateOnRefresh:!0,anticipatePin:1}});return e.to({},{duration:.3}),e.to(r[0],{y:-140,opacity:0,scale:.94,duration:.8,ease:`power2.inOut`},`step1`),e.to(r[1],{y:0,opacity:1,scale:1,duration:.8,ease:`power2.inOut`},`step1`),e.to({},{duration:.4}),e.to(r[1],{y:-140,opacity:0,scale:.94,duration:.8,ease:`power2.inOut`},`step2`),e.to(r[2],{y:0,opacity:1,scale:1,duration:.8,ease:`power2.inOut`},`step2`),e.to({},{duration:.4}),e.to(r[2],{y:-140,opacity:0,scale:.94,duration:.8,ease:`power2.inOut`},`step3`),e.to(r[3],{y:0,opacity:1,scale:1,duration:.8,ease:`power2.inOut`},`step3`),e.to({},{duration:.4}),()=>{e.kill()}}),i.add(`(max-width: 960px), (prefers-reduced-motion: reduce)`,()=>{r.forEach(e=>{a.set(e,{y:0,opacity:1,scale:1,position:`relative`})})});let o=setTimeout(()=>{c.refresh()},200);return()=>{clearTimeout(o),i.revert()}},[]),(0,y.jsxs)(`section`,{ref:e,className:`why-us-stacked-section`,id:`why-us`,children:[(0,y.jsxs)(`div`,{className:`about-container why-us-stacked-container`,children:[(0,y.jsxs)(`div`,{className:`why-us-fixed-left-col`,children:[(0,y.jsx)(`div`,{className:`chrome-badge`,style:{marginBottom:`20px`},children:`WHY WORK WITH US`}),(0,y.jsxs)(`h2`,{className:`why-us-main-heading`,children:[`Why`,(0,y.jsx)(`br`,{}),`MotionNodeEdits?`]}),(0,y.jsx)(`p`,{className:`why-us-left-sub`,children:`Built on creative direction, uncompromised quality standards, and modern generative AI technology.`})]}),(0,y.jsx)(`div`,{ref:t,className:`why-us-card-viewport`,children:[{num:`01`,title:`CREATIVITY`,text:`Ideas come first. Every video starts with a clear concept and creative direction before any AI tool is used.`},{num:`02`,title:`QUALITY`,text:`Every frame matters. We review, refine, and edit until the final video meets our quality standard.`},{num:`03`,title:`SPEED`,text:`Move faster without losing the creative vision. AI lets us compress timelines without compressing quality.`},{num:`04`,title:`TECHNOLOGY`,text:`We continuously explore what is next in AI video — using the latest models, tools, and techniques for every project.`}].map((e,t)=>(0,y.jsxs)(`div`,{ref:e=>n.current[t]=e,className:`why-us-card-item`,children:[(0,y.jsx)(`div`,{className:`why-us-card-top-row`,children:(0,y.jsx)(`span`,{className:`why-us-highlight-num`,children:e.num})}),(0,y.jsx)(`h3`,{className:`why-us-card-title`,children:e.title}),(0,y.jsx)(`p`,{className:`why-us-card-desc`,children:e.text})]},t))})]}),(0,y.jsx)(`style`,{dangerouslySetInnerHTML:{__html:`
+        .why-us-stacked-section {
           background-color: var(--about-bg-primary, #050507);
           color: var(--about-text-primary, #FFFFFF);
           position: relative;
@@ -184,7 +184,7 @@ import{n as e}from"./rolldown-runtime-CbXtAM7H.js";import{i as t,n,r,t as i}from
           z-index: 10;
         }
 
-        .why-us-pinned-container {
+        .why-us-stacked-container {
           display: grid;
           grid-template-columns: 1fr 1.35fr;
           gap: 64px;
@@ -205,7 +205,6 @@ import{n as e}from"./rolldown-runtime-CbXtAM7H.js";import{i as t,n,r,t as i}from
           max-width: 440px;
         }
 
-        /* Compact Refined Title */
         .why-us-main-heading {
           font-family: var(--about-font-heading, 'Cormorant Garamond', serif) !important;
           font-size: clamp(32px, 3.8vw, 48px) !important;
@@ -226,47 +225,39 @@ import{n as e}from"./rolldown-runtime-CbXtAM7H.js";import{i as t,n,r,t as i}from
           margin: 0;
         }
 
-        /* Right Viewport (Only the focused card is visible at center) */
-        .why-us-pinned-viewport {
+        /* Right Viewport: Holds cards in the exact same focal center */
+        .why-us-card-viewport {
           position: relative;
-          height: 380px;
-          overflow: hidden;
+          height: 320px;
+          width: 100%;
+          max-width: 580px;
           display: flex;
-          flex-direction: column;
-          justify-content: flex-start;
-          padding: 10px 14px;
-          box-sizing: border-box;
-          mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
-          -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
+          align-items: center;
+          justify-content: center;
         }
 
-        /* Right Track (Translates vertically upward) */
-        .why-us-card-track {
-          display: flex;
-          flex-direction: column;
-          gap: 32px;
-          will-change: transform;
-          padding-top: 60px;
-          padding-bottom: 60px;
-        }
-
-        /* Luminous Glowing Card Items */
+        /* Card Items: Overlaid in the center, animating vertically */
         .why-us-card-item {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
           border-radius: 20px;
-          padding: 34px 38px;
-          position: relative;
+          padding: 38px 42px;
           box-sizing: border-box;
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background-color: rgba(12, 12, 18, 0.65);
-          height: 260px;
-          min-height: 260px;
+          border: 1px solid rgba(255, 255, 255, 0.75);
+          background-color: rgba(22, 22, 34, 0.96);
+          box-shadow: 
+            0 0 45px rgba(255, 255, 255, 0.25),
+            0 20px 48px rgba(0, 0, 0, 0.8),
+            inset 0 1px 2px rgba(255, 255, 255, 0.5);
           display: flex;
           flex-direction: column;
           justify-content: center;
-          transform-origin: center center;
-          will-change: transform, opacity, border-color, box-shadow;
+          will-change: transform, opacity;
         }
 
         .why-us-card-top-row {
@@ -276,7 +267,7 @@ import{n as e}from"./rolldown-runtime-CbXtAM7H.js";import{i as t,n,r,t as i}from
           margin-bottom: 12px;
         }
 
-        /* Highlighted Standout Numbers */
+        /* Standout Numbers */
         .why-us-highlight-num {
           font-family: var(--about-font-heading, 'Cormorant Garamond', serif);
           font-size: 58px;
@@ -284,7 +275,7 @@ import{n as e}from"./rolldown-runtime-CbXtAM7H.js";import{i as t,n,r,t as i}from
           line-height: 1;
           color: #FFFFFF;
           letter-spacing: -0.02em;
-          text-shadow: 0 0 16px rgba(255, 255, 255, 0.6);
+          text-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
         }
 
         .why-us-card-title {
@@ -308,33 +299,29 @@ import{n as e}from"./rolldown-runtime-CbXtAM7H.js";import{i as t,n,r,t as i}from
 
         /* Mobile Responsive */
         @media (max-width: 960px) {
-          .why-us-pinned-viewport-section {
+          .why-us-stacked-section {
             min-height: auto;
             height: auto;
             padding: 70px 0;
           }
 
-          .why-us-pinned-container {
+          .why-us-stacked-container {
             grid-template-columns: 1fr;
             gap: 40px;
             padding: 0 20px;
           }
 
-          .why-us-pinned-viewport {
+          .why-us-card-viewport {
             height: auto;
-            overflow: visible;
-            padding: 0;
-            mask-image: none;
-            -webkit-mask-image: none;
-          }
-
-          .why-us-card-track {
+            display: flex;
+            flex-direction: column;
             gap: 20px;
-            transform: none !important;
-            padding: 0;
           }
 
           .why-us-card-item {
+            position: relative;
+            top: auto;
+            left: auto;
             height: auto;
             min-height: auto;
             opacity: 1 !important;

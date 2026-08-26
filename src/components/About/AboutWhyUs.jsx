@@ -6,8 +6,7 @@ gsap.registerPlugin(ScrollTrigger);
 
 export default function AboutWhyUs() {
   const sectionRef = useRef(null);
-  const viewportRef = useRef(null);
-  const trackRef = useRef(null);
+  const cardViewportRef = useRef(null);
   const cardsRef = useRef([]);
 
   const reasons = [
@@ -35,74 +34,94 @@ export default function AboutWhyUs() {
 
   useEffect(() => {
     const section = sectionRef.current;
-    const track = trackRef.current;
-    const viewport = viewportRef.current;
     const cards = cardsRef.current.filter(Boolean);
 
-    if (!section || !track || !viewport || cards.length === 0) return;
+    if (!section || cards.length === 0) return;
 
     const mm = gsap.matchMedia();
 
     mm.add('(min-width: 961px) and (prefers-reduced-motion: no-preference)', () => {
-      // Step distance between each card center (card height + gap)
-      const cardHeight = 260;
-      const cardGap = 32;
-      const stepDistance = cardHeight + cardGap;
-      const totalDistance = stepDistance * (cards.length - 1);
-
-      const activeState = {
-        opacity: 1,
-        scale: 1.02,
-        borderColor: 'rgba(255, 255, 255, 0.85)',
-        backgroundColor: 'rgba(24, 24, 36, 0.95)',
-        boxShadow: '0 0 45px rgba(255, 255, 255, 0.28), 0 20px 48px rgba(0, 0, 0, 0.8), inset 0 1px 2px rgba(255, 255, 255, 0.5)'
-      };
-
-      const inactiveState = {
-        opacity: 0.28,
-        scale: 0.96,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-        backgroundColor: 'rgba(12, 12, 18, 0.6)',
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.05)'
-      };
-
-      // Set initial styles
-      gsap.set(cards[0], activeState);
+      // Set initial positions: Card 1 is visible at center; Cards 2, 3, 4 are waiting below
+      gsap.set(cards[0], { y: 0, opacity: 1, scale: 1, zIndex: 4 });
       for (let i = 1; i < cards.length; i++) {
-        gsap.set(cards[i], inactiveState);
+        gsap.set(cards[i], { y: 140, opacity: 0, scale: 0.94, zIndex: 4 - i });
       }
 
-      // Master ScrollTrigger timeline pinned to viewport
+      // Master pinned timeline
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: section,
           pin: true,
           start: 'top top',
-          end: () => `+=${Math.max(window.innerHeight * 2.5, 2400)}`,
-          scrub: 0.7,
+          end: '+=2400',
+          scrub: 0.8,
           invalidateOnRefresh: true,
           anticipatePin: 1
         }
       });
 
-      // Move track vertically upward
-      tl.to(track, {
-        y: -totalDistance,
-        ease: 'none',
-        duration: 3.0
-      }, 0);
+      // --- STEP 1: Card 01 -> Card 02 ---
+      // Hold Card 01 briefly
+      tl.to({}, { duration: 0.3 });
+      
+      // Card 01 moves UPWARDS and exits; Card 02 moves UPWARDS from bottom into center
+      tl.to(cards[0], { 
+        y: -140, 
+        opacity: 0, 
+        scale: 0.94, 
+        duration: 0.8, 
+        ease: 'power2.inOut' 
+      }, 'step1');
+      tl.to(cards[1], { 
+        y: 0, 
+        opacity: 1, 
+        scale: 1, 
+        duration: 0.8, 
+        ease: 'power2.inOut' 
+      }, 'step1');
 
-      // Card 0 -> Card 1
-      tl.to(cards[0], { ...inactiveState, duration: 0.35, ease: 'power2.inOut' }, 0.45);
-      tl.to(cards[1], { ...activeState, duration: 0.35, ease: 'power2.inOut' }, 0.65);
+      // Hold Card 02 briefly
+      tl.to({}, { duration: 0.4 });
 
-      // Card 1 -> Card 2
-      tl.to(cards[1], { ...inactiveState, duration: 0.35, ease: 'power2.inOut' }, 1.35);
-      tl.to(cards[2], { ...activeState, duration: 0.35, ease: 'power2.inOut' }, 1.55);
+      // --- STEP 2: Card 02 -> Card 03 ---
+      // Card 02 moves UPWARDS and exits; Card 03 moves UPWARDS from bottom into center
+      tl.to(cards[1], { 
+        y: -140, 
+        opacity: 0, 
+        scale: 0.94, 
+        duration: 0.8, 
+        ease: 'power2.inOut' 
+      }, 'step2');
+      tl.to(cards[2], { 
+        y: 0, 
+        opacity: 1, 
+        scale: 1, 
+        duration: 0.8, 
+        ease: 'power2.inOut' 
+      }, 'step2');
 
-      // Card 2 -> Card 3
-      tl.to(cards[2], { ...inactiveState, duration: 0.35, ease: 'power2.inOut' }, 2.25);
-      tl.to(cards[3], { ...activeState, duration: 0.35, ease: 'power2.inOut' }, 2.45);
+      // Hold Card 03 briefly
+      tl.to({}, { duration: 0.4 });
+
+      // --- STEP 3: Card 03 -> Card 04 ---
+      // Card 03 moves UPWARDS and exits; Card 04 moves UPWARDS from bottom into center
+      tl.to(cards[2], { 
+        y: -140, 
+        opacity: 0, 
+        scale: 0.94, 
+        duration: 0.8, 
+        ease: 'power2.inOut' 
+      }, 'step3');
+      tl.to(cards[3], { 
+        y: 0, 
+        opacity: 1, 
+        scale: 1, 
+        duration: 0.8, 
+        ease: 'power2.inOut' 
+      }, 'step3');
+
+      // Hold Card 04 to finish
+      tl.to({}, { duration: 0.4 });
 
       return () => {
         tl.kill();
@@ -112,19 +131,17 @@ export default function AboutWhyUs() {
     mm.add('(max-width: 960px), (prefers-reduced-motion: reduce)', () => {
       cards.forEach(c => {
         gsap.set(c, {
+          y: 0,
           opacity: 1,
           scale: 1,
-          borderColor: 'rgba(255, 255, 255, 0.2)',
-          backgroundColor: 'rgba(16, 16, 24, 0.85)',
-          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.5)'
+          position: 'relative'
         });
       });
-      gsap.set(track, { y: 0 });
     });
 
     const timer = setTimeout(() => {
       ScrollTrigger.refresh();
-    }, 250);
+    }, 200);
 
     return () => {
       clearTimeout(timer);
@@ -133,10 +150,10 @@ export default function AboutWhyUs() {
   }, []);
 
   return (
-    <section ref={sectionRef} className="why-us-pinned-viewport-section" id="why-us">
-      <div className="about-container why-us-pinned-container">
+    <section ref={sectionRef} className="why-us-stacked-section" id="why-us">
+      <div className="about-container why-us-stacked-container">
         
-        {/* LEFT COLUMN: STATIONARY HEADING (LOCKED AT SAME POSITION) */}
+        {/* LEFT COLUMN: STATIONARY HEADING */}
         <div className="why-us-fixed-left-col">
           <div className="chrome-badge" style={{ marginBottom: '20px' }}>
             WHY WORK WITH US
@@ -150,38 +167,36 @@ export default function AboutWhyUs() {
           </p>
         </div>
 
-        {/* RIGHT COLUMN: VIEWPORT (CARDS MOVE VERTICALLY INSIDE) */}
-        <div ref={viewportRef} className="why-us-pinned-viewport">
-          <div ref={trackRef} className="why-us-card-track">
-            {reasons.map((reason, idx) => (
-              <div 
-                key={idx} 
-                ref={(el) => (cardsRef.current[idx] = el)}
-                className="why-us-card-item"
-              >
-                <div className="why-us-card-top-row">
-                  <span className="why-us-highlight-num">
-                    {reason.num}
-                  </span>
-                </div>
-
-                <h3 className="why-us-card-title">
-                  {reason.title}
-                </h3>
-                
-                <p className="why-us-card-desc">
-                  {reason.text}
-                </p>
+        {/* RIGHT COLUMN: CARD STACK VIEWPORT */}
+        <div ref={cardViewportRef} className="why-us-card-viewport">
+          {reasons.map((reason, idx) => (
+            <div 
+              key={idx} 
+              ref={(el) => (cardsRef.current[idx] = el)}
+              className="why-us-card-item"
+            >
+              <div className="why-us-card-top-row">
+                <span className="why-us-highlight-num">
+                  {reason.num}
+                </span>
               </div>
-            ))}
-          </div>
+
+              <h3 className="why-us-card-title">
+                {reason.title}
+              </h3>
+              
+              <p className="why-us-card-desc">
+                {reason.text}
+              </p>
+            </div>
+          ))}
         </div>
 
       </div>
 
       {/* COMPONENT STYLES */}
       <style dangerouslySetInnerHTML={{__html: `
-        .why-us-pinned-viewport-section {
+        .why-us-stacked-section {
           background-color: var(--about-bg-primary, #050507);
           color: var(--about-text-primary, #FFFFFF);
           position: relative;
@@ -196,7 +211,7 @@ export default function AboutWhyUs() {
           z-index: 10;
         }
 
-        .why-us-pinned-container {
+        .why-us-stacked-container {
           display: grid;
           grid-template-columns: 1fr 1.35fr;
           gap: 64px;
@@ -217,7 +232,6 @@ export default function AboutWhyUs() {
           max-width: 440px;
         }
 
-        /* Compact Refined Title */
         .why-us-main-heading {
           font-family: var(--about-font-heading, 'Cormorant Garamond', serif) !important;
           font-size: clamp(32px, 3.8vw, 48px) !important;
@@ -238,47 +252,39 @@ export default function AboutWhyUs() {
           margin: 0;
         }
 
-        /* Right Viewport (Only the focused card is visible at center) */
-        .why-us-pinned-viewport {
+        /* Right Viewport: Holds cards in the exact same focal center */
+        .why-us-card-viewport {
           position: relative;
-          height: 380px;
-          overflow: hidden;
+          height: 320px;
+          width: 100%;
+          max-width: 580px;
           display: flex;
-          flex-direction: column;
-          justify-content: flex-start;
-          padding: 10px 14px;
-          box-sizing: border-box;
-          mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
-          -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
+          align-items: center;
+          justify-content: center;
         }
 
-        /* Right Track (Translates vertically upward) */
-        .why-us-card-track {
-          display: flex;
-          flex-direction: column;
-          gap: 32px;
-          will-change: transform;
-          padding-top: 60px;
-          padding-bottom: 60px;
-        }
-
-        /* Luminous Glowing Card Items */
+        /* Card Items: Overlaid in the center, animating vertically */
         .why-us-card-item {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
           border-radius: 20px;
-          padding: 34px 38px;
-          position: relative;
+          padding: 38px 42px;
           box-sizing: border-box;
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background-color: rgba(12, 12, 18, 0.65);
-          height: 260px;
-          min-height: 260px;
+          border: 1px solid rgba(255, 255, 255, 0.75);
+          background-color: rgba(22, 22, 34, 0.96);
+          box-shadow: 
+            0 0 45px rgba(255, 255, 255, 0.25),
+            0 20px 48px rgba(0, 0, 0, 0.8),
+            inset 0 1px 2px rgba(255, 255, 255, 0.5);
           display: flex;
           flex-direction: column;
           justify-content: center;
-          transform-origin: center center;
-          will-change: transform, opacity, border-color, box-shadow;
+          will-change: transform, opacity;
         }
 
         .why-us-card-top-row {
@@ -288,7 +294,7 @@ export default function AboutWhyUs() {
           margin-bottom: 12px;
         }
 
-        /* Highlighted Standout Numbers */
+        /* Standout Numbers */
         .why-us-highlight-num {
           font-family: var(--about-font-heading, 'Cormorant Garamond', serif);
           font-size: 58px;
@@ -296,7 +302,7 @@ export default function AboutWhyUs() {
           line-height: 1;
           color: #FFFFFF;
           letter-spacing: -0.02em;
-          text-shadow: 0 0 16px rgba(255, 255, 255, 0.6);
+          text-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
         }
 
         .why-us-card-title {
@@ -320,33 +326,29 @@ export default function AboutWhyUs() {
 
         /* Mobile Responsive */
         @media (max-width: 960px) {
-          .why-us-pinned-viewport-section {
+          .why-us-stacked-section {
             min-height: auto;
             height: auto;
             padding: 70px 0;
           }
 
-          .why-us-pinned-container {
+          .why-us-stacked-container {
             grid-template-columns: 1fr;
             gap: 40px;
             padding: 0 20px;
           }
 
-          .why-us-pinned-viewport {
+          .why-us-card-viewport {
             height: auto;
-            overflow: visible;
-            padding: 0;
-            mask-image: none;
-            -webkit-mask-image: none;
-          }
-
-          .why-us-card-track {
+            display: flex;
+            flex-direction: column;
             gap: 20px;
-            transform: none !important;
-            padding: 0;
           }
 
           .why-us-card-item {
+            position: relative;
+            top: auto;
+            left: auto;
             height: auto;
             min-height: auto;
             opacity: 1 !important;
