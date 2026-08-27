@@ -150,7 +150,7 @@ export default function AboutFAQ() {
                       EMAIL
                     </div>
                     <a 
-                      href="mailto:motionnodeedits@gmail.com" 
+                      href="mailto:hello@motionnodeedits.com" 
                       style={{ 
                         fontFamily: 'var(--about-font-sans)', 
                         fontSize: '13.5px', 
@@ -161,7 +161,7 @@ export default function AboutFAQ() {
                       onMouseEnter={(e) => e.currentTarget.style.color = '#FFFFFF'}
                       onMouseLeave={(e) => e.currentTarget.style.color = 'var(--about-silver-bright)'}
                     >
-                      motionnodeedits@gmail.com
+                      hello@motionnodeedits.com
                     </a>
                   </div>
                 </div>
@@ -215,7 +215,7 @@ export default function AboutFAQ() {
                   <span>WhatsApp</span>
                 </a>
                 <a 
-                  href="mailto:motionnodeedits@gmail.com?subject=Project%20Inquiry%20-%20MotionNodeEdits" 
+                  href="mailto:hello@motionnodeedits.com?subject=Project%20Inquiry%20-%20MotionNodeEdits" 
                   className="about-btn-secondary"
                   style={{ height: '42px', fontSize: '11px', padding: '0 16px', gap: '6px' }}
                 >

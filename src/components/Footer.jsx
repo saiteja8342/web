@@ -98,18 +98,18 @@ export default function Footer() {
               </a>
 
               <a 
-                href="mailto:motionnodeedits@gmail.com" 
+                href="mailto:hello@motionnodeedits.com" 
                 className="footer-contact-item"
                 data-hover-type="link"
                 onClick={(e) => {
                   e.preventDefault();
-                  window.location.href = 'mailto:motionnodeedits@gmail.com';
+                  window.location.href = 'mailto:hello@motionnodeedits.com';
                 }}
               >
                 <div className="footer-contact-icon-box">
                   <Mail size={16} />
                 </div>
-                <span>motionnodeedits@gmail.com</span>
+                <span>hello@motionnodeedits.com</span>
               </a>
             </div>
 
@@ -149,7 +149,7 @@ export default function Footer() {
               </a>
 
               <a 
-                href="mailto:motionnodeedits@gmail.com" 
+                href="mailto:hello@motionnodeedits.com" 
                 className="footer-social-square" 
                 data-hover-type="link" 
                 aria-label="Email"

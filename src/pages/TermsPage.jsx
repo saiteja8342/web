@@ -616,8 +616,8 @@ export default function TermsPage() {
                 <Mail size={15} className="terms-c-icon" />
                 <div>
                   <span className="terms-c-label">Email</span>
-                  <a href="mailto:motionnodeedits@gmail.com" className="terms-c-link">
-                    motionnodeedits@gmail.com
+                  <a href="mailto:hello@motionnodeedits.com" className="terms-c-link">
+                    hello@motionnodeedits.com
                   </a>
                 </div>
               </div>

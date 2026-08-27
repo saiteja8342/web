@@ -317,8 +317,8 @@ export default function Contact() {
                 <Mail size={18} style={{ color: 'var(--text-secondary)', marginTop: 2 }} />
                 <div>
                   <span style={{ fontSize: '0.85rem', color: '#FFFFFF', fontWeight: 500, display: 'block' }}>Email</span>
-                  <a href="mailto:motionnodeedits@gmail.com" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>
-                    motionnodeedits@gmail.com
+                  <a href="mailto:hello@motionnodeedits.com" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>
+                    hello@motionnodeedits.com
                   </a>
                 </div>
               </div>
