@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Phone, Mail, Instagram, Youtube, Linkedin, Globe } from 'lucide-react';
+import { Phone, Mail, Instagram, Youtube, Linkedin } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -138,14 +138,14 @@ export default function Footer() {
               </a>
 
               <a 
-                href="https://wa.me/918985351756" 
+                href="https://www.linkedin.com/company/motionnodeedits" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="footer-social-square" 
                 data-hover-type="link" 
-                aria-label="WhatsApp"
+                aria-label="LinkedIn"
               >
-                <Globe size={18} />
+                <Linkedin size={18} />
               </a>
 
               <a 
