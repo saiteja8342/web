@@ -134,8 +134,10 @@ export default function MobileSidebar({ isOpen, onClose }) {
             {/* Bottom Actions */}
             <div className="mobile-sidebar-footer">
               <a
-                href="#contact"
-                onClick={(e) => handleLinkClick(e, '#contact')}
+                href="/login.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onClose}
                 className="mobile-sidebar-cta-btn"
               >
                 <span>Start a Project</span>
