@@ -81,13 +81,7 @@ export default function Navbar() {
               "rgb(255, 200, 100)",
             ]}
           >
-            <a 
-              href="/login.html" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="nav-cta-custom-noise" 
-              data-hover-type="link"
-            >
+            <a href={isSecondaryPage ? "/#contact" : "#contact"} className="nav-cta-custom-noise" data-hover-type="link">
               Start a project
             </a>
           </NoiseBackground>
