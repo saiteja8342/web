@@ -51,13 +51,7 @@ export default function AboutNavbar() {
 
           {/* Right: CTA & Mobile Hamburger */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <a 
-              href="/login.html" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="about-nav-cta about-btn-primary" 
-              style={{ height: '36px', padding: '0 16px', fontSize: '12px', textDecoration: 'none' }}
-            >
+            <a href="/contact" className="about-nav-cta about-btn-primary" style={{ height: '36px', padding: '0 16px', fontSize: '12px' }}>
               START A PROJECT
             </a>
             
@@ -112,16 +106,7 @@ export default function AboutNavbar() {
         <a href="/work" onClick={() => setMobileMenuOpen(false)} style={{ color: 'white', textDecoration: 'none', fontSize: '24px', fontWeight: 700 }}>Services</a>
         <a href="/work" onClick={() => setMobileMenuOpen(false)} style={{ color: 'white', textDecoration: 'none', fontSize: '24px', fontWeight: 700 }}>Our Work</a>
         <a href="/contact" onClick={() => setMobileMenuOpen(false)} style={{ color: 'white', textDecoration: 'none', fontSize: '24px', fontWeight: 700 }}>Contact</a>
-        <a 
-          href="/login.html" 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          onClick={() => setMobileMenuOpen(false)} 
-          className="about-btn-primary" 
-          style={{ marginTop: '24px', textDecoration: 'none' }}
-        >
-          START A PROJECT
-        </a>
+        <a href="/contact" onClick={() => setMobileMenuOpen(false)} className="about-btn-primary" style={{ marginTop: '24px' }}>START A PROJECT</a>
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `

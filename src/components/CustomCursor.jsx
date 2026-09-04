@@ -5,79 +5,67 @@ export default function CustomCursor() {
   const ringRef = useRef(null);
   const dotRef = useRef(null);
   const labelRef = useRef(null);
-  const [isVisible, setIsVisible] = useState(true);
+  const [isTouchDevice, setIsTouchDevice] = useState(true);
 
   useEffect(() => {
-    // If pure touch without fine pointer, disable
-    const isPureTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-    if (isPureTouch) {
-      setIsVisible(false);
-      return;
-    }
+    // Check if touch device or mobile/tablet screen
+    const checkTouch = () => {
+      return (
+        ('ontouchstart' in window) ||
+        (navigator.maxTouchPoints > 0) ||
+        window.innerWidth <= 1024 ||
+        window.matchMedia('(pointer: coarse)').matches ||
+        window.matchMedia('(hover: none)').matches
+      );
+    };
+
+    const isTouch = checkTouch();
+    setIsTouchDevice(isTouch);
+    
+    if (isTouch) return;
 
     let mouseX = window.innerWidth / 2;
     let mouseY = window.innerHeight / 2;
     let ringX = mouseX;
     let ringY = mouseY;
-    let hasMoved = false;
 
     const onMouseMove = (e) => {
       mouseX = e.clientX;
       mouseY = e.clientY;
-      if (!hasMoved) {
-        hasMoved = true;
-        ringX = mouseX;
-        ringY = mouseY;
-        if (ringRef.current) gsap.set(ringRef.current, { opacity: 0.6, scale: 1 });
-        if (dotRef.current) gsap.set(dotRef.current, { opacity: 1 });
-      }
-      if (dotRef.current) {
-        gsap.set(dotRef.current, { x: mouseX, y: mouseY });
-      }
+      gsap.set(dotRef.current, { x: mouseX, y: mouseY });
     };
 
-    window.addEventListener('mousemove', onMouseMove, { passive: true });
+    window.addEventListener('mousemove', onMouseMove);
 
     let animationFrameId;
     const renderCursor = () => {
-      ringX += (mouseX - ringX) * 0.18;
-      ringY += (mouseY - ringY) * 0.18;
-      if (ringRef.current) {
-        gsap.set(ringRef.current, { x: ringX, y: ringY });
-      }
+      ringX += (mouseX - ringX) * 0.15;
+      ringY += (mouseY - ringY) * 0.15;
+      gsap.set(ringRef.current, { x: ringX, y: ringY });
       animationFrameId = requestAnimationFrame(renderCursor);
     };
     animationFrameId = requestAnimationFrame(renderCursor);
 
-    // Dynamic hover handling for all buttons, links, inputs, and interactive cards
+    // Dynamic hover handling via event delegation
     const onMouseOver = (e) => {
-      const target = e.target;
-      if (!target) return;
-
-      const hoverEl = target.closest('[data-hover-type], button, a, input, textarea, select, [role="button"], .cp-link-card, .vel-order-row, .cp-history-item, .vel-nav-item, .ed-nav-item, .cp-nav-item, .vel-metric-card, .ed-metric-card');
-      
+      const hoverEl = e.target.closest('[data-hover-type]');
       if (hoverEl) {
-        const type = hoverEl.getAttribute('data-hover-type') || 'link';
+        const type = hoverEl.getAttribute('data-hover-type');
         if (dotRef.current) dotRef.current.classList.add('hidden');
         if (ringRef.current) {
-          if (type === 'card' || hoverEl.classList.contains('video-card')) {
+          if (type === 'link') {
+            ringRef.current.classList.add('hover-active');
+          } else if (type === 'card') {
             ringRef.current.classList.add('video-hover');
             const labelText = hoverEl.getAttribute('data-hover-label') || 'VIEW';
             if (labelRef.current) labelRef.current.textContent = labelText;
-          } else {
-            ringRef.current.classList.add('hover-active');
-            if (labelRef.current) labelRef.current.textContent = '';
           }
         }
       }
     };
 
     const onMouseOut = (e) => {
-      const target = e.target;
-      if (!target) return;
-
-      const hoverEl = target.closest('[data-hover-type], button, a, input, textarea, select, [role="button"], .cp-link-card, .vel-order-row, .cp-history-item, .vel-nav-item, .ed-nav-item, .cp-nav-item, .vel-metric-card, .ed-metric-card');
-      
+      const hoverEl = e.target.closest('[data-hover-type]');
       if (hoverEl) {
         if (dotRef.current) dotRef.current.classList.remove('hidden');
         if (ringRef.current) {
@@ -88,8 +76,8 @@ export default function CustomCursor() {
       }
     };
 
-    window.addEventListener('mouseover', onMouseOver, { passive: true });
-    window.addEventListener('mouseout', onMouseOut, { passive: true });
+    window.addEventListener('mouseover', onMouseOver);
+    window.addEventListener('mouseout', onMouseOut);
 
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
@@ -99,7 +87,7 @@ export default function CustomCursor() {
     };
   }, []);
 
-  if (!isVisible) return null;
+  if (isTouchDevice) return null;
 
   return (
     <>
