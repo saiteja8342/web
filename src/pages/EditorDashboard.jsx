@@ -29,12 +29,18 @@ import {
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
-import { getEditorActiveProject, getEditorProjectHistory, getEditorStats, updateOrderStatus, updateOrder, STATUS_MAP } from '../lib/db/orders';
+import { getEditorActiveProject, getEditorProjectHistory, getEditorStats, updateOrderStatus, updateOrder, formatOrderCode, STATUS_MAP } from '../lib/db/orders';
 import { getProfile } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
 import { getEditorRatingStats } from '../lib/db/ratings';
 import { subscribeToOrders, subscribeToUserNotifications, unsubscribeChannel } from '../lib/supabase/realtime';
 import './editor.css';
+
+const isGoogleDriveLink = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim().toLowerCase();
+  return trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com');
+};
 
 export default function EditorDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -65,7 +71,7 @@ export default function EditorDashboard() {
   const [activeNav, setActiveNav] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [historyFilter, setHistoryFilter] = useState('all');
-  const [projectStatus, setProjectStatus] = useState('Working On It');
+  const [projectStatus, setProjectStatus] = useState('Editing in Process');
   const [deliverableLink, setDeliverableLink] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -102,8 +108,12 @@ export default function EditorDashboard() {
 
   // ─── Data Fetching ────────────────────────────────────────────────
   const fetchEditorData = useCallback(async () => {
-    if (!editorProfile) return;
-    const editorId = editorProfile.id;
+    let editorId = editorProfile?.id;
+    if (!editorId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      editorId = session?.user?.id;
+    }
+    if (!editorId) return;
 
     const [activeRes, historyRes, statsRes, ratingRes, notifRes] = await Promise.all([
       getEditorActiveProject(editorId),
@@ -115,8 +125,7 @@ export default function EditorDashboard() {
 
     if (!activeRes.error && activeRes.data) {
       setActiveProject(activeRes.data);
-      if (activeRes.data.status === 'in_editing') setProjectStatus('Working On It');
-      else if (activeRes.data.status === 'in_review') setProjectStatus('Ready for Review');
+      setProjectStatus('Editing in Process');
     } else {
       setActiveProject(null);
     }
@@ -133,6 +142,7 @@ export default function EditorDashboard() {
 
         return {
           id: item.id,
+          code: formatOrderCode(item),
           name: item.order_name,
           client: item.client?.company_name || item.client?.full_name || 'Client',
           type: item.video_type || 'Video',
@@ -194,33 +204,54 @@ export default function EditorDashboard() {
   });
 
   const handleSubmitDeliverables = async (e) => {
-    e.preventDefault();
-    if (!deliverableLink) {
-      showToast('Please paste a Google Drive or Dropbox link.');
+    if (e) e.preventDefault();
+    const trimmedLink = deliverableLink ? deliverableLink.trim() : '';
+
+    if (!trimmedLink) {
+      showToast('Please paste a Google Drive link.');
       return;
     }
+
+    if (!isGoogleDriveLink(trimmedLink)) {
+      showToast('Only Google Drive links are accepted (must contain drive.google.com).');
+      return;
+    }
+
     if (!activeProject) {
       showToast('No active project to submit deliverables for.');
       return;
     }
 
-    const { error } = await updateOrder(activeProject.id, {
-      additional_link: deliverableLink,
+    let { error } = await updateOrder(activeProject.id, {
+      additional_link: trimmedLink,
       status: 'in_review',
     });
 
+    // Fallback if additional_link column is not recognized
+    if (error && error.message && error.message.toLowerCase().includes('column')) {
+      const fallbackRes = await updateOrder(activeProject.id, {
+        drive_link: trimmedLink,
+        status: 'in_review',
+      });
+      error = fallbackRes.error;
+    }
+
     if (error) {
-      showToast('Error submitting: ' + error.message);
+      showToast('Error submitting: ' + (error.message || 'Check database permissions.'));
       return;
     }
 
     // Notify admin
     if (activeProject.admin_id) {
-      await sendNotification(
-        activeProject.admin_id,
-        `Deliverables submitted: ${activeProject.order_name}`,
-        `${editorProfile?.full_name || 'Editor'} submitted deliverables for "${activeProject.order_name}". Ready for review.`
-      );
+      try {
+        await sendNotification(
+          activeProject.admin_id,
+          `Deliverables submitted: ${activeProject.order_name || activeProject.title}`,
+          `${editorProfile?.full_name || 'Editor'} submitted deliverables for "${activeProject.order_name || activeProject.title}". Ready for review.`
+        );
+      } catch (notifErr) {
+        console.warn('[Editor] Could not notify admin:', notifErr);
+      }
     }
 
     showToast('Deliverables submitted successfully! Admin notified for review.');
@@ -228,44 +259,57 @@ export default function EditorDashboard() {
     await fetchEditorData();
   };
 
+  // Status lock: once updated to 'in_editing' or beyond, editor cannot undo the status
+  const isStatusLocked = Boolean(
+    activeProject &&
+    (activeProject.status === 'in_editing' ||
+     activeProject.status === 'in_review' ||
+     activeProject.status === 'delivered')
+  );
+
   const handleUpdateStatus = async () => {
     if (!activeProject) {
       showToast('No active project to update status for.');
       return;
     }
 
-    let dbStatus = 'in_editing';
-    if (projectStatus === 'Ready for Review' || projectStatus === 'Completed') {
-      dbStatus = 'in_review';
+    if (isStatusLocked) {
+      showToast('Status is already set to Editing in Process and cannot be undone.');
+      return;
     }
 
     const { error } = await updateOrderStatus(
       activeProject.id,
-      dbStatus,
+      'in_editing',
       editorProfile?.id,
       activeProject.status,
-      `Status updated by editor: ${projectStatus}`
+      'Status updated by editor: Editing in Process'
     );
 
     if (error) {
-      showToast('Error updating status: ' + error.message);
+      showToast('Error updating status: ' + (error.message || 'Permission denied'));
       return;
     }
 
-    showToast(`Project status updated to "${projectStatus}". Status saved.`);
+    showToast('Project status updated to "Editing in Process". Status is now locked.');
     await fetchEditorData();
   };
 
   // Calculate days left for active project
   const calculateDaysLeft = () => {
     if (!activeProject?.editor_deadline) return '3 Days Left';
-    const deadline = new Date(activeProject.editor_deadline);
-    const now = new Date();
-    const diffMs = deadline - now;
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) return 'Overdue';
-    if (diffDays === 0) return 'Due Today';
-    return `${diffDays} Day${diffDays === 1 ? '' : 's'} Left`;
+    try {
+      const deadline = new Date(activeProject.editor_deadline);
+      if (isNaN(deadline.getTime())) return '3 Days Left';
+      const now = new Date();
+      const diffMs = deadline - now;
+      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) return 'Overdue';
+      if (diffDays === 0) return 'Due Today';
+      return `${diffDays} Day${diffDays === 1 ? '' : 's'} Left`;
+    } catch {
+      return '3 Days Left';
+    }
   };
 
   if (!isAuthenticated) {
@@ -294,7 +338,11 @@ export default function EditorDashboard() {
       <aside className={`ed-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div>
           {/* Brand Header */}
-          <a href="/" className="ed-brand-header">
+          <div
+            className="ed-brand-header"
+            style={{ cursor: 'pointer' }}
+            onClick={() => handleNavClick('home')}
+          >
             <img
               src="/image/mne_logo.png"
               alt="MotionNodeEdits"
@@ -304,7 +352,7 @@ export default function EditorDashboard() {
               <div className="ed-brand-title">MotionNodeEdits</div>
               <div className="ed-brand-sub">Editor Workspace</div>
             </div>
-          </a>
+          </div>
 
           {/* Nav Items */}
           <nav className="ed-nav-list">
@@ -410,10 +458,17 @@ export default function EditorDashboard() {
                         <div
                           key={item.id}
                           className={`notif-item ${!item.is_read ? 'unread' : ''}`}
-                          onClick={async () => {
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, is_read: true } : n));
-                            await markNotificationAsRead(item.id);
+                            try {
+                              await markNotificationAsRead(item.id);
+                            } catch (err) {
+                              console.warn('Could not mark notification as read:', err);
+                            }
                             setNotifOpen(false);
+                            await fetchEditorData();
                             handleNavClick('present');
                           }}
                         >
@@ -432,9 +487,13 @@ export default function EditorDashboard() {
 
                   <div className="notif-footer">
                     <button
+                      type="button"
                       className="notif-footer-btn"
-                      onClick={() => {
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setNotifOpen(false);
+                        await fetchEditorData();
                         handleNavClick('present');
                       }}
                     >
@@ -611,7 +670,8 @@ export default function EditorDashboard() {
                       {/* Project Title Hero Card */}
                       <div className="ed-project-hero-card">
                         <div>
-                          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span className="ed-tag-pill" style={{ fontFamily: 'monospace', color: '#60A5FA' }}>{formatOrderCode(activeProject)}</span>
                             <span className="ed-tag-pill">EDIT</span>
                             <span className="ed-tag-pill">{activeProject.client?.company_name || activeProject.client?.full_name || 'Client'}</span>
                           </div>
@@ -651,16 +711,23 @@ export default function EditorDashboard() {
                             {activeProject.brief || 'No detailed brief provided for this project.'}
                           </p>
 
-                          {activeProject.admin_notes && (
-                            <div style={{ marginTop: '12px', padding: '12px', background: '#121218', borderRadius: '8px', border: '1px solid var(--ed-border)' }}>
-                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#F59E0B', display: 'block', marginBottom: '4px' }}>
-                                Admin Instructions:
-                              </span>
-                              <p style={{ fontSize: '0.8rem', color: 'var(--ed-text-secondary)', margin: 0 }}>
-                                {activeProject.admin_notes}
-                              </p>
-                            </div>
-                          )}
+                          {(() => {
+                            const cleanNotes = (activeProject.admin_notes || '')
+                              .replace(/\s*\[ORDER_CODE:[^\]]+\]/g, '')
+                              .replace(/\s*\[CLIENT_DELIVERABLE_VISIBLE:[^\]]+\]/g, '')
+                              .trim();
+
+                            return cleanNotes ? (
+                              <div style={{ marginTop: '12px', padding: '12px', background: '#121218', borderRadius: '8px', border: '1px solid var(--ed-border)' }}>
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#F59E0B', display: 'block', marginBottom: '4px' }}>
+                                  Admin Instructions:
+                                </span>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--ed-text-secondary)', margin: 0 }}>
+                                  {cleanNotes}
+                                </p>
+                              </div>
+                            ) : null;
+                          })()}
                         </div>
 
                         {/* Right: Client Assets */}
@@ -747,14 +814,14 @@ export default function EditorDashboard() {
                       {/* Submit Final Deliverables Box */}
                       <div className="ed-submit-box">
                         <div className="ed-card-title-main">
-                          <Cloud className="h-4 w-4" />
+                          <Cloud className="h-4 w-4 text-blue-400" />
                           <span>Submit Deliverables for Review</span>
                         </div>
 
                         <form onSubmit={handleSubmitDeliverables} className="ed-submit-input-row">
                           <input
                             type="text"
-                            placeholder="Paste Google Drive or Dropbox link here..."
+                            placeholder="Paste Google Drive link (https://drive.google.com/...)"
                             className="ed-input-deliverable"
                             value={deliverableLink}
                             onChange={(e) => setDeliverableLink(e.target.value)}
@@ -766,32 +833,50 @@ export default function EditorDashboard() {
                         </form>
 
                         <p style={{ fontSize: '0.75rem', color: 'var(--ed-text-tertiary)' }}>
-                          Ensure link permissions are set to "Anyone with the link" before submitting.
+                          Only Google Drive links are accepted (e.g. drive.google.com/...). Ensure permissions are set to &quot;Anyone with the link&quot;.
                         </p>
                       </div>
 
                       {/* Bottom Status Update Bar */}
                       <div className="ed-status-bar">
-                        <div className="ed-status-left">
+                        <div className="ed-status-left" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: '0.85rem', color: 'var(--ed-text-secondary)', fontWeight: 600 }}>Current Status:</span>
                           <select
                             className="ed-status-select"
-                            value={projectStatus}
+                            value="Editing in Process"
                             onChange={(e) => setProjectStatus(e.target.value)}
+                            disabled={isStatusLocked}
+                            style={isStatusLocked ? { opacity: 0.8, cursor: 'not-allowed', background: '#161622', borderColor: 'rgba(255, 255, 255, 0.08)' } : {}}
                           >
-                            <option value="Working On It">Working On It</option>
-                            <option value="Color Grading">Color Grading</option>
-                            <option value="Sound Design">Sound Design</option>
-                            <option value="Ready for Review">Ready for Review</option>
+                            <option value="Editing in Process">Editing in Process</option>
                           </select>
+
+                          {isStatusLocked && (
+                            <span style={{ fontSize: '0.75rem', color: '#4ADE80', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                              <Check className="h-3.5 w-3.5" />
+                              <span>Status Locked (Cannot Undo)</span>
+                            </span>
+                          )}
                         </div>
 
                         <button
+                          type="button"
                           className="ed-btn-update-status"
                           onClick={handleUpdateStatus}
+                          disabled={isStatusLocked}
+                          style={isStatusLocked ? { opacity: 0.5, cursor: 'not-allowed', background: '#22222E', borderColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--ed-text-secondary)' } : {}}
                         >
-                          <RefreshCw className="h-4 w-4" />
-                          <span>Update Status</span>
+                          {isStatusLocked ? (
+                            <>
+                              <Check className="h-4 w-4 text-emerald-400" />
+                              <span>Updated (Locked)</span>
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-4 w-4" />
+                              <span>Update Status</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </>
@@ -890,9 +975,13 @@ export default function EditorDashboard() {
                             {filteredHistory.map((row) => (
                               <tr key={row.id}>
                                 <td>
-                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                     <span style={{ fontWeight: 700 }}>{row.name}</span>
-                                    <span style={{ fontSize: '0.72rem', color: 'var(--ed-text-secondary)' }}>Client: {row.client}</span>
+                                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                      <span style={{ fontSize: '0.68rem', color: '#60A5FA', fontFamily: 'monospace' }}>{row.code}</span>
+                                      <span style={{ fontSize: '0.68rem', color: 'var(--ed-text-tertiary)' }}>•</span>
+                                      <span style={{ fontSize: '0.72rem', color: 'var(--ed-text-secondary)' }}>{row.client}</span>
+                                    </div>
                                   </div>
                                 </td>
                                 <td style={{ color: 'var(--ed-text-secondary)' }}>{row.type}</td>

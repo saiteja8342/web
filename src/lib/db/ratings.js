@@ -13,22 +13,63 @@ import { supabase } from '../supabase/client';
  */
 
 /**
- * Submit rating for a delivered order.
+ * Helper to strip internal testimonial tag from user-facing feedback notes.
  */
-export async function submitOrderRating({ orderId, clientId, editorId, rating, feedbackNote = null }) {
-  return await supabase
-    .from('ratings')
-    .insert([
-      {
+export function stripTestimonialTag(note) {
+  if (!note || typeof note !== 'string') return '';
+  return note.replace(/\[TESTIMONIAL:(true|false)\]/g, '').trim();
+}
+
+/**
+ * Helper to determine if testimonial consent was granted.
+ */
+export function parseIsTestimonial(note, isTestimonialCol) {
+  if (typeof note === 'string' && note.includes('[TESTIMONIAL:true]')) return true;
+  if (isTestimonialCol === true) return true;
+  return false;
+}
+
+/**
+ * Submit or update rating for a delivered order.
+ */
+export async function submitOrderRating({ orderId, clientId, editorId, rating, feedbackNote = null, isTestimonial = false }) {
+  const cleanNote = stripTestimonialTag(feedbackNote);
+  const noteWithTag = isTestimonial ? `${cleanNote} [TESTIMONIAL:true]`.trim() : cleanNote;
+
+  // 1. First attempt: include is_testimonial column if available
+  try {
+    const res = await supabase
+      .from('ratings')
+      .upsert({
         order_id: orderId,
         client_id: clientId,
         editor_id: editorId,
         rating,
-        feedback_note: feedbackNote,
-      },
-    ])
+        feedback_note: noteWithTag,
+        is_testimonial: isTestimonial,
+      }, { onConflict: 'order_id,client_id' })
+      .select()
+      .maybeSingle();
+
+    if (!res.error && res.data) {
+      return res;
+    }
+  } catch (e) {
+    console.warn('[Ratings DB] Upsert with is_testimonial failed, falling back:', e);
+  }
+
+  // 2. Fallback attempt without is_testimonial column
+  return await supabase
+    .from('ratings')
+    .upsert({
+      order_id: orderId,
+      client_id: clientId,
+      editor_id: editorId,
+      rating,
+      feedback_note: noteWithTag,
+    }, { onConflict: 'order_id,client_id' })
     .select()
-    .single();
+    .maybeSingle();
 }
 
 /**
@@ -59,4 +100,27 @@ export async function getOrderRating(orderId) {
     .select('*')
     .eq('order_id', orderId)
     .maybeSingle();
+}
+
+/**
+ * Fetch all ratings mapped by order_id for fast lookup in Admin views.
+ */
+export async function getAllDeliveredOrdersRatingsMap() {
+  const { data, error } = await supabase
+    .from('ratings')
+    .select('*');
+
+  if (error || !data) {
+    return {};
+  }
+
+  const map = {};
+  data.forEach((r) => {
+    map[r.order_id] = {
+      ...r,
+      cleanFeedback: stripTestimonialTag(r.feedback_note),
+      isTestimonial: parseIsTestimonial(r.feedback_note, r.is_testimonial),
+    };
+  });
+  return map;
 }

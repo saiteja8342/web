@@ -103,6 +103,7 @@ CREATE TABLE IF NOT EXISTS ratings (
   editor_id UUID NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
   rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
   feedback_note TEXT,
+  is_testimonial BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT unique_order_client_rating UNIQUE (order_id, client_id)
 );
@@ -350,10 +351,26 @@ CREATE POLICY "Clients can insert rating for delivered orders"
     )
   );
 
+CREATE POLICY "Clients can select own ratings"
+  ON ratings FOR SELECT
+  TO authenticated
+  USING (client_id = auth.uid());
+
+CREATE POLICY "Clients can update own ratings"
+  ON ratings FOR UPDATE
+  TO authenticated
+  USING (client_id = auth.uid())
+  WITH CHECK (client_id = auth.uid());
+
 CREATE POLICY "Editors can select own ratings"
   ON ratings FOR SELECT
   TO authenticated
   USING (editor_id = auth.uid());
+
+CREATE POLICY "Public can view approved testimonials"
+  ON ratings FOR SELECT
+  TO anon, authenticated
+  USING (is_testimonial = TRUE OR feedback_note LIKE '%[TESTIMONIAL:true]%');
 
 -- ─── NOTIFICATIONS POLICIES ───────────────────────────────────────────────────
 CREATE POLICY "Admin full access on notifications"

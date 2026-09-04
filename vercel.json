@@ -1,0 +1,22 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/dashboard/admin", "destination": "/dashboard/admin/index.html" },
+    { "source": "/dashboard/admin/:path*", "destination": "/dashboard/admin/index.html" },
+    { "source": "/dashboard/editor", "destination": "/dashboard/editor/index.html" },
+    { "source": "/dashboard/editor/:path*", "destination": "/dashboard/editor/index.html" },
+    { "source": "/dashboard/client", "destination": "/dashboard/client/index.html" },
+    { "source": "/dashboard/client/:path*", "destination": "/dashboard/client/index.html" },
+    { "source": "/login", "destination": "/login.html" },
+    { "source": "/about", "destination": "/about.html" },
+    { "source": "/work", "destination": "/work.html" },
+    { "source": "/our-work", "destination": "/our-work.html" },
+    { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/client", "destination": "/client.html" },
+    { "source": "/editor", "destination": "/editor.html" }
+  ]
+}

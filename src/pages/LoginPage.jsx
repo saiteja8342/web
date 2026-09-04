@@ -7,7 +7,6 @@ import {
   User,
   Eye,
   EyeOff,
-  Sparkles,
   CheckCircle2,
   AlertCircle,
   Loader2
@@ -281,7 +280,6 @@ export default function LoginPage() {
                 onClick={() => { setActiveTab('signup'); setErrorMessage(''); setSuccessMessage(''); }}
                 data-hover-type="link"
               >
-                <Sparkles className="h-4 w-4" />
                 <span>Sign Up</span>
               </button>
             </div>
@@ -431,17 +429,7 @@ export default function LoginPage() {
 
               {/* Options Row */}
               {activeTab === 'signin' ? (
-                <div className="auth-options-row">
-                  <label className="auth-checkbox-label">
-                    <input
-                      type="checkbox"
-                      name="rememberMe"
-                      checked={formData.rememberMe}
-                      onChange={handleChange}
-                    />
-                    <span>Remember me</span>
-                  </label>
-
+                <div className="auth-options-row" style={{ justifyContent: 'flex-end' }}>
                   <button
                     type="button"
                     className="auth-forgot-btn"
@@ -452,22 +440,26 @@ export default function LoginPage() {
                   </button>
                 </div>
               ) : (
-                <div className="auth-options-row" style={{ alignItems: 'flex-start' }}>
-                  <label className="auth-checkbox-label" style={{ fontSize: '0.8rem', lineHeight: '1.4' }}>
+                <div className="auth-options-row" style={{ alignItems: 'center', gap: '10px', justifyContent: 'flex-start' }}>
+                  <div className="checkbox-wrapper">
                     <input
                       type="checkbox"
+                      id="agreeTerms"
                       name="agreeTerms"
                       checked={formData.agreeTerms}
                       onChange={handleChange}
                       required
                     />
-                    <span>
-                      I agree to the{' '}
-                      <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: '#FF6496', textDecoration: 'underline' }} data-hover-type="link">
-                        Terms of Service
-                      </a>{' '}
-                      & Privacy Policy
-                    </span>
+                    <label htmlFor="agreeTerms">
+                      <div className="tick_mark"></div>
+                    </label>
+                  </div>
+                  <label htmlFor="agreeTerms" style={{ fontSize: '0.8rem', lineHeight: '1.4', cursor: 'pointer', margin: 0, color: 'var(--text-secondary, #8E8F94)' }}>
+                    I agree to the{' '}
+                    <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: '#FF6496', textDecoration: 'underline' }} data-hover-type="link">
+                      Terms of Service
+                    </a>{' '}
+                    & Privacy Policy
                   </label>
                 </div>
               )}
@@ -486,10 +478,7 @@ export default function LoginPage() {
                       <span>{activeTab === 'signin' ? 'Authenticating...' : 'Creating Account...'}</span>
                     </>
                   ) : (
-                    <>
-                      <span>{activeTab === 'signin' ? 'Sign In to Workspace' : 'Sign Up'}</span>
-                      <Sparkles className="h-4 w-4 text-pink-400" />
-                    </>
+                    <span>{activeTab === 'signin' ? 'Sign In to Workspace' : 'Sign Up'}</span>
                   )}
                 </button>
               </div>

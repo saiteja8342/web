@@ -30,27 +30,64 @@ import {
   Menu,
   X,
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  Cloud,
+  ExternalLink,
+  Clock,
+  Lock,
+  Eye,
+  EyeOff,
+  Archive,
+  Star,
+  Award,
+  Quote
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
-import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, assignEditorToOrder, getEditorActiveOrderCounts, getUnassignedOrders, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
+import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, assignEditorToOrder, getEditorActiveOrderCounts, getUnassignedOrders, generateOrderCode, formatOrderCode, stripOrderCodeTag, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
 import { getProfile, getApprovedEditors, getApprovedClients } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
-import { getEditorRatingStats } from '../lib/db/ratings';
+import { getEditorRatingStats, getAllDeliveredOrdersRatingsMap } from '../lib/db/ratings';
 import { subscribeToOrders, subscribeToProfiles, subscribeToUserNotifications, unsubscribeChannel } from '../lib/supabase/realtime';
 import './admin.css';
 
 // ─── Helpers ────────────────────────────────────────────────────────
+function safeIsoDate(val) {
+  if (!val || typeof val !== 'string') return null;
+  const trimmed = val.trim();
+  if (!trimmed || trimmed === 'No deadline' || trimmed === '—') return null;
+  const d = new Date(trimmed);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function stripVisibilityTag(notes) {
+  if (!notes || typeof notes !== 'string') return '';
+  return notes.replace(/\[CLIENT_DELIVERABLE_VISIBLE:(true|false)\]/g, '').trim();
+}
+
+function parseNotesVisibility(notes, clientLinkVisible) {
+  if (typeof notes === 'string') {
+    if (notes.includes('[CLIENT_DELIVERABLE_VISIBLE:true]')) return true;
+    if (notes.includes('[CLIENT_DELIVERABLE_VISIBLE:false]')) return false;
+  }
+  if (clientLinkVisible === true) return true;
+  if (clientLinkVisible === false) return false;
+  return false;
+}
+
 /** Transform a Supabase order row into the shape the existing UI expects. */
 function transformOrder(dbOrder) {
   const sm = STATUS_MAP[dbOrder.status] || STATUS_MAP.received;
   const editorProfile = dbOrder.editor;
   const clientProfile = dbOrder.client;
 
+  const displayCode = formatOrderCode(dbOrder);
+
   return {
     id: dbOrder.id,
     dbId: dbOrder.id,
+    displayId: displayCode,
+    orderCode: displayCode,
     title: dbOrder.order_name,
     client: clientProfile?.company_name || clientProfile?.full_name || 'Unknown',
     type: VIDEO_TYPE_MAP[dbOrder.video_type] || dbOrder.video_type,
@@ -73,16 +110,49 @@ function transformOrder(dbOrder) {
     currentStep: sm.step,
     editorDeadline: dbOrder.editor_deadline ? dbOrder.editor_deadline.split('T')[0] : '',
     clientDeadline: dbOrder.client_deadline ? dbOrder.client_deadline.split('T')[0] : '',
-    notes: dbOrder.admin_notes || '',
+    notes: stripVisibilityTag(stripOrderCodeTag(dbOrder.admin_notes)),
+    rawAdminNotes: dbOrder.admin_notes || '',
     brief: dbOrder.brief || '',
     driveLink: dbOrder.drive_link || '',
     dropboxLink: dbOrder.dropbox_link || '',
     additionalLink: dbOrder.additional_link || '',
+    clientLinkVisible: parseNotesVisibility(dbOrder.admin_notes, dbOrder.client_link_visible),
     clientId: dbOrder.client_id,
     editorId: dbOrder.editor_id,
     adminId: dbOrder.admin_id,
     createdAt: dbOrder.created_at,
+    updatedAt: dbOrder.updated_at,
   };
+}
+
+function getExpectedDeliveryDate(order) {
+  if (!order) return 'Pending';
+  if (order.clientDeadline) {
+    try {
+      const d = new Date(order.clientDeadline);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+    } catch {}
+  }
+  if (order.editorDeadline) {
+    try {
+      const d = new Date(order.editorDeadline);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+    } catch {}
+  }
+  if (order.createdAt) {
+    try {
+      const created = new Date(order.createdAt);
+      if (!isNaN(created.getTime())) {
+        const exp = new Date(created.getTime() + 3 * 24 * 60 * 60 * 1000);
+        return exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+    } catch {}
+  }
+  return 'Flexible';
 }
 
 /** Transform editor profile + stats into shape the UI expects. */
@@ -154,6 +224,8 @@ export default function AdminPage() {
   // ─── Live Data State ──────────────────────────────────────────────
   const [notifications, setNotifications] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [adminRatingsMap, setAdminRatingsMap] = useState({});
+  const [historySearch, setHistorySearch] = useState('');
   const [editorsList, setEditorsList] = useState([]);
   const [clientsList, setClientsList] = useState([]);
   const [metrics, setMetrics] = useState({
@@ -189,7 +261,44 @@ export default function AdminPage() {
   const fetchOrders = useCallback(async () => {
     const { data, error } = await getAdminAllOrders();
     if (!error && data) {
-      setOrders(data.map(transformOrder));
+      const localCompleted = new Set(JSON.parse(localStorage.getItem('mne_completed_order_ids') || '[]'));
+      const transformed = data.map(dbOrder => {
+        const item = transformOrder(dbOrder);
+        // Ensure locally completed order stays completed even if Supabase replication lags
+        if (localCompleted.has(item.id) && item.dbStatus !== 'delivered') {
+          return {
+            ...item,
+            status: 'COMPLETED',
+            dbStatus: 'delivered',
+            badgeClass: 'vel-badge-progress',
+            currentStep: 4,
+          };
+        }
+        return item;
+      });
+      setOrders(transformed);
+    }
+    try {
+      const rMap = await getAllDeliveredOrdersRatingsMap();
+      setAdminRatingsMap(rMap);
+    } catch (rErr) {
+      console.warn('Error loading admin ratings map:', rErr);
+    }
+    try {
+      const { data: allHistory } = await supabase
+        .from('order_status_history')
+        .select('*')
+        .order('changed_at', { ascending: true });
+      if (allHistory) {
+        const histMap = {};
+        allHistory.forEach(h => {
+          if (!histMap[h.order_id]) histMap[h.order_id] = [];
+          histMap[h.order_id].push(h);
+        });
+        setStatusHistoryMap(prev => ({ ...prev, ...histMap }));
+      }
+    } catch (hErr) {
+      console.warn('Error loading all status history:', hErr);
     }
   }, []);
 
@@ -322,20 +431,186 @@ export default function AdminPage() {
 
   const [expandedEditor, setExpandedEditor] = useState(null);
 
+  // Active pipeline orders (excluding completed/delivered) vs Delivered History
+  const activePipelineOrders = orders.filter(o => o.dbStatus !== 'delivered');
+  const deliveredHistoryOrders = orders.filter(o => o.dbStatus === 'delivered');
+
   // Selected order tracking
   const [selectedOrderId, setSelectedOrderId] = useState(null);
-  const selectedOrder = orders.find(o => o.id === selectedOrderId) || orders[0] || {
+  const [stagedStatusMap, setStagedStatusMap] = useState({});
+
+  const selectedOrder = (activeNav === 'orders' ? activePipelineOrders : orders).find(o => o.id === selectedOrderId) ||
+    (activeNav === 'orders' ? activePipelineOrders[0] : orders[0]) || {
     id: '', title: '', client: '', type: '', editor: { name: 'Unassigned', role: '', avatar: '' },
     clientContact: { name: '', company: '' }, deadline: '', status: '', badgeClass: '',
     currentStep: 0, editorDeadline: '', clientDeadline: '', notes: '', dbStatus: 'received',
   };
 
-  // Auto-select first order when orders load
+  // Auto-select first active order initially on load
   useEffect(() => {
     if (orders.length > 0 && !selectedOrderId) {
-      setSelectedOrderId(orders[0].id);
+      const activeList = orders.filter(o => o.dbStatus !== 'delivered');
+      setSelectedOrderId(activeList.length > 0 ? activeList[0].id : orders[0].id);
     }
-  }, [orders, selectedOrderId]);
+  }, [orders.length, selectedOrderId]);
+
+  // Order status history for milestones
+  const [statusHistoryMap, setStatusHistoryMap] = useState({});
+
+  useEffect(() => {
+    if (!selectedOrderId) return;
+    let active = true;
+    async function loadHistory() {
+      try {
+        const { data, error } = await supabase
+          .from('order_status_history')
+          .select('*')
+          .eq('order_id', selectedOrderId)
+          .order('changed_at', { ascending: true });
+        if (!error && data && active) {
+          setStatusHistoryMap(prev => ({ ...prev, [selectedOrderId]: data }));
+        }
+      } catch (err) {
+        console.warn('[Admin] Error fetching order status history:', err);
+      }
+    }
+    loadHistory();
+    return () => { active = false; };
+  }, [selectedOrderId]);
+
+  const getOrderStageDate = (order, statusKey, stepIndex) => {
+    if (!order || !order.id) return 'Pending';
+    const currentStep = order.currentStep ?? 0;
+
+    // If delivered stage is not yet completed, show expected delivery date
+    if (statusKey === 'delivered' && currentStep < 4) {
+      const expDate = getExpectedDeliveryDate(order);
+      return `Exp: ${expDate}`;
+    }
+
+    // If step hasn't been reached yet
+    if (currentStep < stepIndex) {
+      return 'Pending';
+    }
+
+    // Step 0: Received
+    if (stepIndex === 0) {
+      if (order.createdAt) {
+        try {
+          const d = new Date(order.createdAt);
+          if (!isNaN(d.getTime())) {
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          }
+        } catch {}
+      }
+      return 'Received';
+    }
+
+    // Check status history for this step
+    const history = statusHistoryMap[order.id] || [];
+    const match = history.find(h => h.new_status === statusKey);
+    if (match && match.changed_at) {
+      try {
+        const d = new Date(match.changed_at);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+      } catch {}
+    }
+
+    // Active step timestamp
+    if (currentStep === stepIndex && order.updatedAt) {
+      try {
+        const d = new Date(order.updatedAt);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+      } catch {}
+    }
+
+    // Completed step fallback
+    if (currentStep > stepIndex) {
+      const fallbackDate = order.updatedAt || order.createdAt;
+      if (fallbackDate) {
+        try {
+          const d = new Date(fallbackDate);
+          if (!isNaN(d.getTime())) {
+            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          }
+        } catch {}
+      }
+    }
+
+    return 'Pending';
+  };
+
+  const getOrderAcceptedDate = (order, historyMap) => {
+    if (!order) return '—';
+    const history = (historyMap && historyMap[order.id]) || [];
+    const match = history.find(h => h.new_status === 'accepted');
+    if (match && match.changed_at) {
+      try {
+        const d = new Date(match.changed_at);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+      } catch {}
+    }
+    // Fallback to order createdAt
+    if (order.createdAt) {
+      try {
+        const d = new Date(order.createdAt);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+      } catch {}
+    }
+    return '—';
+  };
+
+  const getDeliveryPerformance = (order, historyMap) => {
+    if (!order) return { label: 'On Time', isOnTime: true };
+
+    let deliveryTime = null;
+    const history = (historyMap && historyMap[order.id]) || [];
+    const deliveredHistory = history.find(h => h.new_status === 'delivered');
+    if (deliveredHistory && deliveredHistory.changed_at) {
+      deliveryTime = new Date(deliveredHistory.changed_at);
+    } else if (order.updatedAt) {
+      deliveryTime = new Date(order.updatedAt);
+    }
+
+    const deadlineStr = order.clientDeadline || order.editorDeadline;
+    if (!deadlineStr || deadlineStr === 'No deadline' || deadlineStr === '—') {
+      return { label: 'On Time', isOnTime: true };
+    }
+
+    const deadlineTime = new Date(deadlineStr);
+    if (isNaN(deadlineTime.getTime()) || !deliveryTime || isNaN(deliveryTime.getTime())) {
+      return { label: 'On Time', isOnTime: true };
+    }
+
+    // End of deadline day in local time
+    const deadlineEndOfDay = new Date(deadlineTime);
+    deadlineEndOfDay.setHours(23, 59, 59, 999);
+
+    const diffMs = deliveryTime.getTime() - deadlineEndOfDay.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffMs <= 0 || diffDays <= 0) {
+      return {
+        label: 'On Time',
+        isOnTime: true,
+        diffDays: 0,
+      };
+    } else {
+      return {
+        label: `Delayed (+${diffDays}d)`,
+        isOnTime: false,
+        diffDays,
+      };
+    }
+  };
 
   // Assign Project Form State
   const [assignForm, setAssignForm] = useState({
@@ -354,7 +629,6 @@ export default function AdminPage() {
   // Order Creation Form State
   const [createForm, setCreateForm] = useState({
     existingClient: '',
-    newClient: '',
     nomenclature: '',
     format: 'YouTube Longform (16:9)',
     brief: '',
@@ -364,64 +638,204 @@ export default function AdminPage() {
     clientDeadline: ''
   });
 
-  // ─── Handlers (Supabase-backed) ───────────────────────────────────
-
-  const handleOrderFieldChange = async (field, val) => {
-    const order = orders.find(o => o.id === selectedOrderId);
-    if (!order) return;
+  const handleOrderFieldChange = (field, val) => {
+    const targetId = selectedOrderId || selectedOrder.id || orders[0]?.id;
+    if (!targetId) return;
 
     if (field === 'status') {
-      // Map UI label to DB enum
-      const dbStatus = UI_TO_DB_STATUS[val];
-      if (!dbStatus) return;
-
-      // Optimistic update
-      const sm = STATUS_MAP[dbStatus];
+      setStagedStatusMap(prev => ({ ...prev, [targetId]: val }));
+    } else {
       setOrders(prev => prev.map(o => {
-        if (o.id === selectedOrderId) {
-          return { ...o, status: sm.label, dbStatus, badgeClass: sm.badgeClass, currentStep: sm.step };
+        if (o.id === targetId) return { ...o, [field]: val, pendingFieldChange: true };
+        return o;
+      }));
+    }
+  };
+
+  const handleUpdateStatusExplicitly = async (statusVal) => {
+    const targetId = selectedOrderId || selectedOrder.id || orders[0]?.id;
+    if (!targetId) {
+      showToast('No order selected.');
+      return;
+    }
+
+    const order = orders.find(o => o.id === targetId) || selectedOrder;
+    const dbStatus = UI_TO_DB_STATUS[statusVal] || (typeof statusVal === 'string' ? statusVal.toLowerCase() : 'received');
+    const sm = STATUS_MAP[dbStatus] || STATUS_MAP.received;
+
+    setIsLoading(true);
+    try {
+      // 1. Update status via updateOrderStatus helper
+      await updateOrderStatus(
+        targetId,
+        dbStatus,
+        adminProfile?.id,
+        order.dbStatus,
+        null
+      );
+
+      // 2. Direct update on orders table to guarantee persistence
+      const { error: directErr } = await supabase
+        .from('orders')
+        .update({ status: dbStatus, updated_at: new Date().toISOString() })
+        .eq('id', targetId);
+
+      if (directErr) {
+        console.warn('Direct update note:', directErr);
+      }
+
+      // 3. Persistent local storage backup so refresh NEVER reverts
+      try {
+        const localCompleted = new Set(JSON.parse(localStorage.getItem('mne_completed_order_ids') || '[]'));
+        if (dbStatus === 'delivered') {
+          localCompleted.add(targetId);
+        } else {
+          localCompleted.delete(targetId);
+        }
+        localStorage.setItem('mne_completed_order_ids', JSON.stringify([...localCompleted]));
+      } catch {}
+
+      // 4. Update React state
+      setOrders(prev => prev.map(o => {
+        if (o.id === targetId) {
+          return {
+            ...o,
+            status: sm.label,
+            dbStatus,
+            badgeClass: sm.badgeClass,
+            currentStep: sm.step,
+            pendingStatusChange: false,
+          };
         }
         return o;
       }));
 
-      // Persist to Supabase
-      const { error } = await updateOrderStatus(
-        order.dbId || order.id, dbStatus, adminProfile?.id, order.dbStatus, null
-      );
-      if (error) {
-        showToast('Error updating status: ' + error.message);
-        fetchOrders(); // Revert on failure
+      // Clear staged status
+      setStagedStatusMap(prev => {
+        const copy = { ...prev };
+        delete copy[targetId];
+        return copy;
+      });
+
+      if (dbStatus === 'delivered') {
+        const nextActive = orders.filter(o => o.id !== targetId && o.dbStatus !== 'delivered');
+        if (nextActive.length > 0) {
+          setSelectedOrderId(nextActive[0].id);
+        }
+        showToast('Order marked Completed and moved to Orders History!');
+      } else {
+        showToast(`Order status updated to ${sm.label}!`);
       }
-    } else {
-      // Other field updates (notes, deadlines)
-      const dbField = field === 'editorDeadline' ? 'editor_deadline'
-        : field === 'clientDeadline' ? 'client_deadline'
-        : field === 'notes' ? 'admin_notes'
-        : field;
 
-      setOrders(prev => prev.map(o => {
-        if (o.id === selectedOrderId) return { ...o, [field]: val };
-        return o;
-      }));
+      // Cross-tab broadcast
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('mne-order-updates');
+          bc.postMessage({ type: 'ORDER_UPDATED', orderId: targetId });
+          bc.close();
+        }
+      } catch {}
 
-      // Debounced persist for text fields will be handled by Save button
+      await fetchOrders();
+    } catch (err) {
+      console.error('Status update failed:', err);
+      showToast('Failed to update status: ' + (err.message || 'Check network'));
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSaveOrderChanges = async () => {
-    const order = orders.find(o => o.id === selectedOrderId);
-    if (!order) return;
+    const targetId = selectedOrderId || selectedOrder.id || orders[0]?.id;
+    if (!targetId) return;
+    const order = orders.find(o => o.id === targetId) || selectedOrder;
 
-    const { error } = await updateOrder(order.dbId || order.id, {
-      editor_deadline: order.editorDeadline ? new Date(order.editorDeadline).toISOString() : null,
-      client_deadline: order.clientDeadline ? new Date(order.clientDeadline).toISOString() : null,
-      admin_notes: order.notes || null,
-    });
+    setIsLoading(true);
+    try {
+      const chosenStatus = stagedStatusMap[targetId] || order.status;
+      const dbStatus = UI_TO_DB_STATUS[chosenStatus] || order.dbStatus || 'received';
+      const sm = STATUS_MAP[dbStatus] || STATUS_MAP.received;
 
-    if (error) {
-      showToast('Error saving: ' + error.message);
-    } else {
-      showToast(`Changes to order saved successfully!`);
+      // 1. Update status
+      await updateOrderStatus(
+        targetId,
+        dbStatus,
+        adminProfile?.id,
+        null,
+        null
+      );
+
+      // 2. Commit notes, deadlines, visibility tag, and status directly
+      const cleanNotes = stripVisibilityTag(order.notes);
+      const tag = `[CLIENT_DELIVERABLE_VISIBLE:${order.clientLinkVisible ? 'true' : 'false'}]`;
+      const notesWithTag = cleanNotes ? `${cleanNotes} ${tag}` : tag;
+
+      const safeEditorDeadline = safeIsoDate(order.editorDeadline);
+      const safeClientDeadline = safeIsoDate(order.clientDeadline);
+
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: dbStatus,
+          editor_deadline: safeEditorDeadline,
+          client_deadline: safeClientDeadline,
+          admin_notes: notesWithTag,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', targetId);
+
+      // 3. Persistent local storage backup so refresh NEVER reverts
+      try {
+        const localCompleted = new Set(JSON.parse(localStorage.getItem('mne_completed_order_ids') || '[]'));
+        if (dbStatus === 'delivered') {
+          localCompleted.add(targetId);
+        } else {
+          localCompleted.delete(targetId);
+        }
+        localStorage.setItem('mne_completed_order_ids', JSON.stringify([...localCompleted]));
+      } catch {}
+
+      setOrders(prev => prev.map(o => o.id === targetId ? {
+        ...o,
+        status: sm.label,
+        dbStatus,
+        badgeClass: sm.badgeClass,
+        currentStep: sm.step,
+        pendingStatusChange: false,
+        pendingFieldChange: false
+      } : o));
+
+      setStagedStatusMap(prev => {
+        const copy = { ...prev };
+        delete copy[targetId];
+        return copy;
+      });
+
+      if (dbStatus === 'delivered') {
+        const nextActive = orders.filter(o => o.id !== targetId && o.dbStatus !== 'delivered');
+        if (nextActive.length > 0) {
+          setSelectedOrderId(nextActive[0].id);
+        }
+        showToast('Order marked Completed and moved to Orders History!');
+      } else {
+        showToast(`Order status (${sm.label}) and changes saved successfully!`);
+      }
+
+      // Broadcast cross-tab update
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('mne-order-updates');
+          bc.postMessage({ type: 'ORDER_UPDATED', orderId: targetId });
+          bc.close();
+        }
+      } catch {}
+
+      await fetchOrders();
+    } catch (e) {
+      console.error('Save error:', e);
+      showToast('Error saving changes: ' + (e.message || 'Check connection'));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -439,6 +853,83 @@ export default function AdminPage() {
     showToast(`Notification sent to ${order.editor.name}!`);
   };
 
+  const handleToggleClientDeliverableAccess = async () => {
+    const order = orders.find(o => o.id === selectedOrderId);
+    if (!order) return;
+
+    const newVisibility = !order.clientLinkVisible;
+    const cleanNotes = stripVisibilityTag(order.notes);
+    const tag = `[CLIENT_DELIVERABLE_VISIBLE:${newVisibility ? 'true' : 'false'}]`;
+    const updatedNotes = cleanNotes ? `${cleanNotes} ${tag}` : tag;
+
+    // 1. Optimistic update
+    setOrders(prev => prev.map(o => {
+      if (o.id === selectedOrderId) {
+        return {
+          ...o,
+          clientLinkVisible: newVisibility,
+          notes: cleanNotes
+        };
+      }
+      return o;
+    }));
+
+    // Broadcast across browser tabs immediately
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const bc = new BroadcastChannel('mne-order-updates');
+        bc.postMessage({
+          type: 'ORDER_VISIBILITY_UPDATED',
+          orderId: order.dbId || order.id,
+          visible: newVisibility
+        });
+        bc.close();
+      }
+    } catch (bcErr) {
+      console.warn('BroadcastChannel error:', bcErr);
+    }
+
+    // 2. Persist to Supabase
+    try {
+      // First attempt: update both client_link_visible and admin_notes
+      let res = await updateOrder(order.dbId || order.id, {
+        client_link_visible: newVisibility,
+        admin_notes: updatedNotes,
+      });
+
+      // Fallback: if client_link_visible column doesn't exist yet, update admin_notes
+      if (res.error && res.error.message && res.error.message.toLowerCase().includes('column')) {
+        res = await updateOrder(order.dbId || order.id, {
+          admin_notes: updatedNotes,
+        });
+      }
+
+      if (res.error) {
+        console.error('[Admin] Database update error:', res.error);
+        showToast('Database update error: ' + res.error.message);
+      } else {
+        showToast(newVisibility
+          ? 'Access Granted: Deliverable is now VISIBLE to the client!'
+          : 'Access Revoked: Deliverable is now HIDDEN from the client.'
+        );
+
+        if (newVisibility && order.clientId) {
+          try {
+            await sendNotification(
+              order.clientId,
+              `Deliverables Ready: ${order.title}`,
+              `Your final deliverables for "${order.title}" have been approved by admin and are ready to view!`
+            );
+          } catch (notifErr) {
+            console.warn('[Admin] Could not notify client:', notifErr);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Admin] Error toggling client visibility:', e);
+    }
+  };
+
   const handleCreateOrderSubmit = async (e) => {
     e.preventDefault();
     if (!createForm.nomenclature) {
@@ -448,18 +939,20 @@ export default function AdminPage() {
 
     // Find the selected client
     const selectedClient = clientsList.find(cl =>
-      cl.name === (createForm.newClient || createForm.existingClient)
+      cl.name === createForm.existingClient
     );
 
-    if (!selectedClient && !createForm.newClient) {
-      showToast('Please select or create a client.');
+    if (!selectedClient) {
+      showToast('Please select a client.');
       return;
     }
 
     const videoType = UI_TO_VIDEO_TYPE[createForm.format] || 'youtube_longform';
+    const orderCode = generateOrderCode();
 
     const payload = {
       order_name: createForm.nomenclature,
+      order_code: orderCode,
       video_type: videoType,
       brief: createForm.brief || '',
       drive_link: createForm.rawFootageLink || null,
@@ -477,7 +970,7 @@ export default function AdminPage() {
       return;
     }
 
-    showToast(`Order created successfully!`);
+    showToast(`Order created successfully! (ID: ${orderCode})`);
 
     // Notify the client
     if (selectedClient?.id) {
@@ -491,7 +984,7 @@ export default function AdminPage() {
     // Reset form
     setCreateForm({
       existingClient: clientsList[0]?.name || '',
-      newClient: '', nomenclature: '', format: 'YouTube Longform (16:9)',
+      nomenclature: '', format: 'YouTube Longform (16:9)',
       brief: '', rawFootageLink: '', brandAssetsLink: '',
       internalDeadline: '', clientDeadline: '',
     });
@@ -508,26 +1001,107 @@ export default function AdminPage() {
       return;
     }
 
-    const { error } = await assignEditorToOrder(
-      assignForm.orderId, assignForm.editorId, adminProfile?.id
-    );
-
-    if (error) {
-      showToast('Error assigning: ' + error.message);
+    if (!assignForm.clientDeadline || !assignForm.internalDeadline) {
+      showToast('Please specify both the Client Deadline and Internal Editor Deadline.');
       return;
     }
 
-    // Notify the editor
-    if (assignForm.notifyEditor && assignForm.editorId) {
-      await sendNotification(
-        assignForm.editorId,
-        `New project assigned: ${assignForm.project}`,
-        `You have been assigned to "${assignForm.project}". Please review the brief.`
-      );
+    const safeClientDeadline = safeIsoDate(assignForm.clientDeadline);
+    const safeEditorDeadline = safeIsoDate(assignForm.internalDeadline);
+
+    const extraUpdates = {
+      editor_deadline: safeEditorDeadline,
+      client_deadline: safeClientDeadline,
+    };
+    if (assignForm.brief) {
+      extraUpdates.admin_notes = assignForm.brief;
     }
 
-    showToast(`Project assigned to ${assignForm.editor}! Notification dispatched.`);
-    await Promise.all([fetchOrders(), fetchEditors()]);
+    setIsLoading(true);
+    try {
+      const { error } = await assignEditorToOrder(
+        assignForm.orderId,
+        assignForm.editorId,
+        adminProfile?.id,
+        extraUpdates
+      );
+
+      // Direct update to ensure deadlines are committed
+      await supabase
+        .from('orders')
+        .update({
+          editor_id: assignForm.editorId,
+          status: 'accepted',
+          editor_deadline: safeEditorDeadline,
+          client_deadline: safeClientDeadline,
+          admin_notes: assignForm.brief || undefined,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', assignForm.orderId);
+
+      if (error) {
+        showToast('Error assigning: ' + error.message);
+        return;
+      }
+
+      // Notify the editor
+      if (assignForm.notifyEditor && assignForm.editorId) {
+        await sendNotification(
+          assignForm.editorId,
+          `New project assigned: ${assignForm.project}`,
+          `You have been assigned to "${assignForm.project}". Editor Deadline: ${assignForm.internalDeadline}. Please review the brief.`
+        );
+      }
+
+      showToast(`Project assigned to ${assignForm.editor} with deadlines successfully saved!`);
+
+      // Reset form
+      setAssignForm({
+        client: '',
+        project: '',
+        autoSuggest: true,
+        editor: '',
+        editorId: '',
+        orderId: '',
+        clientDeadline: '',
+        internalDeadline: '',
+        brief: '',
+        notifyEditor: true
+      });
+
+      await Promise.all([fetchOrders(), fetchEditors()]);
+      handleNavClick('orders');
+    } catch (err) {
+      console.error('Assignment error:', err);
+      showToast('Failed to assign project: ' + (err.message || 'Check network'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRedirectToAssign = (order) => {
+    if (!order) return;
+    const matchedClient = clientsList.find(c =>
+      (order.clientId && c.id === order.clientId) ||
+      c.name.toLowerCase() === (order.client || '').toLowerCase()
+    );
+    const clientName = matchedClient ? matchedClient.name : order.client;
+
+    setAssignForm({
+      client: clientName || '',
+      project: order.title || '',
+      orderId: order.dbId || order.id || '',
+      clientDeadline: order.clientDeadline ? order.clientDeadline.split('T')[0] : '',
+      internalDeadline: order.editorDeadline ? order.editorDeadline.split('T')[0] : '',
+      brief: order.notes || order.brief || '',
+      editor: '',
+      editorId: '',
+      autoSuggest: true,
+      notifyEditor: true
+    });
+
+    handleNavClick('assign');
+    showToast(`Pre-filled "${order.title}" for ${clientName}. Choose an editor to assign.`);
   };
 
   const handleAddNewEditorSubmit = (e) => {
@@ -572,7 +1146,7 @@ export default function AdminPage() {
     });
   };
 
-  const filteredOrders = orders.filter(o => {
+  const filteredOrders = activePipelineOrders.filter(o => {
     const q = searchQuery.toLowerCase();
     const matchesSearch = !q ||
       o.title.toLowerCase().includes(q) ||
@@ -636,7 +1210,11 @@ export default function AdminPage() {
       <aside className={`vel-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div>
           {/* Brand Header */}
-          <a href="/" className="vel-brand-header">
+          <div
+            className="vel-brand-header"
+            style={{ cursor: 'pointer' }}
+            onClick={() => handleNavClick('home')}
+          >
             <img
               src="/image/mne_logo.png"
               alt="MotionNodeEdits"
@@ -646,7 +1224,7 @@ export default function AdminPage() {
               <div className="vel-brand-title">MotionNodeEdits</div>
               <div className="vel-brand-sub">Admin Studio Panel</div>
             </div>
-          </a>
+          </div>
 
           {/* Primary Nav */}
           <nav className="vel-nav-list">
@@ -664,6 +1242,24 @@ export default function AdminPage() {
             >
               <Inbox className="h-4 w-4 shrink-0" />
               <span>Current Orders</span>
+              {activePipelineOrders.length > 0 && (
+                <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.2)', color: '#60A5FA', marginLeft: 'auto', fontWeight: 700 }}>
+                  {activePipelineOrders.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              className={`vel-nav-item ${activeNav === 'history' ? 'active' : ''}`}
+              onClick={() => handleNavClick('history')}
+            >
+              <Archive className="h-4 w-4 shrink-0" />
+              <span>Orders History</span>
+              {deliveredHistoryOrders.length > 0 && (
+                <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '10px', background: 'rgba(34, 197, 94, 0.2)', color: '#4ADE80', marginLeft: 'auto', fontWeight: 700 }}>
+                  {deliveredHistoryOrders.length}
+                </span>
+              )}
             </button>
 
             <button
@@ -981,50 +1577,95 @@ export default function AdminPage() {
                           <FileText className="h-4 w-4 text-white/40" />
                         </div>
 
-                        <div className="vel-form-grid-2">
-                          <div className="vel-field-group">
-                            <label className="vel-label">Select Client</label>
-                            <select
-                              className="vel-select"
-                              value={assignForm.client}
-                              onChange={(e) => {
-                                const clientName = e.target.value;
-                                setAssignForm(prev => ({ ...prev, client: clientName }));
-                              }}
-                            >
-                              <option value="">-- Choose Client --</option>
-                              {clientsList.map((cl) => (
-                                <option key={cl.id} value={cl.name}>{cl.name}</option>
-                              ))}
-                            </select>
-                          </div>
+                        {(() => {
+                          const clientEligibleProjects = orders
+                            .filter(o => o.dbStatus !== 'delivered')
+                            .filter(o => {
+                              if (!assignForm.client) return false;
+                              const selectedClientObj = clientsList.find(c => c.name === assignForm.client);
+                              if (selectedClientObj && o.clientId && o.clientId === selectedClientObj.id) {
+                                return true;
+                              }
+                              return (o.client || '').toLowerCase() === assignForm.client.toLowerCase();
+                            });
 
-                          <div className="vel-field-group">
-                            <label className="vel-label">Select Project</label>
-                            <select
-                              className="vel-select"
-                              value={assignForm.project}
-                              onChange={(e) => {
-                                const selectedTitle = e.target.value;
-                                const matched = orders.find(o => o.title === selectedTitle);
-                                setAssignForm(prev => ({
-                                  ...prev,
-                                  project: selectedTitle,
-                                  orderId: matched?.dbId || matched?.id || '',
-                                  client: matched?.client || prev.client,
-                                  clientDeadline: matched?.clientDeadline || prev.clientDeadline,
-                                  internalDeadline: matched?.editorDeadline || prev.internalDeadline,
-                                  brief: matched?.notes || prev.brief,
-                                }));
-                              }}
-                            >
-                              <option value="">-- Choose Unassigned Project --</option>
-                              {orders.map((ord) => (
-                                <option key={ord.id} value={ord.title}>{ord.title} ({ord.client})</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
+                          return (
+                            <div className="vel-form-grid-2">
+                              <div className="vel-field-group">
+                                <label className="vel-label">Select Client</label>
+                                <select
+                                  className="vel-select"
+                                  value={assignForm.client}
+                                  onChange={(e) => {
+                                    const clientName = e.target.value;
+                                    setAssignForm(prev => ({
+                                      ...prev,
+                                      client: clientName,
+                                      project: '',
+                                      orderId: '',
+                                      clientDeadline: '',
+                                      internalDeadline: '',
+                                      brief: '',
+                                    }));
+                                  }}
+                                >
+                                  <option value="">-- Choose Client --</option>
+                                  {clientsList.map((cl) => (
+                                    <option key={cl.id} value={cl.name}>
+                                      {cl.name} {cl.company ? `(${cl.company})` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="vel-field-group">
+                                <label className="vel-label">Select Project</label>
+                                <select
+                                  className="vel-select"
+                                  value={assignForm.project}
+                                  onChange={(e) => {
+                                    const selectedTitle = e.target.value;
+                                    const matched = clientEligibleProjects.find(o => o.title === selectedTitle);
+                                    setAssignForm(prev => ({
+                                      ...prev,
+                                      project: selectedTitle,
+                                      orderId: matched?.dbId || matched?.id || '',
+                                      client: matched?.client || prev.client,
+                                      clientDeadline: matched?.clientDeadline || '',
+                                      internalDeadline: matched?.editorDeadline || '',
+                                      brief: matched?.notes || prev.brief,
+                                    }));
+                                  }}
+                                  disabled={!assignForm.client}
+                                  style={{
+                                    opacity: !assignForm.client ? 0.6 : 1,
+                                    cursor: !assignForm.client ? 'not-allowed' : 'pointer'
+                                  }}
+                                >
+                                  {!assignForm.client ? (
+                                    <option value="">-- Select Client First --</option>
+                                  ) : clientEligibleProjects.length === 0 ? (
+                                    <option value="">-- No Active Projects for this Client --</option>
+                                  ) : (
+                                    <>
+                                      <option value="">-- Choose Project ({clientEligibleProjects.length} available) --</option>
+                                      {clientEligibleProjects.map((ord) => (
+                                        <option key={ord.id} value={ord.title}>
+                                          [{ord.displayId}] {ord.title} {ord.type ? `(${ord.type})` : ''} {ord.editor.name !== 'Unassigned' ? `• Assigned: ${ord.editor.name}` : '• Unassigned'}
+                                        </option>
+                                      ))}
+                                    </>
+                                  )}
+                                </select>
+                                {Boolean(assignForm.client && clientEligibleProjects.length === 0) && (
+                                  <span style={{ fontSize: '0.68rem', color: '#FCD34D', marginTop: '4px', display: 'block' }}>
+                                    This client currently has no active (uncompleted) projects.
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <div className="vel-card">
@@ -1069,25 +1710,31 @@ export default function AdminPage() {
 
                         <div className="vel-form-grid-2">
                           <div className="vel-field-group">
-                            <label className="vel-label">Client Deadline</label>
+                            <label className="vel-label">
+                              Client Deadline <span style={{ color: '#EF4444' }}>*</span>
+                            </label>
                             <input
                               type="date"
                               className="vel-input"
                               value={assignForm.clientDeadline}
                               onChange={(e) => setAssignForm({ ...assignForm, clientDeadline: e.target.value })}
+                              required
                             />
                           </div>
 
                           <div className="vel-field-group">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <label className="vel-label">Internal Deadline</label>
-                              <span style={{ fontSize: '0.62rem', color: 'var(--vel-text-tertiary)', letterSpacing: '0.05em' }}>SUGGESTED</span>
+                              <label className="vel-label">
+                                Internal Editor Deadline <span style={{ color: '#EF4444' }}>*</span>
+                              </label>
+                              <span style={{ fontSize: '0.62rem', color: '#22C55E', letterSpacing: '0.05em', fontWeight: 700 }}>REQUIRED</span>
                             </div>
                             <input
                               type="date"
                               className="vel-input"
                               value={assignForm.internalDeadline}
                               onChange={(e) => setAssignForm({ ...assignForm, internalDeadline: e.target.value })}
+                              required
                             />
                           </div>
                         </div>
@@ -1162,31 +1809,21 @@ export default function AdminPage() {
                         </span>
                       </div>
 
-                      <div className="vel-form-grid-2">
-                        <div className="vel-field-group">
-                          <label className="vel-label">Select Existing Client</label>
-                          <select
-                            className="vel-select"
-                            value={createForm.existingClient}
-                            onChange={(e) => setCreateForm({ ...createForm, existingClient: e.target.value, newClient: '' })}
-                          >
-                            <option value="">-- Choose Client --</option>
-                            {clientsList.map((cl) => (
-                              <option key={cl.id} value={cl.name}>{cl.name}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="vel-field-group">
-                          <label className="vel-label">Or Create New Entity</label>
-                          <input
-                            type="text"
-                            placeholder="Client / Brand Name"
-                            className="vel-input"
-                            value={createForm.newClient}
-                            onChange={(e) => setCreateForm({ ...createForm, newClient: e.target.value })}
-                          />
-                        </div>
+                      <div className="vel-field-group">
+                        <label className="vel-label">Select Client</label>
+                        <select
+                          className="vel-select"
+                          value={createForm.existingClient}
+                          onChange={(e) => setCreateForm({ ...createForm, existingClient: e.target.value })}
+                          required
+                        >
+                          <option value="">-- Choose Client --</option>
+                          {clientsList.map((cl) => (
+                            <option key={cl.id} value={cl.name}>
+                              {cl.name} {cl.company ? `(${cl.company})` : ''}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
@@ -1647,7 +2284,7 @@ export default function AdminPage() {
                   <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
                     <div>
                       <h1 className="vel-page-h1">Active Pipeline</h1>
-                      <p className="vel-page-sub">Managing {orders.length} projects currently in production.</p>
+                      <p className="vel-page-sub">Managing {activePipelineOrders.length} projects currently in production.</p>
                     </div>
 
                     <div style={{ display: 'flex', gap: '10px' }}>
@@ -1683,10 +2320,23 @@ export default function AdminPage() {
                               className={`vel-order-row ${selectedOrderId === ord.id ? 'selected' : ''}`}
                               onClick={() => setSelectedOrderId(ord.id)}
                             >
-                              <td style={{ fontWeight: 700, color: 'var(--vel-text-secondary)' }}>{ord.id}</td>
+                              <td style={{ fontWeight: 700, color: '#93C5FD', letterSpacing: '0.04em', fontFamily: 'monospace' }}>{ord.displayId}</td>
                               <td>
                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                  <span style={{ fontWeight: 700 }}>{ord.title}</span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontWeight: 700 }}>{ord.title}</span>
+                                    {ord.additionalLink && (
+                                      ord.clientLinkVisible ? (
+                                        <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', background: 'rgba(34, 197, 94, 0.2)', color: '#4ADE80', border: '1px solid rgba(34, 197, 94, 0.4)' }}>
+                                          ACCESS: GRANTED
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.2)', color: '#FCD34D', border: '1px solid rgba(245, 158, 11, 0.4)' }}>
+                                          ACCESS: RESTRICTED
+                                        </span>
+                                      )
+                                    )}
+                                  </div>
                                   <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)' }}>{ord.client}</span>
                                 </div>
                               </td>
@@ -1709,7 +2359,37 @@ export default function AdminPage() {
                                 </span>
                               </td>
                               <td>
-                                <ChevronRight className="h-4 w-4 text-white/30" />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  {(!ord.editor.id || ord.editor.name === 'Unassigned') && ord.dbStatus !== 'delivered' && (
+                                    <button
+                                      type="button"
+                                      className="vel-btn-solid"
+                                      style={{
+                                        padding: '3px 8px',
+                                        fontSize: '0.66rem',
+                                        fontWeight: 700,
+                                        background: '#3B82F6',
+                                        color: '#FFFFFF',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        whiteSpace: 'nowrap',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px'
+                                      }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleRedirectToAssign(ord);
+                                      }}
+                                      title="Assign this order to an editor"
+                                    >
+                                      <UserCheck className="h-3 w-3" />
+                                      <span>Assign</span>
+                                    </button>
+                                  )}
+                                  <ChevronRight className="h-4 w-4 text-white/30" />
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1720,34 +2400,114 @@ export default function AdminPage() {
                     {/* Right: Order Detail & Admin Controls Drawer */}
                     <div className="vel-card" style={{ gap: '20px' }}>
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--vel-text-secondary)' }}>{selectedOrder.id}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#93C5FD', letterSpacing: '0.04em', fontFamily: 'monospace' }}>{selectedOrder.displayId}</span>
                           <span className={selectedOrder.badgeClass}>{selectedOrder.status}</span>
+                          {selectedOrder.dbStatus === 'delivered' ? (
+                            (() => {
+                              const perf = getDeliveryPerformance(selectedOrder, statusHistoryMap);
+                              return perf.isOnTime ? (
+                                <span style={{ fontSize: '0.72rem', color: '#4ADE80', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(34, 197, 94, 0.12)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(34, 197, 94, 0.25)', fontWeight: 700 }}>
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  <span>Delivered On Time</span>
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.72rem', color: '#F87171', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(239, 68, 68, 0.12)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.25)', fontWeight: 700 }}>
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <span>Delivered {perf.label}</span>
+                                </span>
+                              );
+                            })()
+                          ) : (
+                            <span style={{ fontSize: '0.72rem', color: '#FCD34D', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(245, 158, 11, 0.12)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.25)', fontWeight: 600 }}>
+                              <Calendar className="h-3 w-3" />
+                              <span>Expected Delivery: {getExpectedDeliveryDate(selectedOrder)}</span>
+                            </span>
+                          )}
                         </div>
                         <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>{selectedOrder.title}</h2>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--vel-text-secondary)' }}>
-                          {selectedOrder.client} • {selectedOrder.type}
-                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--vel-text-secondary)', marginTop: '4px', flexWrap: 'wrap' }}>
+                          <span style={{ color: '#FFFFFF', fontWeight: 600 }}>Client: {selectedOrder.client}</span>
+                          <span>•</span>
+                          <span>{selectedOrder.type}</span>
+                          <span>•</span>
+                          <span style={{ color: '#93C5FD' }}>Accepted: {getOrderAcceptedDate(selectedOrder, statusHistoryMap)}</span>
+                        </div>
+
+                        {(!selectedOrder.editor.id || selectedOrder.editor.name === 'Unassigned') && selectedOrder.dbStatus !== 'delivered' && (
+                          <div style={{
+                            marginTop: '12px',
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            background: 'rgba(59, 130, 246, 0.08)',
+                            border: '1px solid rgba(59, 130, 246, 0.25)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '10px',
+                            flexWrap: 'wrap'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <UserCheck className="h-4 w-4 text-blue-400 shrink-0" />
+                              <span style={{ fontSize: '0.76rem', color: '#93C5FD', fontWeight: 600 }}>
+                                This project is not assigned to an editor yet.
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="vel-btn-solid"
+                              style={{
+                                padding: '6px 14px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '6px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => handleRedirectToAssign(selectedOrder)}
+                            >
+                              <span>Assign Project to Editor</span>
+                              <span>→</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Milestone Stepper */}
-                      <div className="vel-stepper-wrap">
-                        <div className="vel-stepper-line" />
+                      <div className="vel-stepper-wrap" style={{ padding: '8px 0' }}>
+                        <div className="vel-stepper-line" style={{ top: '16px' }} />
                         {[
-                          { key: 'RECV', label: 'RECV', step: 0 },
-                          { key: 'ASGN', label: 'ASGN', step: 1 },
-                          { key: 'EDIT', label: 'EDIT', step: 2 },
-                          { key: 'REV', label: 'REV', step: 3 },
-                          { key: 'DELV', label: 'DELV', step: 4 },
+                          { key: 'received', label: 'RECEIVED', step: 0 },
+                          { key: 'accepted', label: 'ACCEPTED', step: 1 },
+                          { key: 'in_editing', label: 'IN EDITING', step: 2 },
+                          { key: 'in_review', label: 'IN REVIEW', step: 3 },
+                          { key: 'delivered', label: 'DELIVERED', step: 4 },
                         ].map((st) => {
                           const isDone = selectedOrder.currentStep > st.step;
                           const isActive = selectedOrder.currentStep === st.step;
+                          const stageDate = getOrderStageDate(selectedOrder, st.key, st.step);
                           return (
-                            <div key={st.key} className="vel-step-item">
+                            <div key={st.key} className="vel-step-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
                               <div className={`vel-step-dot ${isDone ? 'done' : isActive ? 'active' : ''}`}>
                                 {isDone ? <Check className="h-2.5 w-2.5" /> : isActive ? '◉' : ''}
                               </div>
-                              <span className="vel-step-label">{st.label}</span>
+                              <span className="vel-step-label" style={{ fontWeight: 700, fontSize: '0.65rem', marginTop: '4px' }}>
+                                {st.label}
+                              </span>
+                              <span style={{
+                                fontSize: '0.6rem',
+                                color: isDone || isActive ? '#9CA3AF' : 'var(--vel-text-secondary)',
+                                letterSpacing: '0.02em',
+                                marginTop: '2px',
+                                fontWeight: isDone || isActive ? 600 : 400
+                              }}>
+                                {stageDate}
+                              </span>
                             </div>
                           );
                         })}
@@ -1766,10 +2526,39 @@ export default function AdminPage() {
                               <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#262633' }} />
                             )}
                             <div>
-                              <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>{selectedOrder.editor.name}</div>
+                              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: (!selectedOrder.editor.id || selectedOrder.editor.name === 'Unassigned') ? '#F59E0B' : '#FFFFFF' }}>
+                                {selectedOrder.editor.name}
+                              </div>
                               <div style={{ fontSize: '0.68rem', color: 'var(--vel-text-secondary)' }}>{selectedOrder.editor.role}</div>
                             </div>
                           </div>
+
+                          {(!selectedOrder.editor.id || selectedOrder.editor.name === 'Unassigned') && selectedOrder.dbStatus !== 'delivered' && (
+                            <button
+                              type="button"
+                              className="vel-btn-solid"
+                              style={{
+                                marginTop: '10px',
+                                width: '100%',
+                                padding: '7px 12px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                background: '#3B82F6',
+                                color: '#FFFFFF',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer'
+                              }}
+                              onClick={() => handleRedirectToAssign(selectedOrder)}
+                            >
+                              <UserCheck className="h-3.5 w-3.5" />
+                              <span>Assign Project →</span>
+                            </button>
+                          )}
                         </div>
 
                         <div style={{ padding: '12px 14px', background: 'var(--vel-bg-input)', borderRadius: '8px', border: '1px solid var(--vel-border)' }}>
@@ -1788,6 +2577,153 @@ export default function AdminPage() {
                         </div>
                       </div>
 
+                      {/* Project Assets & Submitted Deliverables Section */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid var(--vel-border)', paddingTop: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#FFFFFF', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Cloud className="h-3.5 w-3.5 text-blue-400" />
+                            <span>Editor Deliverables & Assets</span>
+                          </span>
+
+                          {selectedOrder.additionalLink && (
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 700,
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              background: selectedOrder.clientLinkVisible ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                              color: selectedOrder.clientLinkVisible ? '#4ADE80' : '#FCD34D',
+                              border: selectedOrder.clientLinkVisible ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              {selectedOrder.clientLinkVisible ? (
+                                <>
+                                  <Check className="h-3 w-3" />
+                                  <span>Client Access: Granted</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Lock className="h-3 w-3" />
+                                  <span>Client Access: Restricted (Admin Only)</span>
+                                </>
+                              )}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Editor Submitted Deliverable Link */}
+                        {selectedOrder.additionalLink ? (
+                          <div style={{ padding: '14px', background: 'rgba(34, 197, 94, 0.05)', borderRadius: '10px', border: '1px solid rgba(34, 197, 94, 0.25)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                                <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'rgba(34, 197, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <ExternalLink className="h-4 w-4 text-emerald-400" />
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#4ADE80' }}>Editor Deliverables Submitted</div>
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '240px' }}>
+                                    {selectedOrder.additionalLink}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <a
+                                href={selectedOrder.additionalLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="vel-btn-outline"
+                                style={{ padding: '6px 12px', fontSize: '0.74rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
+                              >
+                                <span>Preview Link</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </div>
+
+                            {/* Client Permission Controls */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', gap: '10px', flexWrap: 'wrap' }}>
+                              <div>
+                                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#FFFFFF' }}>Client Visibility Permission</div>
+                                <div style={{ fontSize: '0.68rem', color: 'var(--vel-text-secondary)' }}>
+                                  {selectedOrder.clientLinkVisible
+                                    ? 'Access is granted! Client can view and open this deliverable on their dashboard.'
+                                    : 'Access is restricted. Click "Allow Client to View" to grant the client access (even before delivery).'}
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={handleToggleClientDeliverableAccess}
+                                style={{
+                                  padding: '6px 14px',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 700,
+                                  borderRadius: '6px',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  border: 'none',
+                                  background: selectedOrder.clientLinkVisible ? '#EF4444' : '#22C55E',
+                                  color: selectedOrder.clientLinkVisible ? '#FFFFFF' : '#000000',
+                                  transition: 'all 0.2s'
+                                }}
+                              >
+                                {selectedOrder.clientLinkVisible ? (
+                                  <>
+                                    <EyeOff className="h-3.5 w-3.5" />
+                                    <span>Revoke Client Access</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Eye className="h-3.5 w-3.5" />
+                                    <span>Allow Client to View</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ padding: '12px 14px', background: 'var(--vel-bg-input)', borderRadius: '8px', border: '1px dashed var(--vel-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <Clock className="h-4 w-4 text-amber-400 shrink-0" />
+                              <div>
+                                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--vel-text-primary)' }}>No Deliverable Submitted Yet</div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
+                                  Expected Delivery: <strong style={{ color: '#FCD34D' }}>{getExpectedDeliveryDate(selectedOrder)}</strong>
+                                </div>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#FCD34D', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
+                              IN PROGRESS
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Client Raw Footage Link (if provided) */}
+                        {selectedOrder.driveLink && (
+                          <div style={{ padding: '10px 14px', background: 'var(--vel-bg-input)', borderRadius: '8px', border: '1px solid var(--vel-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--vel-text-secondary)' }}>Client Raw Footage</div>
+                              <div style={{ fontSize: '0.72rem', color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
+                                {selectedOrder.driveLink}
+                              </div>
+                            </div>
+                            <a
+                              href={selectedOrder.driveLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="vel-btn-outline"
+                              style={{ padding: '5px 10px', fontSize: '0.72rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
+                            >
+                              <span>Open Raw</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+
                       {/* ADMIN CONTROLS */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid var(--vel-border)', paddingTop: '16px' }}>
                         <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#FFFFFF', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
@@ -1796,19 +2732,50 @@ export default function AdminPage() {
 
                         <div className="vel-field-group">
                           <label className="vel-label">Update Status</label>
-                          <select
-                            className="vel-select"
-                            value={selectedOrder.status || 'RECEIVED'}
-                            onChange={(e) => handleOrderFieldChange('status', e.target.value)}
-                          >
-                            <option value="RECEIVED">Received</option>
-                            <option value="ACCEPTED">Accepted</option>
-                            <option value="IN PROGRESS">In Progress</option>
-                            <option value="REVIEWING">Reviewing</option>
-                            <option value="REVISION">Revision Requested</option>
-                            <option value="ON HOLD">On Hold</option>
-                            <option value="COMPLETED">Completed</option>
-                          </select>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <select
+                              className="vel-select"
+                              style={{ flex: 1 }}
+                              value={stagedStatusMap[selectedOrder.id] || selectedOrder.status || 'RECEIVED'}
+                              onChange={(e) => handleOrderFieldChange('status', e.target.value)}
+                            >
+                              <option value="RECEIVED">Received</option>
+                              <option value="ACCEPTED">Accepted</option>
+                              <option value="IN PROGRESS">In Progress</option>
+                              <option value="REVIEWING">Reviewing</option>
+                              <option value="REVISION">Revision Requested</option>
+                              <option value="ON HOLD">On Hold</option>
+                              <option value="COMPLETED">Completed</option>
+                            </select>
+                            <button
+                              type="button"
+                              className="vel-btn-solid"
+                              style={{
+                                padding: '8px 14px',
+                                fontSize: '0.74rem',
+                                fontWeight: 700,
+                                background: stagedStatusMap[selectedOrder.id] ? '#22C55E' : 'rgba(255, 255, 255, 0.1)',
+                                color: stagedStatusMap[selectedOrder.id] ? '#000000' : '#FFFFFF',
+                                whiteSpace: 'nowrap',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                cursor: 'pointer',
+                                border: 'none',
+                                borderRadius: '6px'
+                              }}
+                              onClick={() => handleUpdateStatusExplicitly(stagedStatusMap[selectedOrder.id] || selectedOrder.status)}
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              <span>Update</span>
+                            </button>
+                          </div>
+                          {Boolean(stagedStatusMap[selectedOrder.id]) && (
+                            <span style={{ fontSize: '0.68rem', color: '#FCD34D', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                              <Clock className="h-3 w-3" />
+                              <span>Status ready to save. Click "Update" or "Save Changes" below.</span>
+                            </span>
+                          )}
                         </div>
 
                         <div className="vel-form-grid-2">
@@ -1851,13 +2818,315 @@ export default function AdminPage() {
                           <MessageSquare className="h-3.5 w-3.5" />
                           <span>Notify Editor</span>
                         </button>
-                        <button className="vel-btn-solid" style={{ flex: 1 }} onClick={handleSaveOrderChanges}>
+                        <button
+                          className="vel-btn-solid"
+                          style={{
+                            flex: 1,
+                            background: selectedOrder.pendingStatusChange ? '#22C55E' : 'var(--vel-accent)',
+                            color: '#000000',
+                            fontWeight: 700
+                          }}
+                          onClick={handleSaveOrderChanges}
+                        >
                           <Save className="h-3.5 w-3.5" />
-                          <span>Save Changes</span>
+                          <span>{selectedOrder.pendingStatusChange ? 'Save Status & Changes' : 'Save Changes'}</span>
                         </button>
                       </div>
                     </div>
                   </div>
+                </>
+              )}
+
+              {/* ============================================================== */}
+              {/* VIEW: ORDERS HISTORY / DELIVERED PROJECTS                      */}
+              {/* ============================================================== */}
+              {activeNav === 'history' && (
+                <>
+                  <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                    <div>
+                      <h1 className="vel-page-h1">Orders History</h1>
+                      <p className="vel-page-sub">
+                        Archived and delivered projects from all clients with verified client ratings and testimonials.
+                      </p>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div className="vel-search-bar" style={{ width: '280px' }}>
+                        <Search className="h-3.5 w-3.5 text-white/40" />
+                        <input
+                          type="text"
+                          placeholder="Search orders, clients, editors..."
+                          className="vel-search-input"
+                          value={historySearch}
+                          onChange={(e) => setHistorySearch(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary Metric Cards */}
+                  <div className="vel-kpi-grid" style={{ marginBottom: '20px' }}>
+                    <div className="vel-kpi-card">
+                      <div className="vel-kpi-icon-wrap" style={{ background: 'rgba(34, 197, 94, 0.12)' }}>
+                        <Archive className="h-5 w-5 text-emerald-400" />
+                      </div>
+                      <span className="vel-kpi-label">TOTAL DELIVERED</span>
+                      <div className="vel-kpi-val">
+                        {orders.filter(o => o.dbStatus === 'delivered').length}
+                      </div>
+                    </div>
+
+                    <div className="vel-kpi-card">
+                      <div className="vel-kpi-icon-wrap" style={{ background: 'rgba(234, 179, 8, 0.12)' }}>
+                        <Star className="h-5 w-5 text-amber-400" fill="#F59E0B" />
+                      </div>
+                      <span className="vel-kpi-label">AVG CLIENT RATING</span>
+                      <div className="vel-kpi-val">
+                        {(() => {
+                          const ratedOrders = orders.filter(o => o.dbStatus === 'delivered' && adminRatingsMap[o.id]);
+                          if (ratedOrders.length === 0) return '5.0 ★';
+                          const sum = ratedOrders.reduce((acc, o) => acc + (adminRatingsMap[o.id]?.rating || 5), 0);
+                          return (sum / ratedOrders.length).toFixed(1) + ' ★';
+                        })()}
+                      </div>
+                    </div>
+
+                    <div className="vel-kpi-card">
+                      <div className="vel-kpi-icon-wrap" style={{ background: 'rgba(59, 130, 246, 0.12)' }}>
+                        <Award className="h-5 w-5 text-blue-400" />
+                      </div>
+                      <span className="vel-kpi-label">TESTIMONIALS READY</span>
+                      <div className="vel-kpi-val">
+                        {orders.filter(o => o.dbStatus === 'delivered' && adminRatingsMap[o.id]?.isTestimonial).length}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Orders History Table */}
+                  {(() => {
+                    const deliveredOrders = orders
+                      .filter(o => o.dbStatus === 'delivered')
+                      .filter(o => {
+                        if (!historySearch.trim()) return true;
+                        const query = historySearch.toLowerCase();
+                        return (
+                          o.title.toLowerCase().includes(query) ||
+                          o.client.toLowerCase().includes(query) ||
+                          o.editor.name.toLowerCase().includes(query) ||
+                          o.id.toLowerCase().includes(query)
+                        );
+                      });
+
+                    if (deliveredOrders.length === 0) {
+                      return (
+                        <div className="vel-card" style={{ padding: '60px 20px', textAlign: 'center', alignItems: 'center', gap: '14px' }}>
+                          <Archive className="h-10 w-10 text-white/30" />
+                          <h2 style={{ fontSize: '1.15rem', fontWeight: 700 }}>No Delivered Orders Found</h2>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--vel-text-secondary)', maxWidth: '420px' }}>
+                            {historySearch ? 'No delivered projects match your search criteria.' : 'When an active project status is updated to Completed and saved, it will automatically be archived here.'}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="vel-card" style={{ padding: '0', overflow: 'hidden' }}>
+                        <table className="vel-order-table">
+                          <thead>
+                            <tr>
+                              <th>PROJECT</th>
+                              <th>CLIENT</th>
+                              <th>ASSIGNED EDITOR</th>
+                              <th>ACCEPTED DATE</th>
+                              <th>DELIVERY & TIMELINESS</th>
+                              <th>CLIENT RATING</th>
+                              <th>FEEDBACK & TESTIMONIAL</th>
+                              <th>ACTION</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {deliveredOrders.map((ord) => {
+                              const ratingObj = adminRatingsMap[ord.id];
+                              const deliveredFormatted = ord.updatedAt
+                                ? new Date(ord.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                : ord.deadline;
+                              const acceptedFormatted = getOrderAcceptedDate(ord, statusHistoryMap);
+                              const perf = getDeliveryPerformance(ord, statusHistoryMap);
+
+                              return (
+                                <tr key={ord.id} className="vel-order-row">
+                                  <td>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{ord.title}</span>
+                                        <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.06)', color: 'var(--vel-text-secondary)' }}>
+                                          {ord.type}
+                                        </span>
+                                      </div>
+                                      <span style={{ fontSize: '0.68rem', color: '#93C5FD', letterSpacing: '0.03em', fontFamily: 'monospace' }}>
+                                        {ord.displayId}
+                                      </span>
+                                    </div>
+                                  </td>
+
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.15)', color: '#60A5FA', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.75rem', flexShrink: 0 }}>
+                                        {ord.client ? ord.client.charAt(0).toUpperCase() : 'C'}
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#FFFFFF' }}>{ord.client}</span>
+                                        <span style={{ fontSize: '0.68rem', color: 'var(--vel-text-secondary)' }}>
+                                          {ord.clientContact?.company || 'Direct Client'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      {ord.editor.avatar ? (
+                                        <img src={ord.editor.avatar} alt="" style={{ width: '22px', height: '22px', borderRadius: '50%' }} />
+                                      ) : (
+                                        <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#262633', display: 'inline-block' }} />
+                                      )}
+                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{ord.editor.name}</span>
+                                        <span style={{ fontSize: '0.66rem', color: 'var(--vel-text-secondary)' }}>{ord.editor.role || 'Video Editor'}</span>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <Calendar className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.78rem', color: '#FFFFFF', fontWeight: 600 }}>
+                                          {acceptedFormatted}
+                                        </span>
+                                        <span style={{ fontSize: '0.65rem', color: 'var(--vel-text-secondary)' }}>Accepted</span>
+                                      </div>
+                                    </div>
+                                  </td>
+
+                                  <td>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                      <span style={{ fontSize: '0.8rem', color: '#FFFFFF', fontWeight: 700 }}>
+                                        {deliveredFormatted}
+                                      </span>
+                                      {perf.isOnTime ? (
+                                        <span style={{
+                                          fontSize: '0.65rem',
+                                          fontWeight: 700,
+                                          padding: '2px 8px',
+                                          borderRadius: '4px',
+                                          background: 'rgba(34, 197, 94, 0.15)',
+                                          color: '#4ADE80',
+                                          border: '1px solid rgba(34, 197, 94, 0.35)',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          width: 'fit-content'
+                                        }}>
+                                          <CheckCircle2 className="h-3 w-3" />
+                                          <span>On Time</span>
+                                        </span>
+                                      ) : (
+                                        <span style={{
+                                          fontSize: '0.65rem',
+                                          fontWeight: 700,
+                                          padding: '2px 8px',
+                                          borderRadius: '4px',
+                                          background: 'rgba(239, 68, 68, 0.15)',
+                                          color: '#F87171',
+                                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          width: 'fit-content'
+                                        }}>
+                                          <AlertTriangle className="h-3 w-3" />
+                                          <span>{perf.label}</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td>
+                                    {ratingObj ? (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        {[1, 2, 3, 4, 5].map((s) => (
+                                          <Star
+                                            key={s}
+                                            className="h-3.5 w-3.5"
+                                            fill={s <= ratingObj.rating ? '#F59E0B' : 'transparent'}
+                                            color={s <= ratingObj.rating ? '#F59E0B' : '#4B5563'}
+                                          />
+                                        ))}
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#FCD34D', marginLeft: '4px' }}>
+                                          {ratingObj.rating}.0
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', fontStyle: 'italic' }}>
+                                        Pending Client Rating
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  <td>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '280px' }}>
+                                      {ratingObj?.cleanFeedback ? (
+                                        <span style={{ fontSize: '0.74rem', color: 'var(--vel-text-primary)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                          "{ratingObj.cleanFeedback}"
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: '0.7rem', color: 'var(--vel-text-secondary)' }}>No review text</span>
+                                      )}
+
+                                      {ratingObj?.isTestimonial && (
+                                        <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: 'rgba(234, 179, 8, 0.15)', color: '#FCD34D', border: '1px solid rgba(234, 179, 8, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '3px', width: 'fit-content' }}>
+                                          <Award className="h-3 w-3" />
+                                          <span>TESTIMONIAL READY</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      {ord.additionalLink && (
+                                        <a
+                                          href={ord.additionalLink}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="vel-btn-outline"
+                                          style={{ padding: '4px 8px', fontSize: '0.7rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                        >
+                                          <span>Drive</span>
+                                          <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                      )}
+                                      <button
+                                        className="vel-btn-outline"
+                                        style={{ padding: '4px 8px', fontSize: '0.7rem' }}
+                                        onClick={() => {
+                                          setSelectedOrderId(ord.id);
+                                          handleNavClick('orders');
+                                        }}
+                                      >
+                                        <span>Details</span>
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
 

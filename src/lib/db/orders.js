@@ -48,6 +48,60 @@ export const UI_TO_DB_STATUS = {
 };
 
 /**
+ * Generate a unique order code in format: MNE-YYYYMMDD-XXXX
+ * Rule: MNE- + 8-digit date + - + 4 random uppercase alphanumeric characters.
+ * Example: MNE-20260904-A7K9
+ */
+export function generateOrderCode(date = new Date()) {
+  const d = date instanceof Date && !isNaN(date.getTime()) ? date : new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let rand = '';
+  for (let i = 0; i < 4; i++) {
+    rand += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `MNE-${yyyy}${mm}${dd}-${rand}`;
+}
+
+/**
+ * Format an order row into its human-readable MNE-YYYYMMDD-XXXX display code.
+ */
+export function formatOrderCode(order) {
+  if (!order) return 'MNE-UNKNOWN';
+  if (order.order_code) return order.order_code;
+  if (order.orderCode) return order.orderCode;
+
+  const notes = order.admin_notes || order.rawAdminNotes || order.notes || '';
+  if (typeof notes === 'string' && notes.includes('[ORDER_CODE:')) {
+    const match = notes.match(/\[ORDER_CODE:([^\]]+)\]/);
+    if (match && match[1]) return match[1];
+  }
+
+  // Deterministic fallback from created_at and id
+  const rawDate = order.created_at || order.createdAt;
+  const d = rawDate ? new Date(rawDate) : new Date();
+  const yyyy = isNaN(d.getTime()) ? '2026' : d.getFullYear();
+  const mm = isNaN(d.getTime()) ? '01' : String(d.getMonth() + 1).padStart(2, '0');
+  const dd = isNaN(d.getTime()) ? '01' : String(d.getDate()).padStart(2, '0');
+
+  const idStr = String(order.id || order.dbId || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  const suffix = idStr.length >= 4 ? idStr.slice(0, 4) : 'A7K9';
+
+  return `MNE-${yyyy}${mm}${dd}-${suffix}`;
+}
+
+/**
+ * Strip [ORDER_CODE:...] tag from notes for clean UI display.
+ */
+export function stripOrderCodeTag(notes) {
+  if (!notes || typeof notes !== 'string') return '';
+  return notes.replace(/\s*\[ORDER_CODE:[^\]]+\]/g, '').trim();
+}
+
+/**
  * Map video_type_enum to display labels.
  */
 export const VIDEO_TYPE_MAP = {
@@ -101,22 +155,58 @@ export async function getClientActiveOrder(clientId) {
  * Fetch editor's active assigned project.
  */
 export async function getEditorActiveProject(editorId) {
-  return await supabase
+  try {
+    const res = await supabase
+      .from('orders')
+      .select(`
+        *,
+        client:client_id (
+          id,
+          full_name,
+          company_name,
+          email
+        )
+      `)
+      .eq('editor_id', editorId)
+      .neq('status', 'delivered')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!res.error && res.data) {
+      const d = res.data;
+      d.order_name = d.order_name || d.title || 'Untitled Project';
+      d.title = d.title || d.order_name;
+      d.brief = d.brief || d.description || '';
+      return { data: d, error: null };
+    }
+  } catch (e) {
+    console.warn('[Orders DB] Join select failed, trying fallback:', e);
+  }
+
+  // Fallback: query without relational join
+  const fallback = await supabase
     .from('orders')
-    .select(`
-      *,
-      client:client_id (
-        id,
-        full_name,
-        company_name,
-        email
-      )
-    `)
+    .select('*')
     .eq('editor_id', editorId)
     .neq('status', 'delivered')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (fallback.data) {
+    const d = fallback.data;
+    d.order_name = d.order_name || d.title || 'Untitled Project';
+    d.title = d.title || d.order_name;
+    d.brief = d.brief || d.description || '';
+    if (d.client_id) {
+      const { data: clientProf } = await supabase.from('profiles').select('id, full_name, email').eq('id', d.client_id).maybeSingle();
+      if (clientProf) d.client = clientProf;
+    }
+    return { data: d, error: null };
+  }
+
+  return fallback;
 }
 
 /**
@@ -253,80 +343,153 @@ export async function getAdminOrderCounts() {
  * Create a new order (Admin).
  */
 export async function createOrder(orderPayload) {
-  return await supabase
+  let code = orderPayload.order_code;
+  if (!code) {
+    code = generateOrderCode();
+  }
+
+  const codeTag = `[ORDER_CODE:${code}]`;
+  const notesWithCode = orderPayload.admin_notes
+    ? `${orderPayload.admin_notes} ${codeTag}`
+    : codeTag;
+
+  const payloadWithCode = {
+    ...orderPayload,
+    order_code: code,
+    admin_notes: notesWithCode,
+  };
+
+  // Attempt insert with order_code column
+  let res = await supabase
     .from('orders')
-    .insert([orderPayload])
+    .insert([payloadWithCode])
     .select(`
       *,
       client:client_id (id, full_name, company_name, email),
       editor:editor_id (id, full_name, email, editor_title, avatar_url)
     `)
     .single();
+
+  // Fallback if order_code column doesn't exist yet in Supabase table
+  if (res.error && res.error.message && res.error.message.toLowerCase().includes('order_code')) {
+    const { order_code, ...payloadWithoutCol } = payloadWithCode;
+    res = await supabase
+      .from('orders')
+      .insert([payloadWithoutCol])
+      .select(`
+        *,
+        client:client_id (id, full_name, company_name, email),
+        editor:editor_id (id, full_name, email, editor_title, avatar_url)
+      `)
+      .single();
+  }
+
+  return res;
 }
 
 /**
  * Update an order (generic field update).
  */
 export async function updateOrder(orderId, updates) {
+  try {
+    const res = await supabase
+      .from('orders')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+      .select(`
+        *,
+        client:client_id (id, full_name, company_name, email),
+        editor:editor_id (id, full_name, email, editor_title, avatar_url)
+      `)
+      .maybeSingle();
+
+    if (!res.error && res.data) {
+      return res;
+    }
+  } catch (e) {
+    console.warn('[Orders DB] Relational update failed, attempting simple update:', e);
+  }
+
+  // Fallback without relational joins
   return await supabase
     .from('orders')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', orderId)
-    .select(`
-      *,
-      client:client_id (id, full_name, company_name, email),
-      editor:editor_id (id, full_name, email, editor_title, avatar_url)
-    `)
-    .single();
+    .select('*')
+    .maybeSingle();
 }
 
 /**
  * Update order status and log into order_status_history.
  */
 export async function updateOrderStatus(orderId, newStatus, changedByUserId, oldStatus = null, notes = null) {
-  const { data: updatedOrder, error: updateError } = await supabase
-    .from('orders')
-    .update({ status: newStatus, updated_at: new Date().toISOString() })
-    .eq('id', orderId)
-    .select(`
-      *,
-      client:client_id (id, full_name, company_name, email),
-      editor:editor_id (id, full_name, email, editor_title, avatar_url)
-    `)
-    .single();
+  const normalizedStatus = UI_TO_DB_STATUS[newStatus] || (typeof newStatus === 'string' ? newStatus.toLowerCase() : newStatus);
+  let updatedOrder = null;
+  try {
+    const res = await supabase
+      .from('orders')
+      .update({ status: normalizedStatus, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+      .select(`
+        *,
+        client:client_id (id, full_name, company_name, email),
+        editor:editor_id (id, full_name, email, editor_title, avatar_url)
+      `)
+      .maybeSingle();
 
-  if (updateError) return { data: null, error: updateError };
+    if (!res.error && res.data) {
+      updatedOrder = res.data;
+    }
+  } catch (e) {
+    console.warn('[Orders DB] Relational update failed, attempting simple update:', e);
+  }
 
-  // Log to order_status_history
-  const { error: historyError } = await supabase
-    .from('order_status_history')
-    .insert([
-      {
-        order_id: orderId,
-        changed_by: changedByUserId,
-        old_status: oldStatus,
-        new_status: newStatus,
-        changed_at: new Date().toISOString(),
-        notes: notes,
-      },
-    ]);
+  if (!updatedOrder) {
+    const fallback = await supabase
+      .from('orders')
+      .update({ status: normalizedStatus, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+      .select('*')
+      .maybeSingle();
 
-  if (historyError) {
-    console.warn('[Orders DB] Warning logging status history:', historyError);
+    if (fallback.error) return { data: null, error: fallback.error };
+    updatedOrder = fallback.data;
+  }
+
+  // Log to order_status_history if available
+  if (changedByUserId) {
+    try {
+      await supabase
+        .from('order_status_history')
+        .insert([
+          {
+            order_id: orderId,
+            changed_by: changedByUserId,
+            old_status: oldStatus,
+            new_status: newStatus,
+            changed_at: new Date().toISOString(),
+            notes: notes,
+          },
+        ]);
+    } catch (historyErr) {
+      console.warn('[Orders DB] Warning logging status history:', historyErr);
+    }
   }
 
   return { data: updatedOrder, error: null };
 }
 
 /**
- * Assign editor to an order.
+ * Assign editor to an order with deadlines and notes.
  */
-export async function assignEditorToOrder(orderId, editorId, adminId) {
-  // Update the order with editor and change status to accepted
-  const { data, error } = await updateOrder(orderId, {
+export async function assignEditorToOrder(orderId, editorId, adminId, extraUpdates = {}) {
+  // Update the order with editor, change status to accepted, and commit deadlines
+  const updates = {
     editor_id: editorId,
     status: 'accepted',
-  });
+    ...extraUpdates,
+  };
+  const { data, error } = await updateOrder(orderId, updates);
 
   if (error) return { data: null, error };
 
@@ -338,7 +501,7 @@ export async function assignEditorToOrder(orderId, editorId, adminId) {
       changed_by: adminId,
       old_status: 'received',
       new_status: 'accepted',
-      notes: `Editor assigned`,
+      notes: `Editor assigned. Internal deadline: ${extraUpdates.editor_deadline || 'none'}, Client deadline: ${extraUpdates.client_deadline || 'none'}`,
     }]);
 
   return { data, error: null };
