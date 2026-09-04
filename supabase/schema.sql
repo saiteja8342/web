@@ -125,20 +125,19 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
   v_role user_role := 'client';
-  v_status user_status := 'approved';
+  v_status user_status := 'pending';
   v_meta_role TEXT;
 BEGIN
   v_meta_role := new.raw_user_meta_data->>'role';
 
-  IF v_meta_role = 'admin' THEN
-    v_role := 'admin';
-    v_status := 'approved';
-  ELSIF v_meta_role = 'editor' THEN
+  -- Public signups can only be client or editor; role admin cannot be self-assigned
+  IF v_meta_role = 'editor' THEN
     v_role := 'editor';
-    v_status := 'approved';
-  ELSIF v_meta_role = 'client' THEN
+    v_status := 'pending';
+  ELSE
+    -- Default to client with pending admin approval
     v_role := 'client';
-    v_status := 'approved';
+    v_status := 'pending';
   END IF;
 
   INSERT INTO public.profiles (

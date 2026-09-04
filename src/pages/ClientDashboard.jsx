@@ -173,6 +173,23 @@ export default function ClientDashboard() {
         window.location.href = '/login';
         return;
       }
+
+      // Verify approval status before granting dashboard access
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, status')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      const role = (profile?.role || '').toLowerCase().trim();
+      const status = (profile?.status || '').toLowerCase().trim();
+
+      if (role !== 'admin' && status === 'pending') {
+        await supabase.auth.signOut();
+        window.location.href = '/login?status=pending';
+        return;
+      }
+
       setIsAuthenticated(true);
       setCurrentUser(session.user);
       await fetchClientData(session.user.id);

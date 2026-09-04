@@ -40,12 +40,13 @@ import {
   Archive,
   Star,
   Award,
-  Quote
+  Quote,
+  ShieldCheck
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
 import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, assignEditorToOrder, getEditorActiveOrderCounts, getUnassignedOrders, generateOrderCode, formatOrderCode, stripOrderCodeTag, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
-import { getProfile, getApprovedEditors, getApprovedClients } from '../lib/db/profiles';
+import { getProfile, getApprovedEditors, getApprovedClients, getPendingProfiles, updateProfileStatus } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
 import { getEditorRatingStats, getAllDeliveredOrdersRatingsMap } from '../lib/db/ratings';
 import { subscribeToOrders, subscribeToProfiles, subscribeToUserNotifications, unsubscribeChannel } from '../lib/supabase/realtime';
@@ -232,6 +233,9 @@ export default function AdminPage() {
   const [historySearch, setHistorySearch] = useState('');
   const [editorsList, setEditorsList] = useState([]);
   const [clientsList, setClientsList] = useState([]);
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [approvalsSearch, setApprovalsSearch] = useState('');
+  const [approvalsActionLoading, setApprovalsActionLoading] = useState({});
   const [metrics, setMetrics] = useState({
     activeOrders: 0, acceptedOrders: 0, completedThisWeek: 0,
     pendingOrders: 0, withEditorOrders: 0, readyForDelivery: 0,
@@ -337,6 +341,53 @@ export default function AdminPage() {
     }
   }, [orders]);
 
+  const fetchPendingUsers = useCallback(async () => {
+    const { data, error } = await getPendingProfiles();
+    if (!error && data) {
+      setPendingUsers(data);
+    }
+  }, []);
+
+  const handleApproveUser = async (user) => {
+    setApprovalsActionLoading(prev => ({ ...prev, [user.id]: 'approving' }));
+    try {
+      const { error } = await updateProfileStatus(user.id, 'approved');
+      if (error) {
+        showToast(`Approval failed: ${error.message}`);
+      } else {
+        showToast(`User "${user.full_name || user.email}" approved! They can now log in.`);
+        setPendingUsers(prev => prev.filter(u => u.id !== user.id));
+        fetchClients();
+        fetchEditors();
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setApprovalsActionLoading(prev => ({ ...prev, [user.id]: null }));
+    }
+  };
+
+  const handleRejectUser = async (user) => {
+    const displayName = user.full_name || user.email;
+    if (!window.confirm(`Are you sure you want to decline registration for "${displayName}"?`)) {
+      return;
+    }
+    setApprovalsActionLoading(prev => ({ ...prev, [user.id]: 'rejecting' }));
+    try {
+      const { error } = await updateProfileStatus(user.id, 'rejected');
+      if (error) {
+        showToast(`Action failed: ${error.message}`);
+      } else {
+        showToast(`Registration for "${displayName}" was declined.`);
+        setPendingUsers(prev => prev.filter(u => u.id !== user.id));
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setApprovalsActionLoading(prev => ({ ...prev, [user.id]: null }));
+    }
+  };
+
   const fetchMetrics = useCallback(async () => {
     const counts = await getAdminOrderCounts();
     setMetrics(counts);
@@ -354,11 +405,11 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isAuthenticated) return;
     async function loadAll() {
-      await Promise.all([fetchOrders(), fetchEditors(), fetchMetrics()]);
+      await Promise.all([fetchOrders(), fetchEditors(), fetchMetrics(), fetchPendingUsers()]);
       setDataLoaded(true);
     }
     loadAll();
-  }, [isAuthenticated, fetchOrders, fetchEditors, fetchMetrics]);
+  }, [isAuthenticated, fetchOrders, fetchEditors, fetchMetrics, fetchPendingUsers]);
 
   // Fetch clients after orders are loaded (depends on order counts)
   useEffect(() => {
@@ -385,16 +436,16 @@ export default function AdminPage() {
     });
 
     const profilesChannel = subscribeToProfiles({
-      onInsert: () => { fetchClients(); fetchEditors(); },
-      onUpdate: () => { fetchClients(); fetchEditors(); },
-      onDelete: () => { fetchClients(); fetchEditors(); },
+      onInsert: () => { fetchClients(); fetchEditors(); fetchPendingUsers(); },
+      onUpdate: () => { fetchClients(); fetchEditors(); fetchPendingUsers(); },
+      onDelete: () => { fetchClients(); fetchEditors(); fetchPendingUsers(); },
     });
 
     return () => {
       unsubscribeChannel(ordersChannel);
       unsubscribeChannel(profilesChannel);
     };
-  }, [isAuthenticated, fetchOrders, fetchMetrics, fetchEditors, fetchClients]);
+  }, [isAuthenticated, fetchOrders, fetchMetrics, fetchEditors, fetchClients, fetchPendingUsers]);
 
   useEffect(() => {
     if (!adminProfile) return;
@@ -1188,6 +1239,17 @@ export default function AdminPage() {
       cl.tier.toLowerCase().includes(q);
   });
 
+  const filteredPendingUsers = pendingUsers.filter(u => {
+    const q = approvalsSearch.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (u.full_name && u.full_name.toLowerCase().includes(q)) ||
+      (u.email && u.email.toLowerCase().includes(q)) ||
+      (u.role && u.role.toLowerCase().includes(q)) ||
+      (u.company_name && u.company_name.toLowerCase().includes(q))
+    );
+  });
+
   if (!isAuthenticated) {
     return null;
   }
@@ -1296,6 +1358,19 @@ export default function AdminPage() {
             >
               <Handshake className="h-4 w-4 shrink-0" />
               <span>Clients</span>
+            </button>
+
+            <button
+              className={`vel-nav-item ${activeNav === 'approvals' ? 'active' : ''}`}
+              onClick={() => handleNavClick('approvals')}
+            >
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              <span>Approvals</span>
+              {pendingUsers.length > 0 && (
+                <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#FBBF24', marginLeft: 'auto', fontWeight: 700 }}>
+                  {pendingUsers.length}
+                </span>
+              )}
             </button>
           </nav>
         </div>
@@ -1450,6 +1525,41 @@ export default function AdminPage() {
                     <h1 className="vel-page-h1">Overview</h1>
                     <p className="vel-page-sub">Real-time production metrics.</p>
                   </div>
+
+                  {pendingUsers.length > 0 && (
+                    <div
+                      onClick={() => handleNavClick('approvals')}
+                      style={{
+                        background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.05))',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        borderRadius: '10px',
+                        padding: '12px 18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '18px',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s, transform 0.15s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FBBF24' }}>
+                          <ShieldCheck className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>
+                            {pendingUsers.length} New User Registration{pendingUsers.length > 1 ? 's' : ''} Awaiting Approval
+                          </div>
+                          <div style={{ fontSize: '0.76rem', color: 'var(--vel-text-secondary)' }}>
+                            New users cannot access their dashboard until approved. Click here to review and approve.
+                          </div>
+                        </div>
+                      </div>
+                      <span className="vel-btn-solid" style={{ padding: '5px 12px', fontSize: '0.75rem', background: '#F59E0B', border: 'none', color: '#000000', fontWeight: 700 }}>
+                        Review Now →
+                      </span>
+                    </div>
+                  )}
 
                   <div className="vel-metric-grid">
                     {/* 1. Active Orders */}
@@ -2277,6 +2387,205 @@ export default function AdminPage() {
                       )}
                     </div>
                   )}
+                </>
+              )}
+
+              {/* ============================================================== */}
+              {/* VIEW: USER APPROVALS                                           */}
+              {/* ============================================================== */}
+              {activeNav === 'approvals' && (
+                <>
+                  <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                    <div>
+                      <h1 className="vel-page-h1">User Approvals</h1>
+                      <p className="vel-page-sub">Review and approve new user registrations before granting dashboard access.</p>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        background: 'rgba(245, 158, 11, 0.12)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        color: '#FBBF24',
+                        fontSize: '0.82rem',
+                        fontWeight: 600
+                      }}>
+                        <Clock className="h-4 w-4" />
+                        <span>{pendingUsers.length} Pending Approval{pendingUsers.length === 1 ? '' : 's'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filter & Search Bar */}
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
+                      <Search className="h-4 w-4" style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--vel-text-tertiary)' }} />
+                      <input
+                        type="text"
+                        placeholder="Search pending users by name, email, or role..."
+                        value={approvalsSearch}
+                        onChange={(e) => setApprovalsSearch(e.target.value)}
+                        className="vel-input"
+                        style={{ paddingLeft: '40px' }}
+                      />
+                      {approvalsSearch && (
+                        <button
+                          onClick={() => setApprovalsSearch('')}
+                          style={{ position: 'absolute', right: '12px', top: '10px', background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Pending Users List */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {filteredPendingUsers.length === 0 ? (
+                      <div className="vel-card" style={{ padding: '48px 24px', textAlign: 'center', alignItems: 'center', gap: '14px' }}>
+                        <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <CheckCircle2 className="h-7 w-7 text-green-400" />
+                        </div>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>
+                          {approvalsSearch ? 'No matching pending users' : 'All users are approved!'}
+                        </h3>
+                        <p style={{ fontSize: '0.82rem', color: 'var(--vel-text-secondary)', maxWidth: '420px', lineHeight: 1.5 }}>
+                          {approvalsSearch
+                            ? `No pending user registrations match "${approvalsSearch}". Try clearing your search.`
+                            : 'There are currently no new registration requests waiting for review. When new users sign up, their accounts will appear here.'}
+                        </p>
+                        {approvalsSearch && (
+                          <button
+                            className="vel-btn-outline"
+                            style={{ marginTop: '8px' }}
+                            onClick={() => setApprovalsSearch('')}
+                          >
+                            Clear Search
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      filteredPendingUsers.map((user) => {
+                        const isApproving = approvalsActionLoading[user.id] === 'approving';
+                        const isRejecting = approvalsActionLoading[user.id] === 'rejecting';
+                        const isBusy = isApproving || isRejecting;
+                        const roleLabel = (user.role || 'client').toUpperCase();
+                        const initial = (user.full_name || user.email || 'U').charAt(0).toUpperCase();
+
+                        return (
+                          <div
+                            key={user.id}
+                            style={{
+                              background: 'var(--vel-bg-card)',
+                              border: '1px solid var(--vel-border)',
+                              borderRadius: '12px',
+                              padding: '18px 22px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              flexWrap: 'wrap',
+                              gap: '16px',
+                              transition: 'border-color 0.15s, background 0.15s'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '240px' }}>
+                              <div style={{
+                                width: '42px',
+                                height: '42px',
+                                borderRadius: '10px',
+                                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(59, 130, 246, 0.2))',
+                                border: '1px solid rgba(245, 158, 11, 0.3)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 700,
+                                fontSize: '1rem',
+                                color: '#FBBF24'
+                              }}>
+                                {initial}
+                              </div>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '0.94rem', fontWeight: 700, color: '#FFFFFF' }}>
+                                    {user.full_name || 'Anonymous User'}
+                                  </span>
+                                  <span style={{
+                                    fontSize: '0.66rem',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    background: user.role === 'editor' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                                    color: user.role === 'editor' ? '#C084FC' : '#60A5FA',
+                                    fontWeight: 700,
+                                    letterSpacing: '0.5px'
+                                  }}>
+                                    {roleLabel}
+                                  </span>
+                                  <span style={{
+                                    fontSize: '0.66rem',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    background: 'rgba(245, 158, 11, 0.15)',
+                                    color: '#FBBF24',
+                                    fontWeight: 600
+                                  }}>
+                                    PENDING APPROVAL
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--vel-text-secondary)', marginTop: '3px' }}>
+                                  <span>{user.email}</span>
+                                  {user.phone && <span> • Phone: {user.phone}</span>}
+                                  {user.company_name && <span> • Company: {user.company_name}</span>}
+                                </div>
+                                {user.created_at && (
+                                  <div style={{ fontSize: '0.72rem', color: 'var(--vel-text-tertiary)', marginTop: '2px' }}>
+                                    Registered: {new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <button
+                                className="vel-btn-outline"
+                                disabled={isBusy}
+                                onClick={() => handleRejectUser(user)}
+                                style={{
+                                  padding: '7px 14px',
+                                  fontSize: '0.8rem',
+                                  borderColor: 'rgba(239, 68, 68, 0.3)',
+                                  color: '#F87171'
+                                }}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                                <span>{isRejecting ? 'Declining...' : 'Decline'}</span>
+                              </button>
+
+                              <button
+                                className="vel-btn-solid"
+                                disabled={isBusy}
+                                onClick={() => handleApproveUser(user)}
+                                style={{
+                                  padding: '7px 18px',
+                                  fontSize: '0.8rem',
+                                  background: '#22C55E',
+                                  borderColor: '#22C55E',
+                                  color: '#FFFFFF'
+                                }}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                <span>{isApproving ? 'Approving...' : 'Approve User'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </>
               )}
 

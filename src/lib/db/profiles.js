@@ -33,6 +33,7 @@ export async function getApprovedClients() {
     .from('profiles')
     .select('*')
     .or('role.eq.client,role.is.null')
+    .neq('status', 'pending')
     .order('created_at', { ascending: false });
 }
 
@@ -44,6 +45,7 @@ export async function getApprovedEditors() {
     .from('profiles')
     .select('*')
     .eq('role', 'editor')
+    .neq('status', 'pending')
     .order('created_at', { ascending: false });
 }
 
@@ -74,7 +76,12 @@ export async function updateProfile(id, updates) {
  * Approve or reject a pending profile.
  */
 export async function updateProfileStatus(id, status) {
-  return await updateProfile(id, { status });
+  return await supabase
+    .from('profiles')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
 }
 
 /**

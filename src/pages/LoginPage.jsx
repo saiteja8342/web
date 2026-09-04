@@ -79,7 +79,13 @@ export default function LoginPage() {
 
       if (signupSuccessParam === 'true' || signupSuccessParam === '1') {
         setActiveTab('signin');
-        setSuccessMessage('Your account has been created. Please check your email and verify your address before logging in.');
+        setSuccessMessage('Registration submitted! Your account is pending admin approval. Once approved, you will be able to log in.');
+      }
+
+      const statusParam = params.get('status');
+      if (statusParam === 'pending') {
+        setActiveTab('signin');
+        setErrorMessage('⏳ Your account is pending admin approval. You will be able to log in once an administrator approves your account.');
       }
     }
 
@@ -141,7 +147,7 @@ export default function LoginPage() {
           return;
         }
 
-        // Direct profile provisioning fallback
+        // Direct profile provisioning fallback with pending status
         if (data?.user?.id) {
           try {
             await supabase.from('profiles').upsert({
@@ -149,17 +155,16 @@ export default function LoginPage() {
               full_name: formData.fullName,
               email: formData.email,
               role: 'client',
-              status: 'approved',
+              status: 'pending',
             });
           } catch (pErr) {
             console.warn('Profile direct provision:', pErr);
           }
         }
 
-        // If Supabase gave an immediate session (Email Confirm disabled), redirect directly to client dashboard!
+        // If Supabase gave an immediate session, sign out so unapproved user cannot access dashboard
         if (data?.session) {
-          window.location.href = '/dashboard/client';
-          return;
+          await supabase.auth.signOut();
         }
 
         const signupEmail = formData.email;
@@ -171,7 +176,7 @@ export default function LoginPage() {
           email: signupEmail,
           password: '',
         }));
-        setSuccessMessage('Account created! Please check your email to confirm your account (or disable "Confirm Email" in Supabase settings), then sign in.');
+        setSuccessMessage('Registration submitted! Your account is currently pending administrator approval. Once approved, you will be able to sign in.');
         setIsLoading(false);
 
         // Update URL query parameters so if refreshed, the state and email persist
@@ -196,16 +201,33 @@ export default function LoginPage() {
           return;
         }
 
-        // Check profiles table and read the user's role column to route correctly
+        // Check profiles table and read the user's role and approval status
         if (data?.session && data?.user) {
           try {
             const { data: profile } = await supabase
               .from('profiles')
-              .select('role')
+              .select('role, status')
               .eq('id', data.user.id)
               .maybeSingle();
 
             const role = (profile?.role || '').toLowerCase().trim();
+            const status = (profile?.status || '').toLowerCase().trim();
+
+            // Block access for non-admins if account is pending approval
+            if (role !== 'admin' && status === 'pending') {
+              await supabase.auth.signOut();
+              setErrorMessage('⏳ Your account is pending administrator approval. You will be able to log in once an admin approves your account.');
+              setIsLoading(false);
+              return;
+            }
+
+            // Block access if account was rejected
+            if (role !== 'admin' && status === 'rejected') {
+              await supabase.auth.signOut();
+              setErrorMessage('Your account registration request was declined. Please contact support if you believe this is an error.');
+              setIsLoading(false);
+              return;
+            }
 
             if (role === 'admin') {
               window.location.href = '/dashboard/admin';

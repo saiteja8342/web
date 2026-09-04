@@ -56,6 +56,14 @@ export default function EditorDashboard() {
 
       const { data: profile } = await getProfile(session.user.id);
       const role = (profile?.role || '').toLowerCase().trim();
+      const status = (profile?.status || '').toLowerCase().trim();
+
+      if (role !== 'admin' && status === 'pending') {
+        await supabase.auth.signOut();
+        window.location.href = '/login?status=pending';
+        return;
+      }
+
       if (!profile || (role !== 'editor' && role !== 'admin')) {
         console.warn('[EditorDashboard] Unauthorized access attempt: User is not an editor or admin.');
         window.location.href = '/dashboard/client';
