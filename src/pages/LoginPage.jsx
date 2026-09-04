@@ -288,7 +288,11 @@ export default function LoginPage() {
       }
 
       // 2. Dispatch Supabase password reset email with recovery redirect link
-      const redirectUrl = `${window.location.origin}/login?type=recovery`;
+      const envSiteUrl = import.meta.env.VITE_SITE_URL;
+      const baseOrigin = (envSiteUrl && envSiteUrl.startsWith('http'))
+        ? envSiteUrl.replace(/\/$/, '')
+        : (typeof window !== 'undefined' ? window.location.origin : '');
+      const redirectUrl = `${baseOrigin}/login?type=recovery`;
       const { error } = await supabase.auth.resetPasswordForEmail(emailToReset, {
         redirectTo: redirectUrl,
       });
@@ -326,6 +330,18 @@ export default function LoginPage() {
     setRecoveryError('');
 
     try {
+      // 1. Capture user's email so we can pre-fill it on the Sign In form
+      let userEmail = '';
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) {
+          userEmail = user.email;
+        }
+      } catch (e) {
+        // ignore if not available
+      }
+
+      // 2. Update password in Supabase
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });
@@ -336,33 +352,28 @@ export default function LoginPage() {
         return;
       }
 
+      // 3. Explicitly sign out so the user must authenticate with the new password
+      await supabase.auth.signOut();
+
       setRecoverySuccess(true);
       setRecoveryLoading(false);
 
-      // Inspect role and route client or editor to their dashboard
-      setTimeout(async () => {
-        try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('role')
-              .eq('id', user.id)
-              .maybeSingle();
+      // 4. Return to Sign In screen after short delay
+      setTimeout(() => {
+        setIsRecoveryMode(false);
+        setRecoverySuccess(false);
+        setNewPassword('');
+        setConfirmPassword('');
+        setActiveTab('signin');
+        if (userEmail) {
+          setFormData((prev) => ({ ...prev, email: userEmail, password: '' }));
+        }
+        setSuccessMessage('Password changed successfully! Please sign in with your new password.');
 
-            const role = (profile?.role || '').toLowerCase().trim();
-            if (role === 'editor') {
-              window.location.href = '/dashboard/editor';
-            } else if (role === 'admin') {
-              window.location.href = '/dashboard/admin';
-            } else {
-              window.location.href = '/dashboard/client';
-            }
-          } else {
-            window.location.href = '/login';
-          }
-        } catch (err) {
-          window.location.href = '/dashboard/client';
+        // Clean up URL parameters and recovery hash
+        if (typeof window !== 'undefined') {
+          const loginPath = window.location.pathname.includes('.html') ? '/login.html' : '/login';
+          window.history.replaceState({}, '', `${loginPath}?tab=signin&password_reset=success`);
         }
       }, 1500);
     } catch (err) {
@@ -885,7 +896,7 @@ export default function LoginPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#22c55e', fontSize: '0.92rem' }}>
                     <CheckCircle2 className="h-5 w-5 shrink-0" />
-                    <span>Password updated successfully! Logging you in...</span>
+                    <span>Password updated successfully! Redirecting to login...</span>
                   </div>
                 </div>
               ) : (
@@ -956,7 +967,7 @@ export default function LoginPage() {
                           <span>Updating Password...</span>
                         </>
                       ) : (
-                        <span>Save Password & Login</span>
+                        <span>Save New Password</span>
                       )}
                     </button>
                     <button
