@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import VideoCard from './VideoCard';
+import { parseYouTubeInput } from '../utils/youtube';
+
+// Helper to determine aspect ratio ('9/16' or '16/9')
+function getProjectAspectRatio(project) {
+  if (project?.aspectRatio === '9/16' || project?.aspectRatio === '16/9') {
+    return project.aspectRatio;
+  }
+  const raw = project?.youtubeEmbed || project?.youtubeUrl || project?.youtube || project?.video;
+  const parsed = parseYouTubeInput(raw, project?.aspectRatio);
+  return parsed?.aspectRatio || '16/9';
+}
 
 export default function VideoCarousel({
   projects = [],
@@ -70,11 +81,12 @@ export default function VideoCarousel({
 
   // Active project aspect ratio check
   const activeProject = projects[currentIndex] || {};
-  const isActiveHorizontal = activeProject.aspectRatio === '16/9';
+  const activeAspectRatio = getProjectAspectRatio(activeProject);
+  const isActiveHorizontal = activeAspectRatio === '16/9';
 
   // Helper to compute card dimensions per project
   const getCardDimensions = (project) => {
-    const isHorizontal = project?.aspectRatio === '16/9';
+    const isHorizontal = getProjectAspectRatio(project) === '16/9';
 
     if (isMobile) {
       if (isHorizontal) {
@@ -82,46 +94,46 @@ export default function VideoCarousel({
         const height = Math.round(width * (9 / 16));
         return { width, height };
       } else {
-        const width = Math.min(240, Math.round(windowWidth * 0.65));
-        const height = Math.round(width * (16 / 9.5));
+        const width = Math.min(260, Math.round(windowWidth * 0.68));
+        const height = Math.round(width * (16 / 9));
         return { width, height };
       }
     }
 
     if (isTablet) {
       if (isHorizontal) {
-        return { width: 420, height: 236 };
+        return { width: 440, height: 248 };
       } else {
-        return { width: 250, height: 440 };
+        return { width: 260, height: 462 };
       }
     }
 
     // Desktop
     if (isHorizontal) {
-      return { width: 520, height: 292 };
+      return { width: 540, height: 304 };
     } else {
-      return { width: 290, height: 510 };
+      return { width: 300, height: 533 };
     }
   };
 
   // Base spacing
-  let spacing1 = isActiveHorizontal ? 460 : 330;
-  let spacing2 = isActiveHorizontal ? 320 : 240;
+  let spacing1 = isActiveHorizontal ? 480 : 340;
+  let spacing2 = isActiveHorizontal ? 340 : 250;
 
   if (isMobile) {
-    spacing1 = Math.round(windowWidth * (isActiveHorizontal ? 0.88 : 0.72));
+    spacing1 = Math.round(windowWidth * (isActiveHorizontal ? 0.90 : 0.74));
     spacing2 = spacing1;
   } else if (isTablet) {
-    spacing1 = isActiveHorizontal ? 380 : 270;
-    spacing2 = isActiveHorizontal ? 260 : 200;
+    spacing1 = isActiveHorizontal ? 400 : 280;
+    spacing2 = isActiveHorizontal ? 280 : 210;
   }
 
   // Dynamic Stage Height
-  let stageHeight = isActiveHorizontal ? 360 : 560;
+  let stageHeight = isActiveHorizontal ? 380 : 580;
   if (isTablet) {
-    stageHeight = isActiveHorizontal ? 300 : 480;
+    stageHeight = isActiveHorizontal ? 320 : 510;
   } else if (isMobile) {
-    stageHeight = isActiveHorizontal ? 240 : 450;
+    stageHeight = isActiveHorizontal ? 260 : 490;
   }
 
   const transitionConfig = isReducedMotion

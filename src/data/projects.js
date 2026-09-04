@@ -1,125 +1,70 @@
+/**
+ * Projects Showcase Data
+ * Videos sourced directly from official YouTube Channel: @motionnodeedits
+ * (https://www.youtube.com/@motionnodeedits)
+ */
+
 export const projects = [
   {
     id: 1,
-    title: "Studio Showreel",
-    category: "AI AVATARS",
-    metric: "2.4M Views",
-    video: "/assets/videos/show_reel.mp4",
-    poster: "/assets/posters/showreel-poster.webp",
+    title: "Unlock Your Brand's Potential",
+    category: "REELS",
+    metric: "AI Powered",
+    youtubeUrl: "https://www.youtube.com/shorts/qouiu4CbHU8",
+    aspectRatio: "9/16",
     duration: "0:30",
-    desc: "Vertical showreel highlighting our absolute best edits.",
-    aspectRatio: "9/16"
+    desc: "Unlock your brand's potential with AI-powered video editing and motion design."
   },
   {
     id: 2,
-    title: "Williams Towing",
+    title: "AI Generative Motion Reel",
     category: "REELS",
-    metric: "4.8x ROAS",
-    video: "/assets/videos/williams_towing_commercial.mp4",
-    poster: "/assets/posters/showreel-poster.webp",
-    duration: "0:45",
-    desc: "Dynamic promotional commercial featuring high energy cuts.",
-    aspectRatio: "9/16"
+    metric: "High Retention",
+    youtubeUrl: "https://www.youtube.com/shorts/k9egdphA9mQ",
+    aspectRatio: "9/16",
+    duration: "0:25",
+    desc: "Dynamic short-form video creation powered by generative AI visual synthesis."
   },
   {
     id: 3,
-    title: "Garuda Action Story",
-    category: "REELS",
-    metric: "78% Retention",
-    video: "/assets/videos/garuda_reel.mp4",
-    poster: "/assets/posters/ai-avatar-intro.webp",
-    duration: "0:35",
-    desc: "High energy vertical action cut optimizing sound rhythm.",
-    aspectRatio: "9/16"
+    title: "Cinematic Coffee Powder Commercial",
+    category: "AI ADS",
+    metric: "680+ Views",
+    youtubeUrl: "https://www.youtube.com/watch?v=2w_ZO0n9xIg",
+    aspectRatio: "16/9",
+    duration: "0:41",
+    desc: "AI Generated Coffee Ad featuring cinematic product visualization and sound sync."
   },
   {
     id: 4,
-    title: "Health Awareness Reel",
-    category: "REELS",
-    metric: "1.2M Reach",
-    video: "/assets/videos/kidney_stones.mp4",
-    poster: "/assets/posters/ai-avatar-virtual.webp",
-    duration: "0:40",
-    desc: "Informative social graphics with customized subtitle pacing.",
-    aspectRatio: "9/16"
+    title: "Mysore Pak Sweet AI Commercial",
+    category: "AI ADS",
+    metric: "AI Product Ad",
+    youtubeUrl: "https://www.youtube.com/watch?v=VYvni7IJaGc",
+    aspectRatio: "16/9",
+    duration: "0:31",
+    desc: "Sound-synced fluid AI commercial showcasing culinary product motion."
   },
   {
     id: 5,
-    title: "DaVinci Resolve Course",
-    category: "AI AVATARS",
-    metric: "520K Views",
-    video: "/assets/videos/davinci_resolve_course_trailer.mp4",
-    poster: "/assets/posters/ai-avatar-intro.webp",
-    duration: "0:42",
-    desc: "Promotional trailer editing tailored for social platform release.",
-    aspectRatio: "9/16"
+    title: "AI Thar Car Motion Reveal",
+    category: "AI ADS",
+    metric: "AI Automotive",
+    youtubeUrl: "https://www.youtube.com/watch?v=IltFdkq1qRA",
+    aspectRatio: "16/9",
+    duration: "0:10",
+    desc: "Cinematic 3D-style automotive AI generation and fluid camera panning."
   },
   {
     id: 6,
-    title: "Dynamic AI Social Reel",
-    category: "AI AVATARS",
-    metric: "850K Views",
-    video: "/assets/videos/ai-reel.mov",
-    poster: "/assets/posters/ai-reel.webp",
-    duration: "0:25",
-    desc: "High-impact motion design elements tailored for scroll-retention.",
-    aspectRatio: "9/16"
-  },
-  {
-    id: 7,
-    title: "Coffee Commercial",
-    category: "AI ADS",
-    metric: "3.4x Conversion",
-    video: "/assets/videos/ai-coffee.mp4",
-    poster: "/assets/posters/ai-coffee.webp",
-    duration: "0:28",
-    desc: "Premium CGI product showcase exploring camera panning mechanics.",
-    aspectRatio: "16/9"
-  },
-  {
-    id: 8,
-    title: "Sweet Symphony",
-    category: "AI ADS",
-    metric: "920K Reach",
-    video: "/assets/videos/ai-sweet.mp4",
-    poster: "/assets/posters/ai-sweet.webp",
-    duration: "0:32",
-    desc: "Sound-synced fluid art rendering with precision LUT grade overlays.",
-    aspectRatio: "16/9"
-  },
-  {
-    id: 9,
-    title: "Skin Serum Promo",
-    category: "AI ADS",
-    metric: "6.1x ROAS",
-    video: "/assets/videos/ai_skin_serum.mp4",
-    poster: "/assets/posters/ai-avatar-virtual.webp",
-    duration: "0:37",
-    desc: "Premium cosmetic product visualization utilizing AI simulation renders.",
-    aspectRatio: "16/9"
-  },
-  {
-    id: 10,
-    title: "AI Hanuman Epic",
+    title: "Hanuman Epic Sun Story",
     category: "AI STORY",
-    metric: "1.9M Views",
-    video: "/assets/videos/ai-hanuman.mp4",
-    poster: "/assets/posters/ai-hanuman.webp",
-    duration: "0:51",
-    desc: "Widescreen visual narrative driven by custom generative algorithms.",
-    aspectRatio: "16/9"
-  },
-  {
-    id: 11,
-    title: "AI Denta Karna Story",
-    category: "AI STORY",
-    metric: "3.1M Views",
-    video: "/assets/videos/ai_denta_karna_story.mp4",
-    poster: "/assets/posters/ai-hanuman.webp",
-    duration: "0:48",
-    desc: "Epic cinematic storytelling utilizing customized AI generative renders.",
-    aspectRatio: "16/9"
+    metric: "Mythological AI",
+    youtubeUrl: "https://www.youtube.com/watch?v=pKvRNSqEBE4",
+    aspectRatio: "16/9",
+    duration: "1:08",
+    desc: "Widescreen mythological narrative driven by generative AI visual algorithms."
   }
 ];
 
-export const categories = ['ALL', 'REELS', 'AI ADS', 'AI STORY', 'AI AVATARS'];
+export const categories = ['ALL', 'REELS', 'AI ADS', 'AI STORY'];

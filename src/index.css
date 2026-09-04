@@ -3571,6 +3571,32 @@ textarea.contact-input-custom {
   pointer-events: none;
 }
 
+/* YouTube Embed Player Styles */
+.youtube-embed-wrapper {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+  background-color: #000000;
+  z-index: 2;
+}
+
+.youtube-embed-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  border-radius: 16px;
+}
+
+.card-gradient-overlay.youtube-active-overlay {
+  height: 40%;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.25) 50%, transparent 100%);
+  pointer-events: none;
+}
+
 /* Center Circular Play Button (56px) */
 .center-play-button {
   position: absolute;

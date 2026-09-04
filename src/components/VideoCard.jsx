@@ -1,7 +1,8 @@
-import React, { useRef, useState, useEffect, useCallback, memo } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Play } from 'lucide-react';
 import VideoControls from './VideoControls';
+import { parseYouTubeInput, buildYouTubeEmbedUrl } from '../utils/youtube';
 
 function VideoCardComponent({
   project,
@@ -21,9 +22,28 @@ function VideoCardComponent({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isCardHovered, setIsCardHovered] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [imgError, setImgError] = useState(false);
 
-  // Manage video playback based strictly on isActive
+  // Parse YouTube video input if available (from youtubeEmbed, youtubeUrl, or video property)
+  const youtubeData = useMemo(() => {
+    const raw = project.youtubeEmbed || project.youtubeUrl || project.youtube || project.video;
+    return parseYouTubeInput(raw, project.aspectRatio);
+  }, [project.youtubeEmbed, project.youtubeUrl, project.youtube, project.video, project.aspectRatio]);
+
+  const isYouTube = Boolean(youtubeData?.videoId);
+
+  // Poster thumbnail resolution
+  const posterSrc = useMemo(() => {
+    if (project.poster) return project.poster;
+    if (isYouTube) {
+      return imgError ? youtubeData.thumbnail : youtubeData.maxresThumbnail;
+    }
+    return '';
+  }, [project.poster, isYouTube, imgError, youtubeData]);
+
+  // Manage direct HTML5 video playback strictly on isActive
   useEffect(() => {
+    if (isYouTube) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -34,7 +54,6 @@ function VideoCardComponent({
         playPromise
           .then(() => setIsPlaying(true))
           .catch(() => {
-            // If browser autoplay policy blocked with audio, force mute and retry
             video.muted = true;
             setIsMuted(true);
             video.play()
@@ -51,7 +70,7 @@ function VideoCardComponent({
       }
       setIsPlaying(false);
     }
-  }, [isActive, isMuted]);
+  }, [isActive, isMuted, isYouTube]);
 
   // Fullscreen change listener
   useEffect(() => {
@@ -77,7 +96,6 @@ function VideoCardComponent({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Max 2 deg rotateX, Max 3 deg rotateY
     const rotateX = -((y / rect.height - 0.5) * 4);
     const rotateY = (x / rect.width - 0.5) * 6;
 
@@ -93,9 +111,10 @@ function VideoCardComponent({
     setTilt({ x: 0, y: 0 });
   }, []);
 
-  // Play / Pause Toggle
+  // Play / Pause Toggle for direct video
   const togglePlay = useCallback((e) => {
     if (e) e.stopPropagation();
+    if (isYouTube) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -107,17 +126,18 @@ function VideoCardComponent({
       video.pause();
       setIsPlaying(false);
     }
-  }, []);
+  }, [isYouTube]);
 
-  // Mute / Unmute Toggle
+  // Mute / Unmute Toggle for direct video
   const toggleMute = useCallback((e) => {
     if (e) e.stopPropagation();
+    if (isYouTube) return;
     const video = videoRef.current;
     if (!video) return;
 
     video.muted = !video.muted;
     setIsMuted(video.muted);
-  }, []);
+  }, [isYouTube]);
 
   // Fullscreen Toggle
   const toggleFullscreen = useCallback((e) => {
@@ -140,11 +160,11 @@ function VideoCardComponent({
     }
   }, []);
 
-  // Handle Card Click: if inactive, click smoothly centers it
+  // Handle Card Click
   const handleCardClick = () => {
     if (!isActive) {
       onSelect(index);
-    } else {
+    } else if (!isYouTube) {
       togglePlay();
     }
   };
@@ -186,49 +206,66 @@ function VideoCardComponent({
           transition: 'transform 0.15s ease-out'
         }}
       >
-        {/* Video or Lazy Poster Element */}
+        {/* Active State: YouTube Embed or Direct Video */}
         {isActive ? (
-          <video
-            ref={videoRef}
-            src={project.video}
-            poster={project.poster}
-            autoPlay
-            muted={isMuted}
-            playsInline
-            loop
-            preload="metadata"
-            controlsList="nodownload"
-            disablePictureInPicture
-            aria-label={project.title}
-            onContextMenu={preventContextMenu}
-            className="video-card-element"
-          />
+          isYouTube ? (
+            <div className="youtube-embed-wrapper">
+              <iframe
+                src={buildYouTubeEmbedUrl(youtubeData.videoId, {
+                  autoplay: true,
+                  mute: true,
+                  loop: true,
+                  controls: true
+                })}
+                title={project.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                className="youtube-embed-frame"
+              />
+            </div>
+          ) : (
+            <video
+              ref={videoRef}
+              src={project.video}
+              poster={posterSrc}
+              autoPlay
+              muted={isMuted}
+              playsInline
+              loop
+              preload="metadata"
+              controlsList="nodownload"
+              disablePictureInPicture
+              aria-label={project.title}
+              onContextMenu={preventContextMenu}
+              className="video-card-element"
+            />
+          )
         ) : (
+          /* Inactive State: High quality poster/thumbnail */
           <img
-            src={project.poster}
+            src={posterSrc}
             alt={project.title}
             loading="lazy"
             decoding="async"
+            onError={() => setImgError(true)}
             className="video-card-element"
           />
         )}
 
-        {/* Center Hover Play/Pause Indicator (56px circle) */}
-        <div
-          className={`center-play-button ${
-            !isPlaying || (isCardHovered && isActive) || (!isActive && isCardHovered)
-              ? 'visible'
-              : 'hidden'
-          }`}
-          aria-hidden="true"
-        >
-          <div className="center-play-circle">
-            <Play size={22} fill="white" className="ml-1 text-white" />
+        {/* Center Hover Play Indicator (Inactive card or paused direct video) */}
+        {(!isActive || (!isYouTube && !isPlaying)) && (
+          <div
+            className={`center-play-button ${isCardHovered || !isActive ? 'visible' : 'hidden'}`}
+            aria-hidden="true"
+          >
+            <div className="center-play-circle">
+              <Play size={22} fill="white" className="ml-1 text-white" />
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Bottom Dark Gradient Info Overlay */}
-        <div className="card-gradient-overlay">
+        {/* Bottom Dark Gradient Info Overlay (Shows metadata; pointer-events: none so clicks pass to video/iframe) */}
+        <div className={`card-gradient-overlay ${isActive && isYouTube ? 'youtube-active-overlay' : ''}`}>
           <div className="card-info-content">
             <div className="card-meta-top">
               <span className="card-category-badge">{project.category}</span>
@@ -246,8 +283,8 @@ function VideoCardComponent({
           </div>
         </div>
 
-        {/* Video Controls Bar (Active card only on hover / always on mobile) */}
-        {isActive && (
+        {/* Video Controls Bar (Only for direct HTML5 video, active state) */}
+        {isActive && !isYouTube && (
           <VideoControls
             isPlaying={isPlaying}
             isMuted={isMuted}
@@ -264,3 +301,4 @@ function VideoCardComponent({
 }
 
 export default memo(VideoCardComponent);
+
