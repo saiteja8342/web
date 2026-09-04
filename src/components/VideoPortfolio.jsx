@@ -4,7 +4,7 @@ import CarouselNavigation from './CarouselNavigation';
 import VideoCarousel from './VideoCarousel';
 import CarouselPagination from './CarouselPagination';
 
-export default function VideoPortfolio() {
+export default function VideoPortfolio({ isHeadingH1 = false }) {
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -43,7 +43,11 @@ export default function VideoPortfolio() {
         {/* Section Header */}
         <div className="portfolio-top-header">
           <span className="portfolio-eyebrow-tag">OUR WORK</span>
-          <h2 className="portfolio-main-headline">Featured Projects</h2>
+          {isHeadingH1 ? (
+            <h1 className="portfolio-main-headline">Featured Projects</h1>
+          ) : (
+            <h2 className="portfolio-main-headline">Featured Projects</h2>
+          )}
           <p className="portfolio-subtext">
             Explore our portfolio filtered by category. Drag or swipe horizontally to view our vertical reels and widescreen productions.
           </p>

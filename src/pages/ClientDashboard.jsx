@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
+import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { getClientOrders, formatOrderCode, STATUS_MAP, VIDEO_TYPE_MAP } from '../lib/db/orders';
 import { getProfile } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
@@ -168,31 +169,17 @@ export default function ClientDashboard() {
 
   useEffect(() => {
     async function checkAuth() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session || !session.user) {
-        window.location.href = '/login';
-        return;
+      const { authorized, session, profile } = await checkRouteAuth({
+        requiredRole: 'client',
+        redirectOnFail: '/login',
+      });
+
+      if (authorized && session && profile) {
+        setIsAuthenticated(true);
+        setCurrentUser(session.user);
+        setClientProfile(profile);
+        await fetchClientData(session.user.id);
       }
-
-      // Verify approval status before granting dashboard access
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role, status')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      const role = (profile?.role || '').toLowerCase().trim();
-      const status = (profile?.status || '').toLowerCase().trim();
-
-      if (role !== 'admin' && status === 'pending') {
-        await supabase.auth.signOut();
-        window.location.href = '/login?status=pending';
-        return;
-      }
-
-      setIsAuthenticated(true);
-      setCurrentUser(session.user);
-      await fetchClientData(session.user.id);
     }
     checkAuth();
   }, [fetchClientData]);

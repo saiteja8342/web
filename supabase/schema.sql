@@ -187,8 +187,7 @@ RETURNS BOOLEAN AS $$
   );
 $$ LANGUAGE sql SECURITY DEFINER;
 
--- Helper function to check if a user is eligible for self-service password reset
--- ONLY clients and editors can reset passwords. Admins are blocked for security.
+-- Privacy-preserving implementation: Prevents account & admin role enumeration
 CREATE OR REPLACE FUNCTION public.check_can_reset_password(target_email TEXT)
 RETURNS JSONB AS $$
 DECLARE
@@ -198,17 +197,45 @@ BEGIN
   FROM public.profiles
   WHERE LOWER(email) = LOWER(TRIM(target_email));
 
-  IF v_role IS NULL THEN
-    RETURN jsonb_build_object('allowed', false, 'reason', 'not_found');
-  ELSIF v_role = 'admin' THEN
-    RETURN jsonb_build_object('allowed', false, 'reason', 'admin_blocked');
+  -- Return generic allowed:false for admin accounts (blocked self-service)
+  -- or allowed:true for existing normal accounts.
+  IF v_role = 'admin' THEN
+    RETURN jsonb_build_object('allowed', false);
   ELSE
-    RETURN jsonb_build_object('allowed', true, 'role', v_role);
+    RETURN jsonb_build_object('allowed', true);
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION public.check_can_reset_password(TEXT) TO anon, authenticated;
+
+-- ==============================================================================
+-- PRIVILEGE ESCALATION PREVENTION TRIGGER ON PROFILES
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.protect_profile_roles()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- If actor is NOT an admin, hard-block any alteration of role, status, or id
+  IF NOT public.is_admin() THEN
+    IF NEW.role IS DISTINCT FROM OLD.role THEN
+      RAISE EXCEPTION 'Access Denied: You cannot modify user role.';
+    END IF;
+    IF NEW.status IS DISTINCT FROM OLD.status THEN
+      RAISE EXCEPTION 'Access Denied: You cannot modify user approval status.';
+    END IF;
+    IF NEW.id IS DISTINCT FROM OLD.id THEN
+      RAISE EXCEPTION 'Access Denied: You cannot change profile user ID.';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_protect_profile_roles ON public.profiles;
+CREATE TRIGGER trg_protect_profile_roles
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW
+  EXECUTE PROCEDURE public.protect_profile_roles();
 
 -- Enable RLS on all tables
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -227,11 +254,13 @@ DO $$ BEGIN
 
   DROP POLICY IF EXISTS "Admin full access on orders" ON orders;
   DROP POLICY IF EXISTS "Editors can select assigned orders" ON orders;
+  DROP POLICY IF EXISTS "Editors can update assigned orders status" ON orders;
   DROP POLICY IF EXISTS "Clients can select own orders" ON orders;
 
   DROP POLICY IF EXISTS "Admin full access on order_status_history" ON order_status_history;
   DROP POLICY IF EXISTS "Editors can read history of assigned orders" ON order_status_history;
   DROP POLICY IF EXISTS "Clients can read history of own orders" ON order_status_history;
+  DROP POLICY IF EXISTS "Editors and clients can insert history for own orders" ON order_status_history;
 
   DROP POLICY IF EXISTS "Admin full access on revision_requests" ON revision_requests;
   DROP POLICY IF EXISTS "Clients can insert revisions for own orders" ON revision_requests;
@@ -270,7 +299,11 @@ CREATE POLICY "Users can update own profile"
 CREATE POLICY "Allow user insert on signup"
   ON profiles FOR INSERT
   TO authenticated
-  WITH CHECK (id = auth.uid());
+  WITH CHECK (
+    id = auth.uid() AND
+    role IN ('client', 'editor') AND
+    status = 'pending'
+  );
 
 -- ─── ORDERS POLICIES ──────────────────────────────────────────────────────────
 CREATE POLICY "Admin full access on orders"
@@ -283,6 +316,12 @@ CREATE POLICY "Editors can select assigned orders"
   ON orders FOR SELECT
   TO authenticated
   USING (editor_id = auth.uid());
+
+CREATE POLICY "Editors can update assigned orders status"
+  ON orders FOR UPDATE
+  TO authenticated
+  USING (editor_id = auth.uid())
+  WITH CHECK (editor_id = auth.uid());
 
 CREATE POLICY "Clients can select own orders"
   ON orders FOR SELECT
@@ -315,6 +354,18 @@ CREATE POLICY "Clients can read history of own orders"
       SELECT 1 FROM orders
       WHERE orders.id = order_status_history.order_id
       AND orders.client_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Editors and clients can insert history for own orders"
+  ON order_status_history FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    changed_by = auth.uid() AND
+    EXISTS (
+      SELECT 1 FROM orders
+      WHERE orders.id = order_status_history.order_id
+      AND (orders.client_id = auth.uid() OR orders.editor_id = auth.uid())
     )
   );
 

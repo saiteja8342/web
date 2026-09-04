@@ -9,7 +9,8 @@ export default function Footer() {
   const footerRef = useRef(null);
   const isAboutPage = typeof window !== 'undefined' && window.location.pathname.includes('about');
   const isWorkPage = typeof window !== 'undefined' && window.location.pathname.includes('work');
-  const isSecondaryPage = isAboutPage || isWorkPage;
+  const isTermsPage = typeof window !== 'undefined' && window.location.pathname.includes('terms');
+  const isSecondaryPage = isAboutPage || isWorkPage || isTermsPage;
 
   useEffect(() => {
     const el = footerRef.current;
@@ -172,10 +173,10 @@ export default function Footer() {
                   <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">Services</a>
                 </li>
                 <li>
-                  <a href="/work.html" target={isWorkPage ? "_self" : "_blank"} rel="noopener noreferrer" data-hover-type="link">Our Work</a>
+                  <a href="/work.html" className={isWorkPage ? "active" : ""} data-hover-type="link">Our Work</a>
                 </li>
                 <li>
-                  <a href="/about.html" target={isAboutPage ? "_self" : "_blank"} rel="noopener noreferrer" data-hover-type="link">About Us</a>
+                  <a href="/about.html" className={isAboutPage ? "active" : ""} data-hover-type="link">About Us</a>
                 </li>
                 <li>
                   <a href={isSecondaryPage ? "/#testimonials" : "#testimonials"} data-hover-type="link">Client Reviews</a>
@@ -229,9 +230,9 @@ export default function Footer() {
               </button>
             </div>
             <div className="footer-legal-links">
-              <a href={isSecondaryPage ? "/" : "#"} data-hover-type="link">Privacy Policy</a>
+              <a href="/terms.html" data-hover-type="link">Privacy Policy</a>
               <span className="footer-legal-pipe">||</span>
-              <a href="/terms.html" target="_blank" rel="noopener noreferrer" data-hover-type="link">Terms of Service</a>
+              <a href="/terms.html" data-hover-type="link">Terms of Service</a>
             </div>
           </div>
         </div>

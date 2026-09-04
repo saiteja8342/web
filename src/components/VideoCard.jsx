@@ -244,7 +244,7 @@ function VideoCardComponent({
           /* Inactive State: High quality poster/thumbnail */
           <img
             src={posterSrc}
-            alt={project.title}
+            alt={`${project.title} — ${project.category} video by MotionNodeEdits`}
             loading="lazy"
             decoding="async"
             onError={() => setImgError(true)}

@@ -12,13 +12,18 @@ import {
 } from 'lucide-react';
 
 export default function MobileSidebar({ isOpen, onClose }) {
+  const isAboutPage = typeof window !== 'undefined' && window.location.pathname.includes('about');
+  const isWorkPage = typeof window !== 'undefined' && window.location.pathname.includes('work');
+  const isTermsPage = typeof window !== 'undefined' && window.location.pathname.includes('terms');
+  const isSecondaryPage = isAboutPage || isWorkPage || isTermsPage;
+
   const links = [
-    { label: 'Home', href: '#', icon: <Home className="h-5 w-5 shrink-0 text-white/80" /> },
-    { label: 'Services', href: '#services', icon: <Sparkles className="h-5 w-5 shrink-0 text-white/80" /> },
-    { label: 'Our Work', href: '/work.html', target: '_blank', icon: <Film className="h-5 w-5 shrink-0 text-white/80" /> },
-    { label: 'About Us', href: '/about.html', target: '_blank', icon: <Sparkles className="h-5 w-5 shrink-0 text-white/80" /> },
-    { label: 'Client Reviews', href: '#testimonials', icon: <Star className="h-5 w-5 shrink-0 text-white/80" /> },
-    { label: 'Contact', href: '#contact', icon: <Mail className="h-5 w-5 shrink-0 text-white/80" /> },
+    { label: 'Home', href: isSecondaryPage ? '/' : '#', icon: <Home className="h-5 w-5 shrink-0 text-white/80" /> },
+    { label: 'Services', href: isSecondaryPage ? '/#services' : '#services', icon: <Sparkles className="h-5 w-5 shrink-0 text-white/80" /> },
+    { label: 'Our Work', href: '/work.html', icon: <Film className="h-5 w-5 shrink-0 text-white/80" /> },
+    { label: 'About Us', href: '/about.html', icon: <Sparkles className="h-5 w-5 shrink-0 text-white/80" /> },
+    { label: 'Client Reviews', href: isSecondaryPage ? '/#testimonials' : '#testimonials', icon: <Star className="h-5 w-5 shrink-0 text-white/80" /> },
+    { label: 'Contact', href: isSecondaryPage ? '/#contact' : '#contact', icon: <Mail className="h-5 w-5 shrink-0 text-white/80" /> },
   ];
 
   const sidebarVariants = {
@@ -54,7 +59,8 @@ export default function MobileSidebar({ isOpen, onClose }) {
 
   const handleLinkClick = (e, href) => {
     onClose();
-    if (href.startsWith('#')) {
+    if (href.startsWith('#') && !isSecondaryPage) {
+      e.preventDefault();
       const targetEl = document.querySelector(href === '#' ? 'body' : href);
       if (targetEl) {
         targetEl.scrollIntoView({ behavior: 'smooth' });
@@ -134,8 +140,8 @@ export default function MobileSidebar({ isOpen, onClose }) {
             {/* Bottom Actions */}
             <div className="mobile-sidebar-footer">
               <a
-                href="#contact"
-                onClick={(e) => handleLinkClick(e, '#contact')}
+                href={isSecondaryPage ? "/#contact" : "#contact"}
+                onClick={(e) => handleLinkClick(e, isSecondaryPage ? "/#contact" : "#contact")}
                 className="mobile-sidebar-cta-btn"
               >
                 <span>Start a Project</span>

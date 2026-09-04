@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
+import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, assignEditorToOrder, getEditorActiveOrderCounts, getUnassignedOrders, generateOrderCode, formatOrderCode, stripOrderCodeTag, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
 import { getProfile, getApprovedEditors, getApprovedClients, getPendingProfiles, updateProfileStatus } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
@@ -53,6 +54,15 @@ import { subscribeToOrders, subscribeToProfiles, subscribeToUserNotifications, u
 import './admin.css';
 
 // ─── Helpers ────────────────────────────────────────────────────────
+function safeHref(url) {
+  if (!url || typeof url !== 'string') return '#';
+  const trimmed = url.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return '#';
+}
+
 function safeIsoDate(val) {
   if (!val || typeof val !== 'string') return null;
   const trimmed = val.trim();
@@ -194,21 +204,14 @@ export default function AdminPage() {
 
   useEffect(() => {
     async function checkAuth() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        window.location.href = '/login';
-        return;
+      const { authorized, profile } = await checkRouteAuth({
+        requiredRole: 'admin',
+        redirectOnFail: '/login',
+      });
+      if (authorized && profile) {
+        setIsAuthenticated(true);
+        setAdminProfile(profile);
       }
-
-      const { data: profile } = await getProfile(session.user.id);
-      if (!profile || (profile.role || '').toLowerCase().trim() !== 'admin') {
-        console.warn('[AdminPage] Unauthorized access attempt: User is not an admin.');
-        window.location.href = '/dashboard/client';
-        return;
-      }
-
-      setIsAuthenticated(true);
-      setAdminProfile(profile);
     }
     checkAuth();
   }, []);
@@ -2943,7 +2946,7 @@ export default function AdminPage() {
                               </div>
 
                               <a
-                                href={selectedOrder.additionalLink}
+                                href={safeHref(selectedOrder.additionalLink)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="vel-btn-outline"
@@ -3024,7 +3027,7 @@ export default function AdminPage() {
                               </div>
                             </div>
                             <a
-                              href={selectedOrder.driveLink}
+                              href={safeHref(selectedOrder.driveLink)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="vel-btn-outline"
@@ -3410,7 +3413,7 @@ export default function AdminPage() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                       {ord.additionalLink && (
                                         <a
-                                          href={ord.additionalLink}
+                                          href={safeHref(ord.additionalLink)}
                                           target="_blank"
                                           rel="noopener noreferrer"
                                           className="vel-btn-outline"

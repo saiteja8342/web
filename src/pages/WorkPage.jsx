@@ -60,7 +60,7 @@ export default function WorkPage() {
         }}
       >
         {/* CINEMATIC VIDEO PORTFOLIO CAROUSEL */}
-        <VideoPortfolio />
+        <VideoPortfolio isHeadingH1={true} />
       </main>
 
       {/* FLOATING WHATSAPP DRAWERS */}

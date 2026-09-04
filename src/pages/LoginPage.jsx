@@ -251,12 +251,30 @@ export default function LoginPage() {
     }
   };
 
-  const handleSocialAuth = (provider) => {
+  const handleSocialAuth = async (provider) => {
     setIsLoading(true);
-    setTimeout(() => {
+    setErrorMessage('');
+    try {
+      const envSiteUrl = import.meta.env.VITE_SITE_URL;
+      const baseOrigin = (envSiteUrl && envSiteUrl.startsWith('http'))
+        ? envSiteUrl.replace(/\/$/, '')
+        : (typeof window !== 'undefined' ? window.location.origin : '');
+      const redirectUrl = `${baseOrigin}/dashboard/client`;
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: provider.toLowerCase(),
+        options: {
+          redirectTo: redirectUrl,
+        },
+      });
+      if (error) {
+        setErrorMessage(`${provider} sign-in is currently unavailable: ${error.message}`);
+        setIsLoading(false);
+      }
+    } catch (err) {
+      setErrorMessage(`${provider} sign-in is not configured. Please use email and password.`);
       setIsLoading(false);
-      setAuthSuccess(true);
-    }, 1000);
+    }
   };
 
   const handleForgotSubmit = async (e) => {
@@ -268,23 +286,19 @@ export default function LoginPage() {
     setForgotError('');
 
     try {
-      // 1. Strict Security Check: Admins cannot reset passwords via this self-service portal
-      let isAdminBlocked = false;
+      // 1. Privacy-preserving security check:
       try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('check_can_reset_password', {
+        const { data: rpcData } = await supabase.rpc('check_can_reset_password', {
           target_email: emailToReset
         });
-        if (!rpcError && rpcData && rpcData.reason === 'admin_blocked') {
-          isAdminBlocked = true;
+        if (rpcData && rpcData.allowed === false) {
+          // Silently withhold reset dispatch for admin accounts without revealing their role
+          setForgotSubmitted(true);
+          setForgotLoading(false);
+          return;
         }
       } catch (err) {
-        // Fallback: check profile role directly if accessible
-      }
-
-      if (isAdminBlocked) {
-        setForgotError('Password recovery is disabled for Administrator accounts. Please contact system engineering or use master credentials.');
-        setForgotLoading(false);
-        return;
+        // Fallback: proceed to standard flow
       }
 
       // 2. Dispatch Supabase password reset email with recovery redirect link
@@ -298,15 +312,15 @@ export default function LoginPage() {
       });
 
       if (error) {
-        setForgotError(error.message || 'Failed to send reset link. Please check the email address.');
-        setForgotLoading(false);
-        return;
+        // Only show technical error if it's a rate limit or network issue
+        console.warn('[Password Reset] Notice:', error.message);
       }
 
+      // Always show generic confirmation to prevent user enumeration
       setForgotSubmitted(true);
       setForgotLoading(false);
     } catch (err) {
-      setForgotError(err.message || 'An unexpected error occurred. Please try again.');
+      setForgotSubmitted(true);
       setForgotLoading(false);
     }
   };
@@ -714,31 +728,13 @@ export default function LoginPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
                 <a
-                  href="/client.html"
+                  href="/dashboard/client"
                   className="auth-submit-btn"
                   style={{ textDecoration: 'none', textAlign: 'center' }}
                   data-hover-type="link"
                 >
-                  Enter Client Portal
+                  Continue to Portal
                 </a>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <a
-                    href="/editor.html"
-                    className="auth-social-btn"
-                    style={{ flex: 1, textDecoration: 'none', textAlign: 'center' }}
-                    data-hover-type="link"
-                  >
-                    Editor Dashboard
-                  </a>
-                  <a
-                    href="/admin.html"
-                    className="auth-social-btn"
-                    style={{ flex: 1, textDecoration: 'none', textAlign: 'center' }}
-                    data-hover-type="link"
-                  >
-                    Admin Panel
-                  </a>
-                </div>
               </div>
             </motion.div>
           </div>

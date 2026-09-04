@@ -29,7 +29,8 @@ export default function Navbar() {
 
   const isAboutPage = typeof window !== 'undefined' && window.location.pathname.includes('about');
   const isWorkPage = typeof window !== 'undefined' && window.location.pathname.includes('work');
-  const isSecondaryPage = isAboutPage || isWorkPage;
+  const isTermsPage = typeof window !== 'undefined' && window.location.pathname.includes('terms');
+  const isSecondaryPage = isAboutPage || isWorkPage || isTermsPage;
 
   return (
     <>
@@ -67,8 +68,8 @@ export default function Navbar() {
           <div className="nav-links">
             <a href={isSecondaryPage ? "/" : "#"} data-hover-type="link">Home</a>
             <a href={isSecondaryPage ? "/#services" : "#services"} data-hover-type="link">Services</a>
-            <a href="/work.html" className={isWorkPage ? "active" : ""} target={isWorkPage ? "_self" : "_blank"} rel="noopener noreferrer" data-hover-type="link">Our Work</a>
-            <a href="/about.html" className={isAboutPage ? "active" : ""} target={isAboutPage ? "_self" : "_blank"} rel="noopener noreferrer" data-hover-type="link">About Us</a>
+            <a href="/work.html" className={isWorkPage ? "active" : ""} data-hover-type="link">Our Work</a>
+            <a href="/about.html" className={isAboutPage ? "active" : ""} data-hover-type="link">About Us</a>
             <a href={isSecondaryPage ? "/#testimonials" : "#testimonials"} data-hover-type="link">Client Reviews</a>
             <a href={isSecondaryPage ? "/#contact" : "#contact"} data-hover-type="link">Contact</a>
           </div>

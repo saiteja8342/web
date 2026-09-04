@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
+import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { getEditorActiveProject, getEditorProjectHistory, getEditorStats, updateOrderStatus, updateOrder, formatOrderCode, STATUS_MAP } from '../lib/db/orders';
 import { getProfile } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
@@ -48,30 +49,15 @@ export default function EditorDashboard() {
 
   useEffect(() => {
     async function checkAuth() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        window.location.href = '/login';
-        return;
+      const { authorized, profile } = await checkRouteAuth({
+        requiredRole: 'editor',
+        redirectOnFail: '/login',
+      });
+
+      if (authorized && profile) {
+        setIsAuthenticated(true);
+        setEditorProfile(profile);
       }
-
-      const { data: profile } = await getProfile(session.user.id);
-      const role = (profile?.role || '').toLowerCase().trim();
-      const status = (profile?.status || '').toLowerCase().trim();
-
-      if (role !== 'admin' && status === 'pending') {
-        await supabase.auth.signOut();
-        window.location.href = '/login?status=pending';
-        return;
-      }
-
-      if (!profile || (role !== 'editor' && role !== 'admin')) {
-        console.warn('[EditorDashboard] Unauthorized access attempt: User is not an editor or admin.');
-        window.location.href = '/dashboard/client';
-        return;
-      }
-
-      setIsAuthenticated(true);
-      setEditorProfile(profile);
     }
     checkAuth();
   }, []);

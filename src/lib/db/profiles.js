@@ -61,12 +61,15 @@ export async function getPendingProfiles() {
 }
 
 /**
- * Update a user profile.
+ * Update a user profile safely (disallowing privilege escalation fields).
  */
 export async function updateProfile(id, updates) {
+  // Sanitize updates to prevent accidental or malicious role/status escalation
+  const { id: _omitId, role: _omitRole, status: _omitStatus, created_at: _omitCreatedAt, ...safeUpdates } = updates;
+
   return await supabase
     .from('profiles')
-    .update(updates)
+    .update(safeUpdates)
     .eq('id', id)
     .select()
     .single();

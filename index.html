@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MotionNodeEdits | AI Video Production & Video Editing</title>
     <meta name="description" content="MotionNodeEdits (motionnodeedits.com) - Premium AI video production, video editing, AI ads, reels, and creative content for brands, creators, and businesses that want to stand out." />
-    <meta name="keywords" content="motionnodeedits, motion node edits, motionnodeedits.com, AI video production, AI video agency, AI video ads, AI advertising agency, video editing agency, AI reels, AI avatar videos, video production for brands, AI commercial videos, social media video production, AI product ads, short-form video editing, cinematic video editing, AI UGC ads, corporate AI videos" />
     <meta name="author" content="MotionNodeEdits" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="theme-color" content="#050507" />
@@ -41,56 +40,101 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "ProfessionalService",
-      "name": "MotionNodeEdits",
-      "image": "https://motionnodeedits.com/image/mne_logo.png",
-      "url": "https://motionnodeedits.com/",
-      "telephone": "+918985351756",
-      "email": "hello@motionnodeedits.com",
-      "description": "Premium AI video production, video editing, AI ads, reels, and creative content for brands, creators, and businesses that want to stand out.",
-      "sameAs": [
-        "https://www.instagram.com/motionnodeedits/",
-        "https://www.youtube.com/@motionnodeedits",
-        "https://www.linkedin.com/company/motionnodeedits"
-      ],
-      "hasOfferCatalog": {
-        "@type": "OfferCatalog",
-        "name": "AI Video & Editing Services",
-        "itemListElement": [
-          {
-            "@type": "Offer",
-            "itemOffered": {
-              "@type": "Service",
-              "name": "AI Video Production",
-              "description": "AI-powered visual production, generative rendering, and cinematic commercial storytelling."
-            }
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://motionnodeedits.com/#organization",
+          "name": "Motion Node Edits",
+          "alternateName": "MotionNodeEdits",
+          "url": "https://motionnodeedits.com/",
+          "logo": {
+            "@type": "ImageObject",
+            "@id": "https://motionnodeedits.com/#logo",
+            "url": "https://motionnodeedits.com/image/mne_logo.png",
+            "caption": "Motion Node Edits"
           },
-          {
-            "@type": "Offer",
-            "itemOffered": {
-              "@type": "Service",
-              "name": "Video Editing",
-              "description": "High-retention video editing, color grading, and sound design for brands and creators."
+          "image": "https://motionnodeedits.com/image/mne_logo.png",
+          "email": "hello@motionnodeedits.com",
+          "telephone": "+918985351756",
+          "description": "Motion Node Edits is a premium AI video production and video editing studio crafting AI ads, commercial reels, UGC, and high-retention video content for brands and creators.",
+          "sameAs": [
+            "https://www.youtube.com/@motionnodeedits",
+            "https://www.instagram.com/motionnodeedits/",
+            "https://www.linkedin.com/company/motionnodeedits"
+          ],
+          "contactPoint": [
+            {
+              "@type": "ContactPoint",
+              "telephone": "+918985351756",
+              "contactType": "customer service",
+              "email": "hello@motionnodeedits.com",
+              "availableLanguage": ["English", "Hindi", "Telugu"]
             }
-          },
-          {
-            "@type": "Offer",
-            "itemOffered": {
-              "@type": "Service",
-              "name": "AI Video Ads & Commercials",
-              "description": "Tailored advertising campaigns combining algorithmic precision with high-end commercial post-production."
-            }
-          },
-          {
-            "@type": "Offer",
-            "itemOffered": {
-              "@type": "Service",
-              "name": "Social Media Reels & UGC Ads",
-              "description": "Scroll-stopping TikToks, Instagram Reels, and YouTube Shorts engineered for audience retention."
-            }
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://motionnodeedits.com/#website",
+          "url": "https://motionnodeedits.com/",
+          "name": "Motion Node Edits",
+          "description": "Premium AI video production, video editing, AI ads, reels, and creative content for brands, creators, and businesses.",
+          "publisher": {
+            "@id": "https://motionnodeedits.com/#organization"
           }
-        ]
-      }
+        },
+        {
+          "@type": "ProfessionalService",
+          "@id": "https://motionnodeedits.com/#service",
+          "name": "Motion Node Edits",
+          "url": "https://motionnodeedits.com/",
+          "logo": "https://motionnodeedits.com/image/mne_logo.png",
+          "image": "https://motionnodeedits.com/image/mne_logo.png",
+          "parentOrganization": {
+            "@id": "https://motionnodeedits.com/#organization"
+          },
+          "telephone": "+918985351756",
+          "email": "hello@motionnodeedits.com",
+          "priceRange": "$$",
+          "hasOfferCatalog": {
+            "@type": "OfferCatalog",
+            "name": "AI Video & Editing Services",
+            "itemListElement": [
+              {
+                "@type": "Offer",
+                "itemOffered": {
+                  "@type": "Service",
+                  "name": "AI Video Production",
+                  "description": "AI-powered visual production, generative rendering, and cinematic commercial storytelling."
+                }
+              },
+              {
+                "@type": "Offer",
+                "itemOffered": {
+                  "@type": "Service",
+                  "name": "Video Editing",
+                  "description": "High-retention video editing, color grading, and sound design for brands and creators."
+                }
+              },
+              {
+                "@type": "Offer",
+                "itemOffered": {
+                  "@type": "Service",
+                  "name": "AI Video Ads & Commercials",
+                  "description": "Tailored advertising campaigns combining algorithmic precision with high-end commercial post-production."
+                }
+              },
+              {
+                "@type": "Offer",
+                "itemOffered": {
+                  "@type": "Service",
+                  "name": "Social Media Reels & UGC Ads",
+                  "description": "Scroll-stopping TikToks, Instagram Reels, and YouTube Shorts engineered for audience retention."
+                }
+              }
+            ]
+          }
+        }
+      ]
     }
     </script>
 

@@ -1,4 +1,13 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /editor
+Disallow: /editor.html
+Disallow: /client
+Disallow: /client.html
+Disallow: /dashboard/
+Disallow: /login
+Disallow: /login.html
 
 Sitemap: https://motionnodeedits.com/sitemap.xml
