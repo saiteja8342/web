@@ -196,14 +196,18 @@ export default function AdminPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         window.location.href = '/login';
-      } else {
-        setIsAuthenticated(true);
-        // Fetch admin profile
-        const { data: profile } = await getProfile(session.user.id);
-        if (profile) {
-          setAdminProfile(profile);
-        }
+        return;
       }
+
+      const { data: profile } = await getProfile(session.user.id);
+      if (!profile || (profile.role || '').toLowerCase().trim() !== 'admin') {
+        console.warn('[AdminPage] Unauthorized access attempt: User is not an admin.');
+        window.location.href = '/dashboard/client';
+        return;
+      }
+
+      setIsAuthenticated(true);
+      setAdminProfile(profile);
     }
     checkAuth();
   }, []);

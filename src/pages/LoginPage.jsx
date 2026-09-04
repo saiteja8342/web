@@ -24,6 +24,17 @@ export default function LoginPage() {
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSubmitted, setForgotSubmitted] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+
+  // Password Recovery Mode States (when user clicks reset link in email)
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryError, setRecoveryError] = useState('');
+  const [recoverySuccess, setRecoverySuccess] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -37,13 +48,21 @@ export default function LoginPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Handle URL query parameters (e.g., ?tab=signup or ?tab=signin&email=...&signup_success=true)
+  // Handle URL query parameters and recovery mode
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
       const emailParam = params.get('email');
       const signupSuccessParam = params.get('signup_success');
+      const typeParam = params.get('type');
+
+      // Check URL hash for recovery token (e.g. #access_token=...&type=recovery)
+      const hash = window.location.hash ? window.location.hash.substring(1) : '';
+      const hashParams = new URLSearchParams(hash);
+      if (typeParam === 'recovery' || hashParams.get('type') === 'recovery') {
+        setIsRecoveryMode(true);
+      }
 
       if (tabParam === 'signup' || tabParam === 'register') {
         setActiveTab('signup');
@@ -63,6 +82,17 @@ export default function LoginPage() {
         setSuccessMessage('Your account has been created. Please check your email and verify your address before logging in.');
       }
     }
+
+    // Listen for Supabase auth state change (e.g. PASSWORD_RECOVERY event when user opens email reset link)
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecoveryMode(true);
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, []);
 
   const handleChange = (e) => {
@@ -207,10 +237,116 @@ export default function LoginPage() {
     }, 1000);
   };
 
-  const handleForgotSubmit = (e) => {
+  const handleForgotSubmit = async (e) => {
     e.preventDefault();
-    if (!forgotEmail) return;
-    setForgotSubmitted(true);
+    const emailToReset = forgotEmail ? forgotEmail.trim() : '';
+    if (!emailToReset) return;
+
+    setForgotLoading(true);
+    setForgotError('');
+
+    try {
+      // 1. Strict Security Check: Admins cannot reset passwords via this self-service portal
+      let isAdminBlocked = false;
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('check_can_reset_password', {
+          target_email: emailToReset
+        });
+        if (!rpcError && rpcData && rpcData.reason === 'admin_blocked') {
+          isAdminBlocked = true;
+        }
+      } catch (err) {
+        // Fallback: check profile role directly if accessible
+      }
+
+      if (isAdminBlocked) {
+        setForgotError('Password recovery is disabled for Administrator accounts. Please contact system engineering or use master credentials.');
+        setForgotLoading(false);
+        return;
+      }
+
+      // 2. Dispatch Supabase password reset email with recovery redirect link
+      const redirectUrl = `${window.location.origin}/login?type=recovery`;
+      const { error } = await supabase.auth.resetPasswordForEmail(emailToReset, {
+        redirectTo: redirectUrl,
+      });
+
+      if (error) {
+        setForgotError(error.message || 'Failed to send reset link. Please check the email address.');
+        setForgotLoading(false);
+        return;
+      }
+
+      setForgotSubmitted(true);
+      setForgotLoading(false);
+    } catch (err) {
+      setForgotError(err.message || 'An unexpected error occurred. Please try again.');
+      setForgotLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    if (!newPassword || !confirmPassword) {
+      setRecoveryError('Please fill in both password fields.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setRecoveryError('Password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setRecoveryError('Passwords do not match. Please re-enter.');
+      return;
+    }
+
+    setRecoveryLoading(true);
+    setRecoveryError('');
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) {
+        setRecoveryError(error.message || 'Failed to update password.');
+        setRecoveryLoading(false);
+        return;
+      }
+
+      setRecoverySuccess(true);
+      setRecoveryLoading(false);
+
+      // Inspect role and route client or editor to their dashboard
+      setTimeout(async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', user.id)
+              .maybeSingle();
+
+            const role = (profile?.role || '').toLowerCase().trim();
+            if (role === 'editor') {
+              window.location.href = '/dashboard/editor';
+            } else if (role === 'admin') {
+              window.location.href = '/dashboard/admin';
+            } else {
+              window.location.href = '/dashboard/client';
+            }
+          } else {
+            window.location.href = '/login';
+          }
+        } catch (err) {
+          window.location.href = '/dashboard/client';
+        }
+      }, 1500);
+    } catch (err) {
+      setRecoveryError(err.message || 'An unexpected error occurred.');
+      setRecoveryLoading(false);
+    }
   };
 
   return (
@@ -590,19 +726,38 @@ export default function LoginPage() {
               <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#FFFFFF' }}>
                 Reset Your Password
               </h3>
+
+              {forgotError && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#f87171',
+                  fontSize: '0.82rem',
+                  marginTop: '12px'
+                }}>
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{forgotError}</span>
+                </div>
+              )}
+
               {forgotSubmitted ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#22c55e', fontSize: '0.9rem' }}>
                     <CheckCircle2 className="h-5 w-5 shrink-0" />
                     <span>Reset link sent to <strong>{forgotEmail}</strong></span>
                   </div>
                   <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                    Please check your inbox and spam folder for instructions to restore access.
+                    Please check your inbox and spam folder. Click the secure link in the email to set your new password and regain access to your workspace.
                   </p>
                   <button
                     type="button"
                     className="auth-submit-btn"
-                    onClick={() => setForgotModalOpen(false)}
+                    onClick={() => { setForgotModalOpen(false); setForgotSubmitted(false); }}
                     style={{ marginTop: '8px' }}
                     data-hover-type="link"
                   >
@@ -610,9 +765,9 @@ export default function LoginPage() {
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleForgotSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <form onSubmit={handleForgotSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
                   <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                    Enter your registered email address and we will send you a secure password reset link.
+                    Enter your registered email address. We will verify your account and send a secure link to create a new password.
                   </p>
                   <div className="auth-input-wrapper">
                     <span className="auth-input-icon">
@@ -623,7 +778,7 @@ export default function LoginPage() {
                       className="auth-input"
                       placeholder="alex@company.com"
                       value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
+                      onChange={(e) => { setForgotEmail(e.target.value); setForgotError(''); }}
                       required
                       autoFocus
                       data-hover-type="link"
@@ -633,15 +788,159 @@ export default function LoginPage() {
                     <button
                       type="submit"
                       className="auth-submit-btn"
-                      style={{ flex: 1 }}
+                      disabled={forgotLoading}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                       data-hover-type="link"
                     >
-                      Send Reset Link
+                      {forgotLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Verifying...</span>
+                        </>
+                      ) : (
+                        <span>Send Reset Link</span>
+                      )}
                     </button>
                     <button
                       type="button"
                       className="auth-social-btn"
                       onClick={() => setForgotModalOpen(false)}
+                      data-hover-type="link"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Set New Password Recovery Modal (Triggered by reset email link) */}
+      <AnimatePresence>
+        {isRecoveryMode && (
+          <div className="auth-modal-backdrop">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="auth-modal-card"
+              style={{ maxWidth: '440px' }}
+            >
+              <div className="auth-modal-icon-wrap" style={{ background: 'rgba(255, 100, 150, 0.15)', borderColor: 'rgba(255, 100, 150, 0.3)' }}>
+                <Lock className="h-6 w-6" style={{ color: '#FF6496' }} />
+              </div>
+
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#FFFFFF', marginBottom: '6px' }}>
+                  Create New Password
+                </h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Enter and confirm your new password below to recover your account and sign in.
+                </p>
+              </div>
+
+              {recoveryError && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  color: '#f87171',
+                  fontSize: '0.82rem',
+                  marginTop: '12px'
+                }}>
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{recoveryError}</span>
+                </div>
+              )}
+
+              {recoverySuccess ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#22c55e', fontSize: '0.92rem' }}>
+                    <CheckCircle2 className="h-5 w-5 shrink-0" />
+                    <span>Password updated successfully! Logging you in...</span>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleUpdatePassword} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '14px' }}>
+                  <div className="auth-form-group">
+                    <label className="auth-label" style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem' }}>
+                      New Password
+                    </label>
+                    <div className="auth-input-wrapper">
+                      <span className="auth-input-icon">
+                        <Lock className="h-4 w-4" />
+                      </span>
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        className="auth-input"
+                        placeholder="••••••••••••"
+                        value={newPassword}
+                        onChange={(e) => { setNewPassword(e.target.value); setRecoveryError(''); }}
+                        required
+                        minLength={6}
+                        autoFocus
+                        data-hover-type="link"
+                      />
+                      <button
+                        type="button"
+                        className="auth-input-action-btn"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                        data-hover-type="link"
+                      >
+                        {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="auth-form-group">
+                    <label className="auth-label" style={{ display: 'block', marginBottom: '6px', fontSize: '0.82rem' }}>
+                      Confirm New Password
+                    </label>
+                    <div className="auth-input-wrapper">
+                      <span className="auth-input-icon">
+                        <Lock className="h-4 w-4" />
+                      </span>
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        className="auth-input"
+                        placeholder="••••••••••••"
+                        value={confirmPassword}
+                        onChange={(e) => { setConfirmPassword(e.target.value); setRecoveryError(''); }}
+                        required
+                        minLength={6}
+                        data-hover-type="link"
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                    <button
+                      type="submit"
+                      className="auth-submit-btn"
+                      disabled={recoveryLoading}
+                      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                      data-hover-type="link"
+                    >
+                      {recoveryLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Updating Password...</span>
+                        </>
+                      ) : (
+                        <span>Save Password & Login</span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="auth-social-btn"
+                      onClick={() => setIsRecoveryMode(false)}
                       data-hover-type="link"
                     >
                       Cancel

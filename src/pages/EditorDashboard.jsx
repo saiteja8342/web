@@ -51,13 +51,19 @@ export default function EditorDashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         window.location.href = '/login';
-      } else {
-        setIsAuthenticated(true);
-        const { data: profile } = await getProfile(session.user.id);
-        if (profile) {
-          setEditorProfile(profile);
-        }
+        return;
       }
+
+      const { data: profile } = await getProfile(session.user.id);
+      const role = (profile?.role || '').toLowerCase().trim();
+      if (!profile || (role !== 'editor' && role !== 'admin')) {
+        console.warn('[EditorDashboard] Unauthorized access attempt: User is not an editor or admin.');
+        window.location.href = '/dashboard/client';
+        return;
+      }
+
+      setIsAuthenticated(true);
+      setEditorProfile(profile);
     }
     checkAuth();
   }, []);

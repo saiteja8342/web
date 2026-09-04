@@ -188,6 +188,29 @@ RETURNS BOOLEAN AS $$
   );
 $$ LANGUAGE sql SECURITY DEFINER;
 
+-- Helper function to check if a user is eligible for self-service password reset
+-- ONLY clients and editors can reset passwords. Admins are blocked for security.
+CREATE OR REPLACE FUNCTION public.check_can_reset_password(target_email TEXT)
+RETURNS JSONB AS $$
+DECLARE
+  v_role TEXT;
+BEGIN
+  SELECT role INTO v_role
+  FROM public.profiles
+  WHERE LOWER(email) = LOWER(TRIM(target_email));
+
+  IF v_role IS NULL THEN
+    RETURN jsonb_build_object('allowed', false, 'reason', 'not_found');
+  ELSIF v_role = 'admin' THEN
+    RETURN jsonb_build_object('allowed', false, 'reason', 'admin_blocked');
+  ELSE
+    RETURN jsonb_build_object('allowed', true, 'role', v_role);
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.check_can_reset_password(TEXT) TO anon, authenticated;
+
 -- Enable RLS on all tables
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
