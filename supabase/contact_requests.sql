@@ -23,8 +23,9 @@ CREATE INDEX IF NOT EXISTS idx_contact_requests_created_at ON public.contact_req
 CREATE INDEX IF NOT EXISTS idx_contact_requests_status ON public.contact_requests(status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_contact_requests_unique_email ON public.contact_requests(LOWER(email));
 
--- 3. Enable Row Level Security (RLS)
+-- 3. Enable Row Level Security (RLS) & Realtime Replica Identity
 ALTER TABLE public.contact_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.contact_requests REPLICA IDENTITY FULL;
 
 -- 4. Clean up any existing policies safely
 DO $$ 

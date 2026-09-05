@@ -46,7 +46,8 @@ export async function createContactRequest({ name, email, phone, project_type, m
       return { data: null, error: null, isDuplicate: true };
     }
 
-    const { data, error } = await supabase
+    // Pure INSERT without .select() - avoids RLS "returning representation" permission error for anon visitors
+    const { error } = await supabase
       .from('contact_requests')
       .insert([
         {
@@ -57,18 +58,21 @@ export async function createContactRequest({ name, email, phone, project_type, m
           message: message?.trim(),
           status: 'new',
         }
-      ])
-      .select()
-      .single();
+      ]);
 
-    // Catch unique constraint violation (Postgres error 23505)
-    if (error && (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique constraint'))) {
-      return { data: null, error: null, isDuplicate: true };
+    if (error) {
+      console.error('[ContactRequests] Supabase insert error:', error);
+      // Catch unique constraint violation (Postgres error 23505)
+      if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
+        return { data: null, error: null, isDuplicate: true };
+      }
+      return { data: null, error, isDuplicate: false };
     }
 
-    return { data, error, isDuplicate: false };
+    console.log('[ContactRequests] Contact request saved successfully to Supabase!');
+    return { data: true, error: null, isDuplicate: false };
   } catch (err) {
-    console.warn('[ContactRequests] Submission error:', err);
+    console.error('[ContactRequests] Submission exception:', err);
     return { data: null, error: err, isDuplicate: false };
   }
 }

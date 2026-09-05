@@ -30,9 +30,18 @@ export default function Contact() {
 
   useEffect(() => {
     try {
-      if (typeof window !== 'undefined' && localStorage.getItem('mne_contact_submitted') === 'true') {
-        setHasSubmitted(true);
-        setStatus({ submitting: false, success: true, error: false });
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('reset_contact') === '1' || urlParams.get('reset_contact') === 'true') {
+          localStorage.removeItem('mne_contact_submitted');
+          localStorage.removeItem('mne_contact_email');
+          setHasSubmitted(false);
+          return;
+        }
+        if (localStorage.getItem('mne_contact_submitted') === 'true') {
+          setHasSubmitted(true);
+          setStatus({ submitting: false, success: true, error: false });
+        }
       }
     } catch {}
   }, []);
@@ -110,6 +119,9 @@ export default function Contact() {
       });
 
       const [dbResult, formspreeResponse] = await Promise.allSettled([dbPromise, formspreePromise]);
+
+      console.log('[Contact Form] Supabase submission result:', dbResult);
+      console.log('[Contact Form] Formspree submission result:', formspreeResponse);
 
       // Check if duplicate submission by email
       if (dbResult.status === 'fulfilled' && dbResult.value?.isDuplicate) {

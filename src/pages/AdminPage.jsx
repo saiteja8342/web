@@ -419,7 +419,9 @@ export default function AdminPage() {
     setContactRequestsLoading(true);
     try {
       const { data, error } = await getContactRequests();
-      if (!error && data) {
+      if (error) {
+        console.error('[Admin] Error fetching contact requests from Supabase:', error);
+      } else if (data) {
         setContactRequests(data);
       }
     } catch (err) {
