@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
+import fs from 'fs'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -22,8 +23,8 @@ const dashboardRewrite = () => ({
         '/dashboard/client/': '/dashboard/client/index.html',
         '/login': '/login.html',
         '/login/': '/login.html',
-        '/admin/login': '/admin/login.html',
-        '/admin/login/': '/admin/login.html',
+        '/admin/login': '/admin/login/index.html',
+        '/admin/login/': '/admin/login/index.html',
         '/admin': '/admin.html',
         '/admin/': '/admin.html',
         '/editor': '/editor.html',
@@ -48,6 +49,29 @@ const dashboardRewrite = () => ({
   }
 });
 
+// Candidate inputs across multi-page entrypoints
+const candidateEntries = {
+  main: path.resolve(__dirname, 'index.html'),
+  about: path.resolve(__dirname, 'about.html'),
+  work: path.resolve(__dirname, 'work.html'),
+  ourWork: path.resolve(__dirname, 'our-work.html'),
+  terms: path.resolve(__dirname, 'terms.html'),
+  login: path.resolve(__dirname, 'login.html'),
+  adminLogin: path.resolve(__dirname, 'admin/login.html'),
+  adminLoginIndex: path.resolve(__dirname, 'admin/login/index.html'),
+  admin: path.resolve(__dirname, 'admin.html'),
+  editor: path.resolve(__dirname, 'editor.html'),
+  client: path.resolve(__dirname, 'client.html'),
+  dashboardAdmin: path.resolve(__dirname, 'dashboard/admin/index.html'),
+  dashboardEditor: path.resolve(__dirname, 'dashboard/editor/index.html'),
+  dashboardClient: path.resolve(__dirname, 'dashboard/client/index.html'),
+};
+
+// Only include entry points that actually exist on disk to prevent UNRESOLVED_ENTRY build errors on CI/CD
+const resolvedInputs = Object.fromEntries(
+  Object.entries(candidateEntries).filter(([_, targetPath]) => fs.existsSync(targetPath))
+);
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss(), dashboardRewrite()],
@@ -59,21 +83,7 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      input: {
-        main: fileURLToPath(new URL('./index.html', import.meta.url)),
-        about: fileURLToPath(new URL('./about.html', import.meta.url)),
-        work: fileURLToPath(new URL('./work.html', import.meta.url)),
-        ourWork: fileURLToPath(new URL('./our-work.html', import.meta.url)),
-        terms: fileURLToPath(new URL('./terms.html', import.meta.url)),
-        login: fileURLToPath(new URL('./login.html', import.meta.url)),
-        adminLogin: fileURLToPath(new URL('./admin/login.html', import.meta.url)),
-        admin: fileURLToPath(new URL('./admin.html', import.meta.url)),
-        editor: fileURLToPath(new URL('./editor.html', import.meta.url)),
-        client: fileURLToPath(new URL('./client.html', import.meta.url)),
-        dashboardAdmin: fileURLToPath(new URL('./dashboard/admin/index.html', import.meta.url)),
-        dashboardEditor: fileURLToPath(new URL('./dashboard/editor/index.html', import.meta.url)),
-        dashboardClient: fileURLToPath(new URL('./dashboard/client/index.html', import.meta.url)),
-      },
+      input: resolvedInputs,
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
