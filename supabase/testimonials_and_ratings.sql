@@ -75,7 +75,8 @@ CREATE POLICY "Public can view approved testimonials"
 -- 5. HELPER VIEW: v_approved_testimonials
 -- Convenient view for displaying testimonials on marketing and showcase pages
 -- ==============================================================================
-CREATE OR REPLACE VIEW public.v_approved_testimonials AS
+CREATE OR REPLACE VIEW public.v_approved_testimonials 
+WITH (security_invoker = true) AS
 SELECT
   r.id AS rating_id,
   r.order_id,

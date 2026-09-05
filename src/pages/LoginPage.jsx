@@ -87,6 +87,26 @@ export default function LoginPage() {
         setActiveTab('signin');
         setErrorMessage('⏳ Your account is pending admin approval. You will be able to log in once an administrator approves your account.');
       }
+
+      // If an existing admin session is detected on public login, silently terminate it
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .maybeSingle()
+            .then(({ data: p }) => {
+              if ((p?.role || '').toLowerCase().trim() === 'admin') {
+                supabase.auth.signOut();
+                if (typeof window !== 'undefined') {
+                  sessionStorage.removeItem('mne_admin_auth_origin');
+                  localStorage.removeItem('mne_admin_auth_origin');
+                }
+              }
+            });
+        }
+      });
     }
 
     // Listen for Supabase auth state change (e.g. PASSWORD_RECOVERY event when user opens email reset link)
@@ -130,6 +150,22 @@ export default function LoginPage() {
 
     try {
       if (activeTab === 'signup') {
+        const signupEmail = (formData.email || '').trim().toLowerCase();
+
+        // 1. BLOCK SIGNUP WITH ADMIN EMAIL
+        try {
+          const { data: rpcData } = await supabase.rpc('check_can_reset_password', {
+            target_email: signupEmail,
+          });
+          if (rpcData && rpcData.allowed === false) {
+            setErrorMessage('Access Denied: Registration is strictly blocked for this email address.');
+            setIsLoading(false);
+            return;
+          }
+        } catch (err) {
+          console.warn('[Signup] Admin validation check:', err);
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -142,7 +178,35 @@ export default function LoginPage() {
         });
 
         if (error) {
+          // If already registered and is an admin
+          try {
+            const { data: rpcData } = await supabase.rpc('check_can_reset_password', {
+              target_email: signupEmail,
+            });
+            if (rpcData && rpcData.allowed === false) {
+              setErrorMessage('Access Denied: Registration is strictly blocked for this email address.');
+              setIsLoading(false);
+              return;
+            }
+          } catch (_) {}
           setErrorMessage(error.message);
+          setIsLoading(false);
+          return;
+        }
+
+        // If user already exists in auth.users (empty identities)
+        if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          try {
+            const { data: rpcData } = await supabase.rpc('check_can_reset_password', {
+              target_email: signupEmail,
+            });
+            if (rpcData && rpcData.allowed === false) {
+              setErrorMessage('Access Denied: Registration is strictly blocked for this email address.');
+              setIsLoading(false);
+              return;
+            }
+          } catch (_) {}
+          setErrorMessage('An account with this email address already exists. Please sign in.');
           setIsLoading(false);
           return;
         }
@@ -166,8 +230,6 @@ export default function LoginPage() {
         if (data?.session) {
           await supabase.auth.signOut();
         }
-
-        const signupEmail = formData.email;
 
         // Switch to Sign In tab, keep/pre-fill the email, clear password
         setActiveTab('signin');
@@ -229,9 +291,20 @@ export default function LoginPage() {
               return;
             }
 
+            // STRICT RULE: Admins CANNOT log in from normal /login.
+            // Pretend the account does not exist on this client login panel for security!
             if (role === 'admin') {
-              window.location.href = '/dashboard/admin';
-            } else if (role === 'editor') {
+              await supabase.auth.signOut();
+              if (typeof window !== 'undefined') {
+                sessionStorage.removeItem('mne_admin_auth_origin');
+                localStorage.removeItem('mne_admin_auth_origin');
+              }
+              setErrorMessage('We cannot find any account with this email address. Please sign up first.');
+              setIsLoading(false);
+              return;
+            }
+
+            if (role === 'editor') {
               window.location.href = '/dashboard/editor';
             } else {
               window.location.href = '/dashboard/client';
@@ -686,12 +759,12 @@ export default function LoginPage() {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
                   background: 'rgba(239, 68, 68, 0.15)',
                   border: '1px solid rgba(239, 68, 68, 0.3)',
                   color: '#f87171',
-                  fontSize: '0.82rem',
+                  fontSize: '0.84rem',
                   marginTop: '16px'
                 }}
               >

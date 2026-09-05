@@ -33,6 +33,8 @@
     { "source": "/dashboard/editor/:path*", "destination": "/dashboard/editor/index.html" },
     { "source": "/dashboard/client", "destination": "/dashboard/client/index.html" },
     { "source": "/dashboard/client/:path*", "destination": "/dashboard/client/index.html" },
+    { "source": "/admin/login", "destination": "/admin/login.html" },
+    { "source": "/admin/login/:path*", "destination": "/admin/login.html" },
     { "source": "/login", "destination": "/login.html" },
     { "source": "/about", "destination": "/about.html" },
     { "source": "/work", "destination": "/work.html" },

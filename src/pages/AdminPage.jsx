@@ -206,7 +206,7 @@ export default function AdminPage() {
     async function checkAuth() {
       const { authorized, profile } = await checkRouteAuth({
         requiredRole: 'admin',
-        redirectOnFail: '/login',
+        redirectOnFail: '/admin/login',
       });
       if (authorized && profile) {
         setIsAuthenticated(true);
@@ -218,8 +218,12 @@ export default function AdminPage() {
 
   const handleLogout = async (e) => {
     if (e) e.preventDefault();
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('mne_admin_auth_origin');
+      localStorage.removeItem('mne_admin_auth_origin');
+    }
     await supabase.auth.signOut();
-    window.location.href = '/login';
+    window.location.href = '/admin/login';
   };
 
   const [activeNav, setActiveNav] = useState('home');
@@ -1388,7 +1392,7 @@ export default function AdminPage() {
             <span>Settings</span>
           </button>
 
-          <a href="/login" onClick={handleLogout} className="vel-nav-item" style={{ textDecoration: 'none' }}>
+          <a href="/admin/login" onClick={handleLogout} className="vel-nav-item" style={{ textDecoration: 'none' }}>
             <LogOut className="h-4 w-4 shrink-0" />
             <span>Logout</span>
           </a>

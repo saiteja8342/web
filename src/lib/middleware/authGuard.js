@@ -9,21 +9,24 @@ import { getSession, getUserProfile, signOutUser } from '../auth/authUtils';
  * @param {string} [options.redirectOnFail] - URL to redirect to if unauthorized (default: '/login')
  * @returns {Promise<{authorized: boolean, session: Object|null, profile: Object|null}>}
  */
-export async function checkRouteAuth({ requiredRole = null, redirectOnFail = '/login' } = {}) {
+export async function checkRouteAuth({ requiredRole = null, redirectOnFail = null } = {}) {
+  const defaultRedirect = (requiredRole && requiredRole.toLowerCase().trim() === 'admin') ? '/admin/login' : '/login';
+  const finalRedirect = redirectOnFail || defaultRedirect;
+
   try {
     const session = await getSession();
 
     if (!session || !session.user) {
-      if (typeof window !== 'undefined' && redirectOnFail) {
-        window.location.href = redirectOnFail;
+      if (typeof window !== 'undefined' && finalRedirect) {
+        window.location.href = finalRedirect;
       }
       return { authorized: false, session: null, profile: null };
     }
 
     const profile = await getUserProfile(session.user.id);
     if (!profile) {
-      if (typeof window !== 'undefined' && redirectOnFail) {
-        window.location.href = redirectOnFail;
+      if (typeof window !== 'undefined' && finalRedirect) {
+        window.location.href = finalRedirect;
       }
       return { authorized: false, session, profile: null };
     }
@@ -64,13 +67,31 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = '/l
         }
         return { authorized: false, session, profile };
       }
+
+      // STRICT RULE: Only sessions from /admin/login can access the admin dashboard
+      if (normalizedRequired === 'admin') {
+        const authOrigin = typeof window !== 'undefined'
+          ? (sessionStorage.getItem('mne_admin_auth_origin') || localStorage.getItem('mne_admin_auth_origin'))
+          : null;
+
+        if (authOrigin !== 'admin/login') {
+          console.warn('[AuthGuard] Access blocked: Admin dashboard requires authentication via /admin/login');
+          await signOutUser();
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('mne_admin_auth_origin');
+            localStorage.removeItem('mne_admin_auth_origin');
+            window.location.href = '/admin/login?notice=portal_required';
+          }
+          return { authorized: false, session: null, profile: null };
+        }
+      }
     }
 
     return { authorized: true, session, profile };
   } catch (error) {
     console.error('[AuthGuard] Error during authentication guard check:', error);
-    if (typeof window !== 'undefined' && redirectOnFail) {
-      window.location.href = redirectOnFail;
+    if (typeof window !== 'undefined' && finalRedirect) {
+      window.location.href = finalRedirect;
     }
     return { authorized: false, session: null, profile: null };
   }

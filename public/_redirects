@@ -4,6 +4,8 @@
 /dashboard/editor     /dashboard/editor/index.html  200
 /dashboard/client/*   /dashboard/client/index.html  200
 /dashboard/client     /dashboard/client/index.html  200
+/admin/login/*          /admin/login.html             200
+/admin/login            /admin/login.html             200
 /login                /login.html                   200
 /about                /about.html                   200
 /work                 /work.html                    200
