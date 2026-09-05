@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import MagneticParticleButton from './MagneticParticleButton';
+import { createContactRequest } from '../lib/db/contactRequests';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -61,7 +62,17 @@ export default function Contact() {
     }
 
     try {
-      const response = await fetch('https://formspree.io/f/mzdokokr', {
+      // 1. Save contact request to Supabase
+      const dbPromise = createContactRequest({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        project_type: formData.project_type,
+        message: formData.message,
+      });
+
+      // 2. Also send via Formspree
+      const formspreePromise = fetch('https://formspree.io/f/mzdokokr', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -72,11 +83,19 @@ export default function Contact() {
           email: formData.email,
           phone: formData.phone,
           project_type: formData.project_type,
-          message: formData.message
+          message: formData.message,
         }),
+      }).catch((err) => {
+        console.warn('Formspree submission warning:', err);
+        return { ok: false };
       });
 
-      if (response.ok) {
+      const [dbResult, formspreeResponse] = await Promise.allSettled([dbPromise, formspreePromise]);
+      const dbSuccess = dbResult.status === 'fulfilled' && !dbResult.value?.error;
+      const formspreeSuccess = formspreeResponse.status === 'fulfilled' && formspreeResponse.value?.ok;
+
+      // If either Supabase or Formspree succeeded, consider submission a success
+      if (dbSuccess || formspreeSuccess) {
         setStatus({ submitting: false, success: true, error: false });
         setFormData(clearedFormData);
       } else {

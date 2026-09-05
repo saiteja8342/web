@@ -41,7 +41,10 @@ import {
   Star,
   Award,
   Quote,
-  ShieldCheck
+  ShieldCheck,
+  Phone,
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
@@ -50,7 +53,8 @@ import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updat
 import { getProfile, getApprovedEditors, getApprovedClients, getPendingProfiles, updateProfileStatus } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
 import { getEditorRatingStats, getAllDeliveredOrdersRatingsMap } from '../lib/db/ratings';
-import { subscribeToOrders, subscribeToProfiles, subscribeToUserNotifications, unsubscribeChannel } from '../lib/supabase/realtime';
+import { getContactRequests, updateContactRequestStatus, updateContactRequestNotes, deleteContactRequest, PROJECT_TYPE_LABELS, STATUS_CONFIG as CONTACT_STATUS_CONFIG } from '../lib/db/contactRequests';
+import { subscribeToOrders, subscribeToProfiles, subscribeToUserNotifications, subscribeToContactRequests, unsubscribeChannel } from '../lib/supabase/realtime';
 import './admin.css';
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -249,6 +253,17 @@ export default function AdminPage() {
   });
   const [dataLoaded, setDataLoaded] = useState(false);
 
+  // ─── Contact Requests State ───────────────────────────────────────
+  const [contactRequests, setContactRequests] = useState([]);
+  const [contactRequestsLoading, setContactRequestsLoading] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
+  const [contactStatusFilter, setContactStatusFilter] = useState('ALL');
+  const [contactTypeFilter, setContactTypeFilter] = useState('ALL');
+  const [selectedContactRequest, setSelectedContactRequest] = useState(null);
+  const [contactActionLoading, setContactActionLoading] = useState({});
+  const [tempContactNotes, setTempContactNotes] = useState('');
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const markAllRead = async () => {
@@ -400,6 +415,20 @@ export default function AdminPage() {
     setMetrics(counts);
   }, []);
 
+  const fetchContactRequests = useCallback(async () => {
+    setContactRequestsLoading(true);
+    try {
+      const { data, error } = await getContactRequests();
+      if (!error && data) {
+        setContactRequests(data);
+      }
+    } catch (err) {
+      console.warn('Error fetching contact requests:', err);
+    } finally {
+      setContactRequestsLoading(false);
+    }
+  }, []);
+
   const fetchNotifications = useCallback(async () => {
     if (!adminProfile) return;
     const { data, error } = await getUserNotifications(adminProfile.id);
@@ -412,11 +441,11 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isAuthenticated) return;
     async function loadAll() {
-      await Promise.all([fetchOrders(), fetchEditors(), fetchMetrics(), fetchPendingUsers()]);
+      await Promise.all([fetchOrders(), fetchEditors(), fetchMetrics(), fetchPendingUsers(), fetchContactRequests()]);
       setDataLoaded(true);
     }
     loadAll();
-  }, [isAuthenticated, fetchOrders, fetchEditors, fetchMetrics, fetchPendingUsers]);
+  }, [isAuthenticated, fetchOrders, fetchEditors, fetchMetrics, fetchPendingUsers, fetchContactRequests]);
 
   // Fetch clients after orders are loaded (depends on order counts)
   useEffect(() => {
@@ -448,11 +477,98 @@ export default function AdminPage() {
       onDelete: () => { fetchClients(); fetchEditors(); fetchPendingUsers(); },
     });
 
+    const contactRequestsChannel = subscribeToContactRequests({
+      onInsert: (newReq) => {
+        setContactRequests(prev => [newReq, ...prev.filter(r => r.id !== newReq.id)]);
+        showToast(`New quote request from ${newReq.name}!`);
+      },
+      onUpdate: (updatedReq) => {
+        setContactRequests(prev => prev.map(r => r.id === updatedReq.id ? updatedReq : r));
+      },
+      onDelete: (deletedReq) => {
+        setContactRequests(prev => prev.filter(r => r.id !== deletedReq.id));
+      },
+    });
+
     return () => {
       unsubscribeChannel(ordersChannel);
       unsubscribeChannel(profilesChannel);
+      unsubscribeChannel(contactRequestsChannel);
     };
-  }, [isAuthenticated, fetchOrders, fetchMetrics, fetchEditors, fetchClients, fetchPendingUsers]);
+  }, [isAuthenticated, fetchOrders, fetchMetrics, fetchEditors, fetchClients, fetchPendingUsers, fetchContactRequests]);
+
+  // Contact Request Handlers
+  const handleUpdateContactStatus = async (id, newStatus) => {
+    setContactActionLoading(prev => ({ ...prev, [id]: true }));
+    try {
+      const { error } = await updateContactRequestStatus(id, newStatus);
+      if (error) {
+        showToast(`Failed to update status: ${error.message}`);
+      } else {
+        setContactRequests(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+        if (selectedContactRequest && selectedContactRequest.id === id) {
+          setSelectedContactRequest(prev => ({ ...prev, status: newStatus }));
+        }
+        showToast(`Status updated to "${CONTACT_STATUS_CONFIG[newStatus]?.label || newStatus}"`);
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setContactActionLoading(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
+  const handleDeleteContactRequest = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to delete the contact request from "${name}"?`)) {
+      return;
+    }
+    setContactActionLoading(prev => ({ ...prev, [id]: true }));
+    try {
+      const { error } = await deleteContactRequest(id);
+      if (error) {
+        showToast(`Failed to delete request: ${error.message}`);
+      } else {
+        setContactRequests(prev => prev.filter(r => r.id !== id));
+        if (selectedContactRequest && selectedContactRequest.id === id) {
+          setSelectedContactRequest(null);
+        }
+        showToast(`Contact request from "${name}" deleted.`);
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setContactActionLoading(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
+  const handleSaveContactNotes = async (id) => {
+    setIsSavingNotes(true);
+    try {
+      const { error } = await updateContactRequestNotes(id, tempContactNotes);
+      if (error) {
+        showToast(`Failed to save notes: ${error.message}`);
+      } else {
+        setContactRequests(prev => prev.map(r => r.id === id ? { ...r, admin_notes: tempContactNotes } : r));
+        if (selectedContactRequest && selectedContactRequest.id === id) {
+          setSelectedContactRequest(prev => ({ ...prev, admin_notes: tempContactNotes }));
+        }
+        showToast('Admin notes saved successfully.');
+      }
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
+  const getWhatsAppUrl = (phone, name, projectType) => {
+    if (!phone) return null;
+    const cleanPhone = phone.replace(/[^\d+]/g, '').replace(/^0+/, '');
+    const finalPhone = cleanPhone.startsWith('+') ? cleanPhone.slice(1) : cleanPhone;
+    const projectLabel = PROJECT_TYPE_LABELS[projectType] || 'video editing';
+    const greeting = encodeURIComponent(`Hi ${name || 'there'}, thanks for reaching out to MotionNodeEdits regarding your ${projectLabel} project!`);
+    return `https://wa.me/${finalPhone}?text=${greeting}`;
+  };
 
   useEffect(() => {
     if (!adminProfile) return;
@@ -1257,6 +1373,26 @@ export default function AdminPage() {
     );
   });
 
+  const filteredContactRequests = contactRequests.filter(req => {
+    if (contactStatusFilter !== 'ALL' && req.status?.toLowerCase() !== contactStatusFilter.toLowerCase()) {
+      return false;
+    }
+    if (contactTypeFilter !== 'ALL' && req.project_type !== contactTypeFilter) {
+      return false;
+    }
+    if (contactSearch.trim()) {
+      const q = contactSearch.toLowerCase().trim();
+      const matchName = (req.name || '').toLowerCase().includes(q);
+      const matchEmail = (req.email || '').toLowerCase().includes(q);
+      const matchPhone = (req.phone || '').toLowerCase().includes(q);
+      const matchMsg = (req.message || '').toLowerCase().includes(q);
+      if (!matchName && !matchEmail && !matchPhone && !matchMsg) return false;
+    }
+    return true;
+  });
+
+  const newContactRequestsCount = contactRequests.filter(r => r.status === 'new').length;
+
   if (!isAuthenticated) {
     return null;
   }
@@ -1379,6 +1515,19 @@ export default function AdminPage() {
                 </span>
               )}
             </button>
+
+            <button
+              className={`vel-nav-item ${activeNav === 'contact-requests' ? 'active' : ''}`}
+              onClick={() => handleNavClick('contact-requests')}
+            >
+              <Mail className="h-4 w-4 shrink-0" />
+              <span>Contact Requests</span>
+              {newContactRequestsCount > 0 && (
+                <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.2)', color: '#60A5FA', marginLeft: 'auto', fontWeight: 700 }}>
+                  {newContactRequestsCount}
+                </span>
+              )}
+            </button>
           </nav>
         </div>
 
@@ -1413,7 +1562,27 @@ export default function AdminPage() {
             >
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            <span className="vel-page-title-top">Dashboard</span>
+            <span className="vel-page-title-top">
+              {activeNav === 'contact-requests'
+                ? 'Contact Requests'
+                : activeNav === 'approvals'
+                ? 'User Approvals'
+                : activeNav === 'orders'
+                ? 'Current Orders'
+                : activeNav === 'history'
+                ? 'Orders History'
+                : activeNav === 'assign'
+                ? 'Assign Project'
+                : activeNav === 'create'
+                ? 'Order Creation'
+                : activeNav === 'editors'
+                ? 'Editors'
+                : activeNav === 'clients'
+                ? 'Clients'
+                : activeNav === 'settings'
+                ? 'Settings'
+                : 'Dashboard'}
+            </span>
           </div>
 
           <div className="vel-topbar-right">
@@ -1421,7 +1590,13 @@ export default function AdminPage() {
               <Search className="h-3.5 w-3.5" style={{ position: 'absolute', left: '12px', color: 'var(--vel-text-tertiary)' }} />
               <input
                 type="text"
-                placeholder={activeNav === 'orders' ? "Search orders, clients, edi..." : "Search projects, clients..."}
+                placeholder={
+                  activeNav === 'orders'
+                    ? "Search orders, clients, editors..."
+                    : activeNav === 'contact-requests'
+                    ? "Search inquiries..."
+                    : "Search projects, clients..."
+                }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="vel-search-input"
@@ -1568,6 +1743,41 @@ export default function AdminPage() {
                     </div>
                   )}
 
+                  {newContactRequestsCount > 0 && (
+                    <div
+                      onClick={() => handleNavClick('contact-requests')}
+                      style={{
+                        background: 'linear-gradient(90deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.05))',
+                        border: '1px solid rgba(59, 130, 246, 0.35)',
+                        borderRadius: '10px',
+                        padding: '12px 18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '18px',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s, transform 0.15s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60A5FA' }}>
+                          <Mail className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>
+                            {newContactRequestsCount} New Contact / Quote Request{newContactRequestsCount > 1 ? 's' : ''} Received
+                          </div>
+                          <div style={{ fontSize: '0.76rem', color: 'var(--vel-text-secondary)' }}>
+                            Inbound client inquiries submitted through the website. Click to review and respond.
+                          </div>
+                        </div>
+                      </div>
+                      <span className="vel-btn-solid" style={{ padding: '5px 12px', fontSize: '0.75rem', background: '#3B82F6', border: 'none', color: '#FFFFFF', fontWeight: 700 }}>
+                        View Inquiries →
+                      </span>
+                    </div>
+                  )}
+
                   <div className="vel-metric-grid">
                     {/* 1. Active Orders */}
                     <div className="vel-metric-card" style={{ cursor: 'pointer' }} onClick={() => handleNavClick('orders')}>
@@ -1673,6 +1883,24 @@ export default function AdminPage() {
                           <span>Review & Deliver</span>
                           <span>→</span>
                         </button>
+                      </div>
+                    </div>
+
+                    {/* 7. Contact Requests */}
+                    <div className="vel-metric-card" style={{ cursor: 'pointer' }} onClick={() => handleNavClick('contact-requests')}>
+                      <div className="vel-metric-top">
+                        <span className="vel-metric-label">Contact Requests</span>
+                        <div className="vel-metric-icon">
+                          <Mail className="h-3.5 w-3.5" />
+                        </div>
+                      </div>
+                      <div className="vel-metric-bottom">
+                        <div className="vel-metric-number">{contactRequests.length}</div>
+                        {newContactRequestsCount > 0 ? (
+                          <span style={{ fontSize: '0.72rem', color: '#60A5FA', fontWeight: 600 }}>{newContactRequestsCount} New</span>
+                        ) : (
+                          <span className="vel-metric-pill-badge">All Handled</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2586,6 +2814,466 @@ export default function AdminPage() {
                               >
                                 <Check className="h-3.5 w-3.5" />
                                 <span>{isApproving ? 'Approving...' : 'Approve User'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* ============================================================== */}
+              {/* VIEW: CONTACT REQUESTS                                         */}
+              {/* ============================================================== */}
+              {activeNav === 'contact-requests' && (
+                <>
+                  <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                    <div>
+                      <h1 className="vel-page-h1">Contact Requests</h1>
+                      <p className="vel-page-sub">Review and respond to quote inquiries submitted by website visitors.</p>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <button
+                        className="vel-btn-outline"
+                        onClick={fetchContactRequests}
+                        disabled={contactRequestsLoading}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${contactRequestsLoading ? 'animate-spin' : ''}`} />
+                        <span>{contactRequestsLoading ? 'Refreshing...' : 'Refresh'}</span>
+                      </button>
+
+                      {newContactRequestsCount > 0 && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'rgba(59, 130, 246, 0.12)',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          padding: '6px 14px',
+                          borderRadius: '8px',
+                          color: '#60A5FA',
+                          fontSize: '0.82rem',
+                          fontWeight: 600
+                        }}>
+                          <Mail className="h-4 w-4" />
+                          <span>{newContactRequestsCount} New Inquir{newContactRequestsCount === 1 ? 'y' : 'ies'}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Summary Metric Cards */}
+                  <div className="vel-metric-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+                    <div className="vel-metric-card">
+                      <div className="vel-metric-top">
+                        <span className="vel-metric-label">Total Inquiries</span>
+                        <div className="vel-metric-icon">
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </div>
+                      </div>
+                      <div className="vel-metric-bottom">
+                        <div className="vel-metric-number">{contactRequests.length}</div>
+                        <span className="vel-metric-pill-badge">All Time</span>
+                      </div>
+                    </div>
+
+                    <div className="vel-metric-card" style={{ borderColor: newContactRequestsCount > 0 ? 'rgba(59, 130, 246, 0.4)' : undefined }}>
+                      <div className="vel-metric-top">
+                        <span className="vel-metric-label">New / Unread</span>
+                        <div className="vel-metric-icon" style={{ background: newContactRequestsCount > 0 ? 'rgba(59, 130, 246, 0.2)' : undefined, color: '#60A5FA' }}>
+                          <Clock className="h-3.5 w-3.5" />
+                        </div>
+                      </div>
+                      <div className="vel-metric-bottom">
+                        <div className="vel-metric-number" style={{ color: newContactRequestsCount > 0 ? '#60A5FA' : '#FFFFFF' }}>{newContactRequestsCount}</div>
+                        <span style={{ fontSize: '0.72rem', color: newContactRequestsCount > 0 ? '#60A5FA' : 'var(--vel-text-secondary)', fontWeight: 600 }}>
+                          {newContactRequestsCount > 0 ? 'Action Needed' : 'Caught Up'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="vel-metric-card">
+                      <div className="vel-metric-top">
+                        <span className="vel-metric-label">Contacted / Discussion</span>
+                        <div className="vel-metric-icon" style={{ color: '#10B981' }}>
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        </div>
+                      </div>
+                      <div className="vel-metric-bottom">
+                        <div className="vel-metric-number">
+                          {contactRequests.filter(r => r.status === 'contacted' || r.status === 'in_discussion').length}
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 600 }}>In Pipeline</span>
+                      </div>
+                    </div>
+
+                    <div className="vel-metric-card">
+                      <div className="vel-metric-top">
+                        <span className="vel-metric-label">Closed</span>
+                        <div className="vel-metric-icon">
+                          <Archive className="h-3.5 w-3.5" />
+                        </div>
+                      </div>
+                      <div className="vel-metric-bottom">
+                        <div className="vel-metric-number">
+                          {contactRequests.filter(r => r.status === 'closed').length}
+                        </div>
+                        <span className="vel-metric-pill-badge">Completed</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filter & Search Bar */}
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    {/* Search */}
+                    <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
+                      <Search className="h-4 w-4" style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--vel-text-tertiary)' }} />
+                      <input
+                        type="text"
+                        placeholder="Search by client name, email, phone, or project message..."
+                        value={contactSearch}
+                        onChange={(e) => setContactSearch(e.target.value)}
+                        className="vel-input"
+                        style={{ paddingLeft: '40px' }}
+                      />
+                      {contactSearch && (
+                        <button
+                          onClick={() => setContactSearch('')}
+                          style={{ position: 'absolute', right: '12px', top: '10px', background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Status Filter Buttons */}
+                    <div style={{ display: 'flex', gap: '6px', background: 'var(--vel-bg-card)', padding: '4px', borderRadius: '8px', border: '1px solid var(--vel-border)' }}>
+                      {['ALL', 'new', 'contacted', 'in_discussion', 'closed'].map((st) => {
+                        const count = st === 'ALL'
+                          ? contactRequests.length
+                          : contactRequests.filter(r => r.status === st).length;
+                        const label = st === 'ALL' ? 'All' : CONTACT_STATUS_CONFIG[st]?.label || st;
+                        const isActive = contactStatusFilter === st;
+
+                        return (
+                          <button
+                            key={st}
+                            onClick={() => setContactStatusFilter(st)}
+                            style={{
+                              background: isActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                              color: isActive ? '#FFFFFF' : 'var(--vel-text-secondary)',
+                              border: 'none',
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              fontWeight: isActive ? 700 : 500,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            <span>{label}</span>
+                            <span style={{
+                              fontSize: '0.66rem',
+                              padding: '1px 5px',
+                              borderRadius: '10px',
+                              background: isActive ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                              color: isActive ? '#FFFFFF' : 'var(--vel-text-tertiary)',
+                              fontWeight: 600
+                            }}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Project Type Filter */}
+                    <select
+                      className="vel-select"
+                      style={{ width: 'auto', minWidth: '180px' }}
+                      value={contactTypeFilter}
+                      onChange={(e) => setContactTypeFilter(e.target.value)}
+                    >
+                      <option value="ALL">All Project Types</option>
+                      {Object.entries(PROJECT_TYPE_LABELS).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Contact Requests Cards / List */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {filteredContactRequests.length === 0 ? (
+                      <div className="vel-card" style={{ padding: '48px 24px', textAlign: 'center', alignItems: 'center', gap: '14px' }}>
+                        <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Mail className="h-7 w-7 text-blue-400" />
+                        </div>
+                        <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>
+                          {contactSearch || contactStatusFilter !== 'ALL' || contactTypeFilter !== 'ALL'
+                            ? 'No matching contact requests'
+                            : 'No contact requests yet'}
+                        </h3>
+                        <p style={{ fontSize: '0.82rem', color: 'var(--vel-text-secondary)', maxWidth: '420px', lineHeight: 1.5 }}>
+                          {contactSearch || contactStatusFilter !== 'ALL' || contactTypeFilter !== 'ALL'
+                            ? 'No quote requests match your active filters. Try adjusting or clearing filters.'
+                            : 'When prospective clients submit the "Request a Quote" form on your website, their requests will appear here instantly in real-time.'}
+                        </p>
+                        {(contactSearch || contactStatusFilter !== 'ALL' || contactTypeFilter !== 'ALL') && (
+                          <button
+                            className="vel-btn-outline"
+                            style={{ marginTop: '8px' }}
+                            onClick={() => {
+                              setContactSearch('');
+                              setContactStatusFilter('ALL');
+                              setContactTypeFilter('ALL');
+                            }}
+                          >
+                            Reset Filters
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      filteredContactRequests.map((req) => {
+                        const statusConfig = CONTACT_STATUS_CONFIG[req.status] || CONTACT_STATUS_CONFIG.new;
+                        const projectLabel = PROJECT_TYPE_LABELS[req.project_type] || req.project_type || 'General Quote';
+                        const waUrl = getWhatsAppUrl(req.phone, req.name, req.project_type);
+                        const isActionBusy = contactActionLoading[req.id];
+                        const initial = (req.name || req.email || 'C').charAt(0).toUpperCase();
+
+                        return (
+                          <div
+                            key={req.id}
+                            style={{
+                              background: 'var(--vel-bg-card)',
+                              border: req.status === 'new' ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid var(--vel-border)',
+                              borderRadius: '12px',
+                              padding: '20px 24px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '16px',
+                              transition: 'border-color 0.15s, box-shadow 0.15s',
+                              position: 'relative'
+                            }}
+                          >
+                            {/* Top Row: Client Info, Project Type, Status, Date */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{
+                                  width: '42px',
+                                  height: '42px',
+                                  borderRadius: '10px',
+                                  background: 'linear-gradient(135deg, #1E1E2A, #2A2A3C)',
+                                  border: '1px solid var(--vel-border)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '1rem',
+                                  fontWeight: 700,
+                                  color: '#FFFFFF'
+                                }}>
+                                  {initial}
+                                </div>
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#FFFFFF' }}>{req.name}</span>
+                                    <span style={{
+                                      fontSize: '0.68rem',
+                                      padding: '3px 8px',
+                                      borderRadius: '6px',
+                                      background: 'rgba(168, 85, 247, 0.15)',
+                                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                                      color: '#C084FC',
+                                      fontWeight: 600
+                                    }}>
+                                      {projectLabel}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', flexWrap: 'wrap', fontSize: '0.78rem', color: 'var(--vel-text-secondary)' }}>
+                                    <a
+                                      href={`mailto:${req.email}`}
+                                      style={{ color: 'var(--vel-text-secondary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                      title="Click to email"
+                                    >
+                                      <Mail className="h-3 w-3 text-blue-400" />
+                                      <span>{req.email}</span>
+                                    </a>
+
+                                    {req.phone && (
+                                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <Phone className="h-3 w-3 text-emerald-400" />
+                                        <span>{req.phone}</span>
+                                      </span>
+                                    )}
+
+                                    {req.created_at && (
+                                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--vel-text-tertiary)' }}>
+                                        <Calendar className="h-3 w-3" />
+                                        <span>{new Date(req.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Status Dropdown */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <select
+                                  value={req.status || 'new'}
+                                  disabled={isActionBusy}
+                                  onChange={(e) => handleUpdateContactStatus(req.id, e.target.value)}
+                                  className="vel-select"
+                                  style={{
+                                    padding: '5px 12px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    borderRadius: '6px',
+                                    background: req.status === 'new'
+                                      ? 'rgba(59, 130, 246, 0.15)'
+                                      : req.status === 'contacted'
+                                      ? 'rgba(16, 185, 129, 0.15)'
+                                      : req.status === 'in_discussion'
+                                      ? 'rgba(139, 92, 246, 0.15)'
+                                      : 'rgba(107, 114, 128, 0.15)',
+                                    color: req.status === 'new'
+                                      ? '#60A5FA'
+                                      : req.status === 'contacted'
+                                      ? '#34D399'
+                                      : req.status === 'in_discussion'
+                                      ? '#A78BFA'
+                                      : '#9CA3AF',
+                                    border: `1px solid ${statusConfig.color}40`,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <option value="new">Status: New</option>
+                                  <option value="contacted">Status: Contacted</option>
+                                  <option value="in_discussion">Status: In Discussion</option>
+                                  <option value="closed">Status: Closed</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            {/* Middle Row: Message preview */}
+                            <div style={{
+                              background: 'var(--vel-bg-card-inner)',
+                              border: '1px solid var(--vel-border)',
+                              borderRadius: '8px',
+                              padding: '12px 16px',
+                              fontSize: '0.84rem',
+                              lineHeight: '1.5',
+                              color: '#E2E8F0'
+                            }}>
+                              <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--vel-text-tertiary)', fontWeight: 700, marginBottom: '4px' }}>
+                                Project Details / Message
+                              </div>
+                              <p style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                {req.message}
+                              </p>
+                              {req.admin_notes && (
+                                <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--vel-border)', fontSize: '0.78rem', color: '#FCD34D' }}>
+                                  <strong>Admin Note:</strong> {req.admin_notes}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Bottom Row: Action Buttons */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                {waUrl && (
+                                  <a
+                                    href={waUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="vel-btn-solid"
+                                    style={{
+                                      background: '#25D366',
+                                      borderColor: '#25D366',
+                                      color: '#000000',
+                                      fontSize: '0.78rem',
+                                      padding: '6px 14px',
+                                      textDecoration: 'none',
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '6px'
+                                    }}
+                                  >
+                                    <MessageSquare className="h-3.5 w-3.5" />
+                                    <span>Chat on WhatsApp</span>
+                                  </a>
+                                )}
+
+                                <a
+                                  href={`mailto:${req.email}?subject=${encodeURIComponent(`Regarding your ${projectLabel} project inquiry`)}`}
+                                  className="vel-btn-outline"
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    padding: '6px 14px',
+                                    textDecoration: 'none',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}
+                                >
+                                  <Mail className="h-3.5 w-3.5" />
+                                  <span>Send Email</span>
+                                </a>
+
+                                <button
+                                  type="button"
+                                  className="vel-btn-outline"
+                                  onClick={() => {
+                                    setSelectedContactRequest(req);
+                                    setTempContactNotes(req.admin_notes || '');
+                                  }}
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    padding: '6px 14px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}
+                                >
+                                  <FileText className="h-3.5 w-3.5" />
+                                  <span>View & Notes</span>
+                                </button>
+                              </div>
+
+                              <button
+                                type="button"
+                                disabled={isActionBusy}
+                                onClick={() => handleDeleteContactRequest(req.id, req.name)}
+                                style={{
+                                  background: 'transparent',
+                                  border: '1px solid transparent',
+                                  color: 'var(--vel-text-tertiary)',
+                                  borderRadius: '6px',
+                                  padding: '6px 10px',
+                                  fontSize: '0.78rem',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  transition: 'color 0.15s, border-color 0.15s'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = '#F87171';
+                                  e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = 'var(--vel-text-tertiary)';
+                                  e.currentTarget.style.borderColor = 'transparent';
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                <span>Delete</span>
                               </button>
                             </div>
                           </div>
@@ -3640,6 +4328,158 @@ export default function AdminPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* VIEW CONTACT REQUEST DETAILS & NOTES MODAL                     */}
+      {/* ============================================================== */}
+      {selectedContactRequest && (
+        <div className="vel-modal-backdrop" onClick={() => setSelectedContactRequest(null)}>
+          <div className="vel-modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
+            <div className="vel-modal-head">
+              <div>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
+                  Contact Request Details
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
+                  Submitted on {selectedContactRequest.created_at ? new Date(selectedContactRequest.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently'}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedContactRequest(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="vel-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Contact Info Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="vel-field-group">
+                  <label className="vel-label">Client Name</label>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#FFFFFF' }}>{selectedContactRequest.name}</div>
+                </div>
+
+                <div className="vel-field-group">
+                  <label className="vel-label">Project Type</label>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#C084FC' }}>
+                    {PROJECT_TYPE_LABELS[selectedContactRequest.project_type] || selectedContactRequest.project_type}
+                  </div>
+                </div>
+
+                <div className="vel-field-group">
+                  <label className="vel-label">Email Address</label>
+                  <a href={`mailto:${selectedContactRequest.email}`} style={{ fontSize: '0.85rem', color: '#60A5FA', textDecoration: 'none' }}>
+                    {selectedContactRequest.email}
+                  </a>
+                </div>
+
+                <div className="vel-field-group">
+                  <label className="vel-label">Phone Number</label>
+                  <div style={{ fontSize: '0.85rem', color: '#FFFFFF' }}>
+                    {selectedContactRequest.phone || 'Not provided'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Selector */}
+              <div className="vel-field-group">
+                <label className="vel-label">Inquiry Status</label>
+                <select
+                  value={selectedContactRequest.status || 'new'}
+                  onChange={(e) => handleUpdateContactStatus(selectedContactRequest.id, e.target.value)}
+                  className="vel-select"
+                >
+                  <option value="new">New (Uncontacted)</option>
+                  <option value="contacted">Contacted</option>
+                  <option value="in_discussion">In Discussion</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+
+              {/* Full Project Details */}
+              <div className="vel-field-group">
+                <label className="vel-label">Project Details / Message</label>
+                <div style={{
+                  background: 'var(--vel-bg-input)',
+                  border: '1px solid var(--vel-border)',
+                  borderRadius: '8px',
+                  padding: '14px',
+                  fontSize: '0.85rem',
+                  lineHeight: 1.6,
+                  color: '#FFFFFF',
+                  whiteSpace: 'pre-wrap',
+                  maxHeight: '220px',
+                  overflowY: 'auto'
+                }}>
+                  {selectedContactRequest.message}
+                </div>
+              </div>
+
+              {/* Internal Admin Notes */}
+              <div className="vel-field-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="vel-label" style={{ margin: 0 }}>Internal Admin Notes</label>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--vel-text-tertiary)' }}>Private to admin team</span>
+                </div>
+                <textarea
+                  rows={3}
+                  placeholder="Add notes about pricing discussed, follow-up timeline, client preferences..."
+                  className="vel-input"
+                  style={{ resize: 'vertical' }}
+                  value={tempContactNotes}
+                  onChange={(e) => setTempContactNotes(e.target.value)}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
+                  <button
+                    type="button"
+                    disabled={isSavingNotes}
+                    onClick={() => handleSaveContactNotes(selectedContactRequest.id)}
+                    className="vel-btn-outline"
+                    style={{ fontSize: '0.76rem', padding: '4px 12px' }}
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    <span>{isSavingNotes ? 'Saving...' : 'Save Notes'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="vel-modal-foot">
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {getWhatsAppUrl(selectedContactRequest.phone, selectedContactRequest.name, selectedContactRequest.project_type) && (
+                  <a
+                    href={getWhatsAppUrl(selectedContactRequest.phone, selectedContactRequest.name, selectedContactRequest.project_type)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="vel-btn-solid"
+                    style={{ background: '#25D366', borderColor: '#25D366', color: '#000000', textDecoration: 'none', fontSize: '0.8rem' }}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    <span>WhatsApp</span>
+                  </a>
+                )}
+                <a
+                  href={`mailto:${selectedContactRequest.email}`}
+                  className="vel-btn-outline"
+                  style={{ textDecoration: 'none', fontSize: '0.8rem' }}
+                >
+                  <Mail className="h-4 w-4" />
+                  <span>Email</span>
+                </a>
+              </div>
+
+              <button
+                type="button"
+                className="vel-btn-outline"
+                onClick={() => setSelectedContactRequest(null)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

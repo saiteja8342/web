@@ -123,6 +123,34 @@ export function subscribeToRevisionRequests({ orderId, onChange }) {
 }
 
 /**
+ * Subscribe to changes on the contact_requests table.
+ */
+export function subscribeToContactRequests({ onInsert, onUpdate, onDelete }) {
+  const channel = supabase
+    .channel('contact-requests-realtime')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'contact_requests',
+      },
+      (payload) => {
+        if (payload.eventType === 'INSERT' && onInsert) {
+          onInsert(payload.new);
+        } else if (payload.eventType === 'UPDATE' && onUpdate) {
+          onUpdate(payload.new, payload.old);
+        } else if (payload.eventType === 'DELETE' && onDelete) {
+          onDelete(payload.old);
+        }
+      }
+    )
+    .subscribe();
+
+  return channel;
+}
+
+/**
  * Unsubscribe and clean up an active Realtime channel.
  */
 export function unsubscribeChannel(channel) {
@@ -130,3 +158,4 @@ export function unsubscribeChannel(channel) {
     supabase.removeChannel(channel);
   }
 }
+
