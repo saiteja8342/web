@@ -17,16 +17,41 @@ export const STATUS_CONFIG = {
 };
 
 /**
+ * Check if an email has already submitted a contact request.
+ */
+export async function checkEmailAlreadySubmitted(email) {
+  if (!email) return false;
+  try {
+    const { data, error } = await supabase.rpc('has_already_submitted_contact', {
+      p_email: email.trim().toLowerCase()
+    });
+    if (!error && typeof data === 'boolean') {
+      return data;
+    }
+  } catch {}
+  return false;
+}
+
+/**
  * Submit a new contact/quote request (Used by the public website contact form).
+ * Ensures a single user cannot submit multiple spam requests.
  */
 export async function createContactRequest({ name, email, phone, project_type, message }) {
   try {
+    const cleanEmail = email?.trim().toLowerCase();
+
+    // Check if duplicate via RPC first
+    const isAlreadySubmitted = await checkEmailAlreadySubmitted(cleanEmail);
+    if (isAlreadySubmitted) {
+      return { data: null, error: null, isDuplicate: true };
+    }
+
     const { data, error } = await supabase
       .from('contact_requests')
       .insert([
         {
           name: name?.trim(),
-          email: email?.trim().toLowerCase(),
+          email: cleanEmail,
           phone: phone?.trim() || null,
           project_type: project_type || 'video_editing',
           message: message?.trim(),
@@ -36,10 +61,15 @@ export async function createContactRequest({ name, email, phone, project_type, m
       .select()
       .single();
 
-    return { data, error };
+    // Catch unique constraint violation (Postgres error 23505)
+    if (error && (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique constraint'))) {
+      return { data: null, error: null, isDuplicate: true };
+    }
+
+    return { data, error, isDuplicate: false };
   } catch (err) {
     console.warn('[ContactRequests] Submission error:', err);
-    return { data: null, error: err };
+    return { data: null, error: err, isDuplicate: false };
   }
 }
 

@@ -1,5 +1,5 @@
 -- ==============================================================================
--- MOTION NODE EDITS - CONTACT REQUESTS TABLE SETUP
+-- MOTION NODE EDITS - CONTACT REQUESTS (SINGLE SUBMISSION PER USER)
 -- Run this in your Supabase SQL Editor:
 -- (Make sure no text is highlighted when clicking Run)
 -- ==============================================================================
@@ -18,10 +18,10 @@ CREATE TABLE IF NOT EXISTS public.contact_requests (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 2. Performance Indexes
+-- 2. Performance & Unique Indexes (Enforces 1 submission per email)
 CREATE INDEX IF NOT EXISTS idx_contact_requests_created_at ON public.contact_requests(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_contact_requests_status ON public.contact_requests(status);
-CREATE INDEX IF NOT EXISTS idx_contact_requests_email ON public.contact_requests(email);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contact_requests_unique_email ON public.contact_requests(LOWER(email));
 
 -- 3. Enable Row Level Security (RLS)
 ALTER TABLE public.contact_requests ENABLE ROW LEVEL SECURITY;
@@ -69,7 +69,18 @@ GRANT ALL ON public.contact_requests TO postgres, service_role;
 GRANT INSERT ON public.contact_requests TO anon, authenticated;
 GRANT SELECT, UPDATE, DELETE ON public.contact_requests TO authenticated;
 
--- 8. Add to Realtime Publication safely
+-- 8. Duplicate check RPC (Allows anonymous front-end to safely check if email already submitted)
+CREATE OR REPLACE FUNCTION public.has_already_submitted_contact(p_email TEXT)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.contact_requests
+    WHERE LOWER(email) = LOWER(TRIM(p_email))
+  );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.has_already_submitted_contact(TEXT) TO anon, authenticated;
+
+-- 9. Add to Realtime Publication safely
 DO $$
 BEGIN
   IF NOT EXISTS (

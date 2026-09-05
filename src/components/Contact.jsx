@@ -26,6 +26,17 @@ export default function Contact() {
     error: false,
   });
 
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && localStorage.getItem('mne_contact_submitted') === 'true') {
+        setHasSubmitted(true);
+        setStatus({ submitting: false, success: true, error: false });
+      }
+    } catch {}
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -40,6 +51,14 @@ export default function Contact() {
       setStatus({ submitting: false, success: true, error: false });
       return;
     }
+
+    // Enforce 1 submission only: block multiple attempts
+    try {
+      if (hasSubmitted || (typeof window !== 'undefined' && localStorage.getItem('mne_contact_submitted') === 'true')) {
+        setStatus({ submitting: false, success: true, error: false });
+        return;
+      }
+    } catch {}
 
     setStatus({ submitting: true, success: false, error: false });
 
@@ -91,11 +110,29 @@ export default function Contact() {
       });
 
       const [dbResult, formspreeResponse] = await Promise.allSettled([dbPromise, formspreePromise]);
+
+      // Check if duplicate submission by email
+      if (dbResult.status === 'fulfilled' && dbResult.value?.isDuplicate) {
+        try {
+          localStorage.setItem('mne_contact_submitted', 'true');
+          localStorage.setItem('mne_contact_email', formData.email.trim().toLowerCase());
+        } catch {}
+        setHasSubmitted(true);
+        setStatus({ submitting: false, success: true, error: false });
+        setFormData(clearedFormData);
+        return;
+      }
+
       const dbSuccess = dbResult.status === 'fulfilled' && !dbResult.value?.error;
       const formspreeSuccess = formspreeResponse.status === 'fulfilled' && formspreeResponse.value?.ok;
 
       // If either Supabase or Formspree succeeded, consider submission a success
       if (dbSuccess || formspreeSuccess) {
+        try {
+          localStorage.setItem('mne_contact_submitted', 'true');
+          localStorage.setItem('mne_contact_email', formData.email.trim().toLowerCase());
+        } catch {}
+        setHasSubmitted(true);
         setStatus({ submitting: false, success: true, error: false });
         setFormData(clearedFormData);
       } else {
@@ -187,17 +224,19 @@ export default function Contact() {
                     transition={{ delay: 0.3, duration: 0.5 }}
                     className="success-text"
                   >
-                    Thanks for reaching out! We’ve received your message and will get back to you within 24 hours.
+                    Thanks for reaching out! Your project quote request has been received and our team will get back to you within 24 hours. (Submissions are limited to 1 per user to prevent duplicate entries).
                   </motion.p>
 
                   <motion.button
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4, duration: 0.5 }}
-                    onClick={() => setStatus({ submitting: false, success: false, error: false })}
+                    onClick={openWhatsApp}
                     className="success-reset-btn"
+                    style={{ background: '#25D366', color: '#000000', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px', justifyContent: 'center', fontWeight: 700 }}
                   >
-                    Send Another Message
+                    <MessageSquare size={16} />
+                    <span>Have an update? Chat on WhatsApp</span>
                   </motion.button>
                 </motion.div>
               ) : (
