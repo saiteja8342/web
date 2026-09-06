@@ -16,10 +16,12 @@ if (typeof window !== 'undefined') {
 }
 
 const supabaseUrl =
-  typeof process !== 'undefined' && process.env && (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
+  (typeof process !== 'undefined' && process.env && (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)) ||
+  'https://yipfxibyzqsxqhhiwotk.supabase.co';
 
 const supabaseServiceRoleKey =
-  typeof process !== 'undefined' && process.env && process.env.SUPABASE_SERVICE_ROLE_KEY;
+  (typeof process !== 'undefined' && process.env && process.env.SUPABASE_SERVICE_ROLE_KEY) ||
+  '';
 
 let serverClient = null;
 
