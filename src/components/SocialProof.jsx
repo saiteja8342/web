@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import ShimmerText from './ShimmerText';
+import { getPublicTestimonials } from '../lib/db/cms';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -22,53 +23,88 @@ const slideVariants = {
   }),
 };
 
+const DEFAULT_TESTIMONIALS = [
+  {
+    initials: 'PR',
+    author: 'Prasad',
+    role: 'YouTube Creator',
+    text: '"They transformed our raw footage into something that stopped people scrolling. Engagement tripled."',
+    stars: 5,
+  },
+  {
+    initials: 'SR',
+    author: 'Srinivas',
+    role: 'Brand Founder',
+    text: '"Outstanding editing quality with fast turnaround. Every revision was handled perfectly."',
+    stars: 5,
+  },
+  {
+    initials: 'AR',
+    author: 'Aravind',
+    role: 'Content Creator',
+    text: '"Creative edits that kept viewers watching till the end. Retention went from 35% to 68%."',
+    stars: 5,
+  },
+  {
+    initials: 'RK',
+    author: 'Rakesh',
+    role: 'Head of Growth',
+    text: '"The speed, precision, and editing finesse completely exceeded our expectations. Conversions doubled."',
+    stars: 5,
+  }
+];
+
 export default function SocialProof() {
   const sectionRef = useRef(null);
   const [page, setPage] = useState(0);
   const [direction, setDirection] = useState(0);
+  const [testimonials, setTestimonials] = useState(DEFAULT_TESTIMONIALS);
 
-  const testimonials = [
-    {
-      initials: 'PR',
-      author: 'Prasad',
-      role: 'YouTube Creator',
-      text: '"They transformed our raw footage into something that stopped people scrolling. Engagement tripled."',
-      stars: 5,
-    },
-    {
-      initials: 'SR',
-      author: 'Srinivas',
-      role: 'Brand Founder',
-      text: '"Outstanding editing quality with fast turnaround. Every revision was handled perfectly."',
-      stars: 5,
-    },
-    {
-      initials: 'AR',
-      author: 'Aravind',
-      role: 'Content Creator',
-      text: '"Creative edits that kept viewers watching till the end. Retention went from 35% to 68%."',
-      stars: 5,
-    },
-    {
-      initials: 'RK',
-      author: 'Rakesh',
-      role: 'Head of Growth',
-      text: '"The speed, precision, and editing finesse completely exceeded our expectations. Conversions doubled."',
-      stars: 5,
-    }
-  ];
+  useEffect(() => {
+    let isMounted = true;
+    getPublicTestimonials().then((dbData) => {
+      if (isMounted && dbData && dbData.length > 0) {
+        const transformed = dbData.map((item) => {
+          const author = item.name || 'Client';
+          const initials = author
+            .split(' ')
+            .filter(Boolean)
+            .map(w => w[0])
+            .join('')
+            .slice(0, 2)
+            .toUpperCase() || 'CL';
+          const roleParts = [];
+          if (item.role) roleParts.push(item.role);
+          if (item.company) roleParts.push(item.company);
+          const role = roleParts.length > 0 ? roleParts.join(' • ') : 'Client';
+          const text = item.feedback?.startsWith('"') ? item.feedback : `"${item.feedback}"`;
+          return {
+            initials,
+            author,
+            role,
+            text,
+            stars: item.rating || 5,
+          };
+        });
+        setTestimonials(transformed);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
 
   const paginate = (newDirection) => {
     setDirection(newDirection);
     setPage((prev) => (prev + newDirection + testimonials.length) % testimonials.length);
   };
 
-  // Compute 3 visible cards starting from page
-  const visibleTestimonials = [
-    testimonials[page],
-    testimonials[(page + 1) % testimonials.length],
-    testimonials[(page + 2) % testimonials.length],
-  ];
+  // Compute up to 3 visible cards starting from page
+  const visibleTestimonials = testimonials.length <= 3
+    ? testimonials
+    : [
+        testimonials[page % testimonials.length],
+        testimonials[(page + 1) % testimonials.length],
+        testimonials[(page + 2) % testimonials.length],
+      ];
 
   useEffect(() => {
     const el = sectionRef.current;

@@ -45,9 +45,11 @@ import {
   Phone,
   Trash2,
   RefreshCw,
-  Ban
+  Ban,
+  Globe
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
+import WebsiteCMS from '../components/Admin/WebsiteCMS';
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, assignEditorToOrder, getEditorActiveOrderCounts, getUnassignedOrders, generateOrderCode, formatOrderCode, stripOrderCodeTag, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
@@ -1612,6 +1614,14 @@ export default function AdminPage() {
                 </span>
               )}
             </button>
+
+            <button
+              className={`vel-nav-item ${activeNav === 'cms' ? 'active' : ''}`}
+              onClick={() => handleNavClick('cms')}
+            >
+              <Globe className="h-4 w-4 shrink-0" />
+              <span>Website CMS</span>
+            </button>
           </nav>
         </div>
 
@@ -1647,7 +1657,9 @@ export default function AdminPage() {
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
             <span className="vel-page-title-top">
-              {activeNav === 'contact-requests'
+              {activeNav === 'cms'
+                ? 'Website Content Management (CMS)'
+                : activeNav === 'contact-requests'
                 ? 'Contact Requests'
                 : activeNav === 'approvals'
                 ? 'User Approvals'
@@ -4360,6 +4372,13 @@ export default function AdminPage() {
                     </button>
                   </div>
                 </>
+              )}
+
+              {/* ============================================================== */}
+              {/* VIEW: WEBSITE CONTENT MANAGEMENT (CMS)                        */}
+              {/* ============================================================== */}
+              {activeNav === 'cms' && (
+                <WebsiteCMS />
               )}
             </>
           )}

@@ -1,29 +1,62 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { projects, categories } from '../data/projects';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { projects as defaultProjects, categories as defaultCategories } from '../data/projects';
 import CarouselNavigation from './CarouselNavigation';
 import VideoCarousel from './VideoCarousel';
 import CarouselPagination from './CarouselPagination';
+import { getPublicPortfolioVideos } from '../lib/db/cms';
 
 export default function VideoPortfolio({ isHeadingH1 = false }) {
+  const [allProjects, setAllProjects] = useState(defaultProjects);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  useEffect(() => {
+    let isMounted = true;
+    getPublicPortfolioVideos().then((dbVideos) => {
+      if (isMounted && dbVideos && dbVideos.length > 0) {
+        const transformed = dbVideos.map((v) => ({
+          id: v.id,
+          title: v.title,
+          category: v.category?.toUpperCase() || 'REELS',
+          metric: v.metric || '',
+          youtubeUrl: v.youtube_url,
+          aspectRatio: v.aspect_ratio || '16/9',
+          duration: v.duration || '',
+          desc: v.description || ''
+        }));
+        setAllProjects(transformed);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
+  // Dynamically compute category tabs from loaded projects
+  const categories = useMemo(() => {
+    const cats = new Set(['ALL']);
+    allProjects.forEach(p => {
+      if (p.category) cats.add(p.category.toUpperCase());
+    });
+    return Array.from(cats);
+  }, [allProjects]);
+
   // Filter projects by category
   const filteredProjects = useMemo(() => {
-    if (activeCategory === 'ALL') return projects;
-    return projects.filter((p) => p.category === activeCategory);
-  }, [activeCategory]);
+    if (activeCategory === 'ALL') return allProjects;
+    return allProjects.filter((p) => p.category === activeCategory);
+  }, [allProjects, activeCategory]);
 
   const total = filteredProjects.length;
 
   // Safe index handler
-  const safeIndex = currentIndex >= total ? 0 : currentIndex;
+  const safeIndex = total > 0 ? (currentIndex >= total ? 0 : currentIndex) : 0;
 
   const handlePrev = useCallback(() => {
+    if (total <= 1) return;
     setCurrentIndex((prev) => (prev - 1 + total) % total);
   }, [total]);
 
   const handleNext = useCallback(() => {
+    if (total <= 1) return;
     setCurrentIndex((prev) => (prev + 1) % total);
   }, [total]);
 

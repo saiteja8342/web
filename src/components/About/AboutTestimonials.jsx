@@ -1,25 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { getPublicTestimonials } from '../../lib/db/cms';
+
+const DEFAULT_ABOUT_TESTIMONIALS = [
+  { 
+    quote: "MotionNodeEdits completely transformed our visual identity. The AI-generated campaigns they built were delivered in half the time of our usual production schedule.", 
+    name: "Sarah Jenkins", 
+    role: "CMO, Nexus Tech" 
+  },
+  { 
+    quote: "The quality and cinematic detail in the AI storytelling blew us away. We didn't expect this level of emotional depth from an AI production.", 
+    name: "Marcus Thorne", 
+    role: "Creative Director, Studio 9" 
+  },
+  { 
+    quote: "Fast, incredibly creative, and the communication was seamless. They are defining what the future of video production looks like.", 
+    name: "Elena Rodriguez", 
+    role: "Founder, Elevate Brands" 
+  }
+];
 
 export default function AboutTestimonials() {
-  const testimonials = [
-    { 
-      quote: "MotionNodeEdits completely transformed our visual identity. The AI-generated campaigns they built were delivered in half the time of our usual production schedule.", 
-      name: "Sarah Jenkins", 
-      role: "CMO, Nexus Tech" 
-    },
-    { 
-      quote: "The quality and cinematic detail in the AI storytelling blew us away. We didn't expect this level of emotional depth from an AI production.", 
-      name: "Marcus Thorne", 
-      role: "Creative Director, Studio 9" 
-    },
-    { 
-      quote: "Fast, incredibly creative, and the communication was seamless. They are defining what the future of video production looks like.", 
-      name: "Elena Rodriguez", 
-      role: "Founder, Elevate Brands" 
-    }
-  ];
-
+  const [testimonials, setTestimonials] = useState(DEFAULT_ABOUT_TESTIMONIALS);
   const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    getPublicTestimonials().then((dbData) => {
+      if (isMounted && dbData && dbData.length > 0) {
+        const transformed = dbData.map((item) => {
+          const roleParts = [];
+          if (item.role) roleParts.push(item.role);
+          if (item.company) roleParts.push(item.company);
+          const role = roleParts.length > 0 ? roleParts.join(', ') : 'Client';
+          return {
+            name: item.name || 'Client',
+            role,
+            quote: item.feedback || '',
+          };
+        });
+        setTestimonials(transformed);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
+  const safeIndex = activeIndex >= testimonials.length ? 0 : activeIndex;
 
   return (
     <section 
@@ -66,7 +91,7 @@ export default function AboutTestimonials() {
               letterSpacing: '-0.01em',
               fontStyle: 'italic'
             }}>
-              "{testimonials[activeIndex].quote}"
+              "{testimonials[safeIndex]?.quote}"
             </p>
             
             <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginBottom: '16px', color: '#FFFFFF' }}>
@@ -80,10 +105,10 @@ export default function AboutTestimonials() {
               color: '#FFFFFF', 
               margin: '0 0 4px 0' 
             }}>
-              {testimonials[activeIndex].name}
+              {testimonials[safeIndex]?.name}
             </h4>
             <div style={{ fontSize: '13px', color: 'var(--about-text-secondary)', fontWeight: 300 }}>
-              {testimonials[activeIndex].role}
+              {testimonials[safeIndex]?.role}
             </div>
           </div>
 
@@ -107,7 +132,7 @@ export default function AboutTestimonials() {
                      width: '6px',
                      height: '6px',
                      borderRadius: '50%',
-                     backgroundColor: idx === activeIndex ? '#FFFFFF' : 'rgba(255,255,255,0.2)',
+                     backgroundColor: idx === safeIndex ? '#FFFFFF' : 'rgba(255,255,255,0.2)',
                      border: 'none',
                      padding: 0,
                      cursor: 'pointer',

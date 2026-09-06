@@ -374,7 +374,7 @@ export default function ClientDashboard() {
       }
 
       if (shouldBeTestimonial) {
-        showToast('Thank you! Your feedback will be featured as our official testimonial.');
+        showToast('Thank you! Your review has been sent to our studio admin team.');
       } else {
         showToast('Thank you for rating your project experience!');
       }
@@ -1655,8 +1655,8 @@ export default function ClientDashboard() {
                                       style={{ marginTop: '3px', cursor: 'pointer', accentColor: '#F59E0B', width: '16px', height: '16px' }}
                                     />
                                     <label htmlFor="testimonialConsentCheckbox" style={{ fontSize: '0.78rem', color: '#E5E7EB', cursor: 'pointer', lineHeight: 1.45 }}>
-                                      <strong style={{ color: '#FCD34D', display: 'block' }}>We can use this feedback as our testimonial</strong>
-                                      I grant permission to feature this 5-star review as an official client testimonial on your studio showcase.
+                                      <strong style={{ color: '#FCD34D', display: 'block' }}>Send review to Studio Admin Team</strong>
+                                      Allow the MotionNodeEdits admin to review and consider featuring this feedback on the public website.
                                     </label>
                                   </div>
                                 )}

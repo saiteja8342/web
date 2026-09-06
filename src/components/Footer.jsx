@@ -1,16 +1,28 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Phone, Mail, Instagram, Youtube, Linkedin } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { getSiteSettings, DEFAULT_FOOTER_SETTINGS } from '../lib/db/cms';
 
 gsap.registerPlugin(ScrollTrigger);
 
 export default function Footer() {
   const footerRef = useRef(null);
+  const [settings, setSettings] = useState(DEFAULT_FOOTER_SETTINGS);
   const isAboutPage = typeof window !== 'undefined' && window.location.pathname.includes('about');
   const isWorkPage = typeof window !== 'undefined' && window.location.pathname.includes('work');
   const isTermsPage = typeof window !== 'undefined' && window.location.pathname.includes('terms');
   const isSecondaryPage = isAboutPage || isWorkPage || isTermsPage;
+
+  useEffect(() => {
+    let isMounted = true;
+    getSiteSettings('footer_settings').then((data) => {
+      if (isMounted && data) {
+        setSettings(prev => ({ ...prev, ...data }));
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
 
   useEffect(() => {
     const el = footerRef.current;
@@ -44,7 +56,8 @@ export default function Footer() {
     if (waBtn) {
       waBtn.click();
     } else {
-      window.open('https://wa.me/918985351756?text=Hi%20MotionNodeEdits,%20I%20would%20like%20to%20try%20an%20AI%20demo', '_blank');
+      const num = settings.whatsapp_number || '918985351756';
+      window.open(`https://wa.me/${num}?text=Hi%20MotionNodeEdits,%20I%20would%20like%20to%20try%20an%20AI%20demo`, '_blank');
     }
   };
 
@@ -54,9 +67,15 @@ export default function Footer() {
 
         {/* TOP CALLOUT HEADLINE */}
         <div className="footer-top reveal-element">
-          <h2 className="footer-headline">Let's Create Something<br className="footer-br-desktop" /> Exceptional.</h2>
-          <a href={isSecondaryPage ? "/#contact" : "#contact"} className="btn btn-primary footer-cta" data-hover-type="link">
-            Start A Project
+          <h2 className="footer-headline" style={{ whiteSpace: 'pre-line' }}>
+            {settings.headline || "Let's Create Something\nExceptional."}
+          </h2>
+          <a
+            href={isSecondaryPage ? `/${settings.cta_link || '#contact'}` : (settings.cta_link || '#contact')}
+            className="btn btn-primary footer-cta"
+            data-hover-type="link"
+          >
+            {settings.cta_text || 'Start A Project'}
           </a>
         </div>
         
@@ -81,43 +100,39 @@ export default function Footer() {
             <div className="footer-studio-info">
               <div className="footer-info-block">
                 <span className="footer-info-label">Post-Production Studio:</span>
-                <span className="footer-info-value">Hyderabad, India</span>
+                <span className="footer-info-value">{settings.studio_location || 'Hyderabad, India'}</span>
               </div>
             </div>
 
             {/* Phone & Email Row */}
             <div className="footer-contact-row">
               <a 
-                href="tel:+918985351756" 
+                href={`tel:${(settings.phone || '+918985351756').replace(/\s+/g, '')}`} 
                 className="footer-contact-item"
                 data-hover-type="link"
               >
                 <div className="footer-contact-icon-box">
                   <Phone size={16} />
                 </div>
-                <span>+91 89853 51756</span>
+                <span>{settings.phone || '+91 89853 51756'}</span>
               </a>
 
               <a 
-                href="mailto:hello@motionnodeedits.com" 
+                href={`mailto:${settings.email || 'hello@motionnodeedits.com'}`} 
                 className="footer-contact-item"
                 data-hover-type="link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.location.href = 'mailto:hello@motionnodeedits.com';
-                }}
               >
                 <div className="footer-contact-icon-box">
                   <Mail size={16} />
                 </div>
-                <span>hello@motionnodeedits.com</span>
+                <span>{settings.email || 'hello@motionnodeedits.com'}</span>
               </a>
             </div>
 
             {/* Rounded Square Social Badges */}
             <div className="footer-social-squares">
               <a 
-                href="https://www.instagram.com/motionnodeedits/" 
+                href={settings.instagram_url || 'https://www.instagram.com/motionnodeedits/'} 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="footer-social-square" 
@@ -128,7 +143,7 @@ export default function Footer() {
               </a>
 
               <a 
-                href="https://www.youtube.com/@motionnodeedits" 
+                href={settings.youtube_url || 'https://www.youtube.com/@motionnodeedits'} 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="footer-social-square" 
@@ -139,7 +154,7 @@ export default function Footer() {
               </a>
 
               <a 
-                href="https://www.linkedin.com/company/motionnodeedits" 
+                href={settings.linkedin_url || 'https://www.linkedin.com/company/motionnodeedits'} 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="footer-social-square" 
@@ -150,7 +165,7 @@ export default function Footer() {
               </a>
 
               <a 
-                href="mailto:hello@motionnodeedits.com" 
+                href={`mailto:${settings.email || 'hello@motionnodeedits.com'}`} 
                 className="footer-social-square" 
                 data-hover-type="link" 
                 aria-label="Email"
@@ -218,7 +233,7 @@ export default function Footer() {
           <div className="footer-legal-row">
             <div className="footer-legal-left-group">
               <div className="footer-copyright-text">
-                © 2026 MotionNodeEdits. All rights reserved.
+                {settings.copyright_text || '© 2026 MotionNodeEdits. All rights reserved.'}
               </div>
               <button 
                 className="footer-ai-demo-pill" 
