@@ -68,7 +68,7 @@ CREATE POLICY "Admin full access on contact_requests"
 -- 7. Grant Permissions to Database Roles
 GRANT ALL ON public.contact_requests TO postgres, service_role;
 GRANT INSERT ON public.contact_requests TO anon, authenticated;
-GRANT SELECT, UPDATE, DELETE ON public.contact_requests TO authenticated;
+GRANT SELECT ON public.contact_requests TO authenticated;
 
 -- 8. Duplicate check RPC (Allows anonymous front-end to safely check if email already submitted)
 CREATE OR REPLACE FUNCTION public.has_already_submitted_contact(p_email TEXT)

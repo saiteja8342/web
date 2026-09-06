@@ -15,9 +15,9 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
   const finalRedirect = redirectOnFail || defaultRedirect;
 
   try {
-    const session = await getSession();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-    if (!session || !session.user) {
+    if (sessionError || !session || !session.user) {
       if (typeof window !== 'undefined' && finalRedirect) {
         window.location.href = finalRedirect;
       }
@@ -39,10 +39,22 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
           username: session.user.user_metadata?.username || 'admin',
         };
       } else {
-        if (typeof window !== 'undefined' && finalRedirect) {
-          window.location.href = finalRedirect;
-        }
-        return { authorized: false, session, profile: null };
+        // Auto-provision client profile for authenticated user so they can enter immediately
+        const meta = session.user.user_metadata || {};
+        profile = {
+          id: session.user.id,
+          email: session.user.email,
+          full_name: meta.full_name || meta.name || (session.user.email ? session.user.email.split('@')[0] : 'User'),
+          role: 'client',
+          status: 'approved',
+          username: meta.username || (session.user.email ? session.user.email.split('@')[0] : 'user'),
+        };
+        // Persist to profiles table in background
+        try {
+          // SECURITY FIX: Omit role and status from client-side upsert to prevent privilege escalation
+          const { role: _r, status: _s, ...safeProfile } = profile;
+          supabase.from('profiles').upsert(safeProfile).then(() => {});
+        } catch (_) {}
       }
     }
 
@@ -67,20 +79,19 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
         userStatus = 'approved';
         profile.status = 'approved';
 
-        // Synchronize approved status to database in the background
+        // Synchronize basic profile info to database in the background
         try {
+          // SECURITY FIX: Prevent client code from setting role or status directly in database
           supabase
             .from('profiles')
             .upsert({
               id: session.user.id,
               full_name: profile.full_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Client',
               email: session.user.email,
-              role: 'client',
-              status: 'approved',
               avatar_url: profile.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
             })
             .then(() => {})
-            .catch((uErr) => console.warn('[AuthGuard] Client auto-approve sync notice:', uErr));
+            .catch((uErr) => console.warn('[AuthGuard] Client profile sync notice:', uErr));
         } catch (_) {
           // ignore
         }

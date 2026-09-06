@@ -43,12 +43,27 @@ const isGoogleDriveLink = (url) => {
   return trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com');
 };
 
+// SECURITY FIX: Protect against reverse tabnabbing and untrusted protocols (e.g. javascript:)
+const safeOpenUrl = (url) => {
+  if (!url || typeof url !== 'string') return;
+  const trimmed = url.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    window.open(trimmed, '_blank', 'noopener,noreferrer');
+  }
+};
+
 export default function EditorDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [editorProfile, setEditorProfile] = useState(null);
 
   useEffect(() => {
     async function checkAuth() {
+      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr || !session || !session.user) {
+        window.location.href = '/login';
+        return;
+      }
+
       const { authorized, profile } = await checkRouteAuth({
         requiredRole: 'editor',
         redirectOnFail: '/login',
@@ -60,6 +75,16 @@ export default function EditorDashboard() {
       }
     }
     checkAuth();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        window.location.href = '/login';
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, []);
 
   const handleLogout = async (e) => {
@@ -684,7 +709,7 @@ export default function EditorDashboard() {
                         {activeProject.drive_link && (
                           <button
                             className="ed-btn-outline"
-                            onClick={() => window.open(activeProject.drive_link, '_blank')}
+                            onClick={() => safeOpenUrl(activeProject.drive_link)}
                           >
                             <Download className="h-4 w-4" />
                             <span>Download Assets</span>
@@ -752,7 +777,7 @@ export default function EditorDashboard() {
 
                                 <button
                                   className="ed-btn-open-link"
-                                  onClick={() => window.open(activeProject.drive_link, '_blank')}
+                                  onClick={() => safeOpenUrl(activeProject.drive_link)}
                                 >
                                   <span>Open Link</span>
                                   <span>→</span>
@@ -778,7 +803,7 @@ export default function EditorDashboard() {
 
                                 <button
                                   className="ed-btn-open-link"
-                                  onClick={() => window.open(activeProject.dropbox_link, '_blank')}
+                                  onClick={() => safeOpenUrl(activeProject.dropbox_link)}
                                 >
                                   <span>Open Link</span>
                                   <span>→</span>
@@ -800,7 +825,7 @@ export default function EditorDashboard() {
 
                                 <button
                                   className="ed-btn-open-link"
-                                  onClick={() => window.open(activeProject.additional_link, '_blank')}
+                                  onClick={() => safeOpenUrl(activeProject.additional_link)}
                                 >
                                   <span>Open Link</span>
                                   <span>→</span>

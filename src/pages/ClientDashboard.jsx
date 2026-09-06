@@ -60,6 +60,15 @@ const getStatusBorder = (status) => {
   return 'rgba(245, 158, 11, 0.25)';
 };
 
+// SECURITY FIX: Protect against reverse tabnabbing and untrusted protocols (e.g. javascript:)
+const safeOpenUrl = (url) => {
+  if (!url || typeof url !== 'string') return;
+  const trimmed = url.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    window.open(trimmed, '_blank', 'noopener,noreferrer');
+  }
+};
+
 export default function ClientDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -169,12 +178,18 @@ export default function ClientDashboard() {
 
   useEffect(() => {
     async function checkAuth() {
-      const { authorized, session, profile } = await checkRouteAuth({
+      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr || !session || !session.user) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const { authorized, profile } = await checkRouteAuth({
         requiredRole: 'client',
         redirectOnFail: '/login',
       });
 
-      if (authorized && session && profile) {
+      if (authorized && profile) {
         setIsAuthenticated(true);
         setCurrentUser(session.user);
         setClientProfile(profile);
@@ -182,6 +197,16 @@ export default function ClientDashboard() {
       }
     }
     checkAuth();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        window.location.href = '/login';
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, [fetchClientData]);
 
   // ─── Realtime Subscriptions ───────────────────────────────────────
@@ -1190,7 +1215,7 @@ export default function ClientDashboard() {
                             ) : (
                               <button
                                 className="cp-btn-outline"
-                                onClick={() => window.open(activeOrder.additional_link, '_blank')}
+                                onClick={() => safeOpenUrl(activeOrder.additional_link)}
                               >
                                 <Download className="h-4 w-4" />
                                 <span>Preview Export ({activeOrderExp.daysRemaining}d left)</span>
@@ -1248,7 +1273,7 @@ export default function ClientDashboard() {
                         {/* Left: Source Assets & Final Link */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                           {activeOrder.drive_link && (
-                            <div className="cp-link-card" onClick={() => window.open(activeOrder.drive_link, '_blank')}>
+                            <div className="cp-link-card" onClick={() => safeOpenUrl(activeOrder.drive_link)}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                                 <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#181822', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   <Film className="h-4 w-4 text-white/80" />
@@ -1281,7 +1306,7 @@ export default function ClientDashboard() {
                                 </span>
                               </div>
                             ) : (
-                              <div className="cp-link-card" onClick={() => window.open(activeOrder.additional_link, '_blank')}>
+                              <div className="cp-link-card" onClick={() => safeOpenUrl(activeOrder.additional_link)}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                                   <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#181822', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <ExternalLink className="h-4 w-4 text-white/80" />
@@ -1678,7 +1703,7 @@ export default function ClientDashboard() {
                             ) : selectedProject.downloadLink !== '#' ? (
                               <button
                                 className="cp-btn-solid"
-                                onClick={() => window.open(selectedProject.downloadLink, '_blank')}
+                                onClick={() => safeOpenUrl(selectedProject.downloadLink)}
                               >
                                 <Download className="h-4 w-4" />
                                 <span>Download Final Cut</span>

@@ -2,16 +2,14 @@ import { createClient } from '@supabase/supabase-js';
 
 // Read Supabase credentials from Vite environment variables (NEXT_PUBLIC_ or VITE_)
 const supabaseUrl =
-  (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.NEXT_PUBLIC_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL)) ||
-  'https://yipfxibyzqsxqhhiwotk.supabase.co';
+  typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.NEXT_PUBLIC_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL);
 
 const supabaseAnonKey =
-  (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY)) ||
-  'sb_publishable_F_yuuIJxyKD2Mp_UW9aX6A_E3waTdwQ';
+  typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    '[Supabase] Warning: Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.'
+  throw new Error(
+    '[Supabase] Critical Error: Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.'
   );
 }
 

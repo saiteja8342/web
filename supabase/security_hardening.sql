@@ -38,8 +38,15 @@ RETURNS BOOLEAN AS $$
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
-GRANT EXECUTE ON FUNCTION public.check_user_exists(TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.check_user_exists(TEXT) TO authenticated, service_role;
 
+
+-- ------------------------------------------------------------------------------
+-- CLEAN UP OLD / BLOCKING ANTI-TAMPERING TRIGGERS
+-- ------------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trg_prevent_role_tampering ON public.profiles;
+DROP TRIGGER IF EXISTS prevent_role_tampering ON public.profiles;
+DROP FUNCTION IF EXISTS public.prevent_role_tampering() CASCADE;
 
 -- ------------------------------------------------------------------------------
 -- 2. HARD-BLOCK PRIVILEGE ESCALATION ON PROFILES (TRIGGER: BEFORE UPDATE)
@@ -52,18 +59,21 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-  -- If actor is already a verified administrator, permit legitimate management updates
-  IF public.is_admin() THEN
+  -- Allow updates initiated by Database Administrator (SQL Editor, postgres, service_role, or existing admins)
+  IF auth.uid() IS NULL 
+     OR current_user IN ('postgres', 'service_role', 'supabase_admin') 
+     OR (auth.jwt()->>'role') = 'service_role'
+     OR public.is_admin() THEN
     RETURN NEW;
   END IF;
 
   -- 1. Block unauthorized role escalation
-  IF NEW.role IS DISTINCT FROM OLD.role THEN
+  IF NEW.role::text IS DISTINCT FROM OLD.role::text THEN
     RAISE EXCEPTION 'Access Denied: You cannot modify user role. Tampering attempt logged.';
   END IF;
 
   -- 2. Block unauthorized approval status modification (e.g. self-approving blocked account)
-  IF NEW.status IS DISTINCT FROM OLD.status THEN
+  IF NEW.status::text IS DISTINCT FROM OLD.status::text THEN
     RAISE EXCEPTION 'Access Denied: You cannot modify user approval status.';
   END IF;
 
@@ -75,7 +85,7 @@ BEGIN
   -- 4. Block email hijacking on profile
   IF NEW.email IS DISTINCT FROM OLD.email THEN
     -- Email must match authenticated user's email
-    IF LOWER(NEW.email) <> LOWER(auth.jwt()->>'email') THEN
+    IF LOWER(NEW.email) <> LOWER(COALESCE(auth.jwt()->>'email', '')) THEN
       RAISE EXCEPTION 'Access Denied: Profile email must match authenticated account.';
     END IF;
   END IF;
@@ -109,8 +119,8 @@ BEGIN
   END IF;
 
   -- Non-admins CANNOT insert with role='admin'
-  IF LOWER(COALESCE(NEW.role, '')) = 'admin' THEN
-    NEW.role := 'client';
+  IF LOWER(COALESCE(NEW.role::text, '')) = 'admin' THEN
+    NEW.role := 'client'::user_role;
   END IF;
 
   -- Detect if signup is Google OAuth from auth.users metadata
@@ -119,8 +129,8 @@ BEGIN
   WHERE id = NEW.id;
 
   -- All client registrations receive instant approved status to enter the client dashboard directly
-  IF NEW.status IS NULL OR NEW.status NOT IN ('approved', 'rejected') THEN
-    NEW.status := 'approved';
+  IF NEW.status IS NULL OR NEW.status::text NOT IN ('approved', 'rejected') THEN
+    NEW.status := 'approved'::user_status;
   END IF;
 
   RETURN NEW;
@@ -177,8 +187,8 @@ CREATE POLICY "Users can update own profile"
 -- Allow initial profile creation upon registration
 CREATE POLICY "Allow user insert on signup"
   ON public.profiles FOR INSERT
-  TO anon, authenticated
-  WITH CHECK (id = auth.uid() OR auth.uid() IS NULL);
+  TO authenticated
+  WITH CHECK (id = auth.uid());
 
 
 -- ------------------------------------------------------------------------------
@@ -310,7 +320,7 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles TO authenticated;
 GRANT SELECT, INSERT ON public.profiles TO anon;
-GRANT SELECT ON public.orders TO authenticated;
+GRANT SELECT, UPDATE ON public.orders TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.ratings TO authenticated;
 GRANT SELECT, INSERT ON public.ratings TO anon;
 GRANT INSERT ON public.contact_requests TO anon, authenticated;
@@ -336,6 +346,10 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Access Denied: Only administrators can audit user security.';
+  END IF;
+
   RETURN QUERY
   SELECT 
     p.id,

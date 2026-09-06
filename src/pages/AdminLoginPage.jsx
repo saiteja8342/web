@@ -92,6 +92,10 @@ export default function AdminLoginPage() {
       setErrorMessage('Please enter email, username, and password.');
       return;
     }
+    if (formData.password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters long.');
+      return;
+    }
 
     setIsLoading(true);
     setErrorMessage('');
@@ -146,28 +150,24 @@ export default function AdminLoginPage() {
 
           // If a database query error actually caused the lookup to fail, show the exact DB error
           if (profileError) {
-            setErrorMessage(
-              `Database error verifying administrator account: ${profileError.message || 'Policy error'}. Please run supabase/fix_admin_login.sql in Supabase SQL editor.`
-            );
+            // SECURITY FIX: Prevent leaking database schema and file paths in user-facing error messages
+            setErrorMessage('Database error verifying administrator account. Please contact support.');
           } else {
-            setErrorMessage(
-              `Access Denied: Account "${data.user.email}" does not have administrator privileges. To grant access, promote this user to 'admin' in Supabase SQL Editor (see supabase/fix_admin_login.sql) or add this email to VITE_ADMIN_EMAILS in .env.`
-            );
+            // SECURITY FIX: Prevent leaking internal architecture, SQL files, or env variables in error messages
+            setErrorMessage('Access Denied: This account does not have administrator privileges.');
           }
           setIsLoading(false);
           return;
         }
 
         // 3. Auto-heal/sync admin profile into public.profiles if needed
-        const currentDbRole = (profile?.role || '').toLowerCase().trim();
-        if (!profile || currentDbRole !== 'admin') {
+        if (!profile) {
           try {
+            // SECURITY FIX: Prevent client-side role escalation; only server can assign roles
             await supabase.from('profiles').upsert({
               id: data.user.id,
-              full_name: profile?.full_name || data.user.user_metadata?.full_name || 'Admin',
+              full_name: data.user.user_metadata?.full_name || 'Admin',
               email: data.user.email,
-              role: 'admin',
-              status: 'approved',
               username: formData.username.trim(),
             });
           } catch (healErr) {
@@ -185,8 +185,8 @@ export default function AdminLoginPage() {
         if (dbUsername) {
           isUsernameValid = (inputUsername === dbUsername);
         } else {
-          // If username is not explicitly set in the database yet, accept full_name, emailPrefix, 'admin', or any non-empty input
-          isUsernameValid = (inputUsername === dbFullName || inputUsername === emailPrefix || inputUsername === 'admin' || inputUsername.length > 0);
+          // If username is not explicitly set in the database yet, accept full_name, emailPrefix, or 'admin'
+          isUsernameValid = (inputUsername === dbFullName || inputUsername === emailPrefix || inputUsername === 'admin');
           if (isUsernameValid) {
             try {
               await supabase.from('profiles').update({ username: formData.username.trim() }).eq('id', data.user.id);

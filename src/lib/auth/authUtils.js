@@ -114,12 +114,9 @@ export async function getUserProfile(userId) {
         }
       }
 
-      let resolvedStatus = 'pending';
-      if (resolvedRole === 'admin' || isGoogleUser(u)) {
-        resolvedStatus = 'approved';
-      }
+      let resolvedStatus = 'approved';
 
-      return {
+      const fallbackProfile = {
         id: u.id,
         full_name: meta.full_name || meta.name || (u.email ? u.email.split('@')[0] : 'User'),
         email: u.email || '',
@@ -133,6 +130,19 @@ export async function getUserProfile(userId) {
         created_at: u.created_at || new Date().toISOString(),
         _isFallback: true,
       };
+
+      // Persist the missing profile to public.profiles table so it exists in SQL
+      try {
+        // SECURITY FIX: Omit role and status from client-side upsert to prevent privilege escalation
+        supabase.from('profiles').upsert({
+          id: fallbackProfile.id,
+          full_name: fallbackProfile.full_name,
+          email: fallbackProfile.email,
+          username: fallbackProfile.username,
+        }).then(() => {});
+      } catch (_) {}
+
+      return fallbackProfile;
     }
   } catch (fallbackErr) {
     console.warn('[AuthUtils] Fallback profile construction failed:', fallbackErr);

@@ -80,13 +80,13 @@ export default function LoginPage() {
 
       if (signupSuccessParam === 'true' || signupSuccessParam === '1') {
         setActiveTab('signin');
-        setSuccessMessage('Registration submitted! Your account is pending admin approval. Once approved, you will be able to log in.');
+        setSuccessMessage('Your account has been created. Please check your email and verify your address before logging in.');
       }
 
       const statusParam = params.get('status');
-      if (statusParam === 'pending') {
+      if (statusParam === 'unconfirmed') {
         setActiveTab('signin');
-        setErrorMessage('⏳ Your account is pending admin approval. You will be able to log in once an administrator approves your account.');
+        setErrorMessage('Check your email and confirm your account before logging in.');
       }
 
       // If an existing admin session is detected on public login, silently terminate it
@@ -135,6 +135,10 @@ export default function LoginPage() {
     e.preventDefault();
     if (!formData.email || !formData.password) {
       setErrorMessage('Please fill in all required fields.');
+      return;
+    }
+    if (activeTab === 'signup' && formData.password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters long.');
       return;
     }
     if (activeTab === 'signup' && !formData.fullName) {
@@ -219,8 +223,6 @@ export default function LoginPage() {
               id: data.user.id,
               full_name: formData.fullName,
               email: formData.email,
-              role: 'client',
-              status: 'approved',
               username: formData.fullName.toLowerCase().replace(/\s+/g, '') || signupEmail.split('@')[0],
             });
           } catch (pErr) {
@@ -228,31 +230,33 @@ export default function LoginPage() {
           }
         }
 
-        // If Supabase returned an active session, navigate directly to Client Dashboard!
+        // 1. Do NOT auto-login (sign out any session automatically created by Supabase)
         if (data?.session) {
-          setSuccessMessage('Registration successful! Entering Client Dashboard...');
-          setTimeout(() => {
-            window.location.href = '/dashboard/client';
-          }, 600);
-          return;
+          try {
+            await supabase.auth.signOut();
+          } catch (_) {}
         }
 
-        // Switch to Sign In tab, keep/pre-fill the email, clear password
+        // 2. Redirect user to Sign In view & keep/pre-fill the email used for signup
         setActiveTab('signin');
         setFormData((prev) => ({
           ...prev,
           email: signupEmail,
           password: '',
         }));
-        setSuccessMessage('Registration successful! You can now sign in immediately with your password.');
+
+        // 3. Show clear success message above the form
+        setSuccessMessage('Your account has been created. Please check your email and verify your address before logging in.');
+        setErrorMessage('');
         setIsLoading(false);
 
-        // Update URL query parameters so if refreshed, the state and email persist
+        // 4. Pass the email and success indicator via query parameters
         if (typeof window !== 'undefined') {
           const loginPath = window.location.pathname.includes('.html') ? '/login.html' : '/login';
           const newUrl = `${loginPath}?tab=signin&email=${encodeURIComponent(signupEmail)}&signup_success=true`;
           window.history.replaceState({}, '', newUrl);
         }
+        return;
 
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -265,45 +269,13 @@ export default function LoginPage() {
           const cleanEmail = (formData.email || '').trim().toLowerCase();
 
           if (errLower.includes('email not confirmed')) {
-            setErrorMessage('Email not confirmed. Please check your inbox or disable "Confirm Email" in your Supabase Auth settings.');
+            setErrorMessage('Check your email and confirm your account before logging in.');
             setIsLoading(false);
             return;
           }
 
           if (errLower.includes('invalid login credentials') || errLower.includes('invalid_grant') || errLower.includes('user not found')) {
-            // Check if an account actually exists with this email address
-            let accountExists = true;
-            try {
-              const { data: existsResult, error: rpcErr } = await supabase.rpc('check_user_exists', {
-                target_email: cleanEmail,
-              });
-
-              if (!rpcErr && typeof existsResult === 'boolean') {
-                accountExists = existsResult;
-              }
-            } catch (_) {
-              // fallback
-            }
-
-            // If user account is not found, automatically redirect to Sign Up tab with the entered email!
-            if (!accountExists) {
-              setActiveTab('signup');
-              setFormData((prev) => ({
-                ...prev,
-                email: cleanEmail,
-              }));
-              if (typeof window !== 'undefined') {
-                const loginPath = window.location.pathname.includes('.html') ? '/login.html' : '/login';
-                const newUrl = `${loginPath}?tab=signup&email=${encodeURIComponent(cleanEmail)}`;
-                window.history.replaceState({}, '', newUrl);
-              }
-              setErrorMessage('No account found with this email. Please enter your name to create your account.');
-              setIsLoading(false);
-              return;
-            }
-
-            // User exists, but credentials were wrong:
-            setErrorMessage('Incorrect email or password. Please try again.');
+            setErrorMessage('Invalid email or password. Please try again.');
           } else {
             setErrorMessage(error.message);
           }
@@ -315,14 +287,37 @@ export default function LoginPage() {
         // Check profiles table and read the user's role and approval status
         if (data?.session && data?.user) {
           try {
-            const { data: profile } = await supabase
+            let { data: profile } = await supabase
               .from('profiles')
-              .select('role, status')
+              .select('*')
               .eq('id', data.user.id)
               .maybeSingle();
 
-            const role = (profile?.role || '').toLowerCase().trim();
-            const status = (profile?.status || '').toLowerCase().trim();
+            // If profile does not exist in profiles table, auto-provision it immediately
+            if (!profile) {
+              const meta = data.user.user_metadata || {};
+              const defaultName = meta.full_name || meta.name || (data.user.email ? data.user.email.split('@')[0] : 'User');
+              const defaultUsername = meta.username || (data.user.email ? data.user.email.split('@')[0] : 'user');
+              const newProf = {
+                id: data.user.id,
+                full_name: defaultName,
+                email: data.user.email,
+                username: defaultUsername,
+              };
+              try {
+                const { data: savedProf } = await supabase
+                  .from('profiles')
+                  .upsert(newProf)
+                  .select()
+                  .maybeSingle();
+                profile = savedProf || newProf;
+              } catch (_) {
+                profile = newProf;
+              }
+            }
+
+            const role = (profile?.role || 'client').toLowerCase().trim();
+            const status = (profile?.status || 'approved').toLowerCase().trim();
             const userIsGoogle = isGoogleUser(data.user);
 
             // Block access if account was explicitly rejected or suspended by an administrator
@@ -478,8 +473,8 @@ export default function LoginPage() {
       setRecoveryError('Please fill in both password fields.');
       return;
     }
-    if (newPassword.length < 6) {
-      setRecoveryError('Password must be at least 6 characters long.');
+    if (newPassword.length < 8) {
+      setRecoveryError('Password must be at least 8 characters long.');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -513,8 +508,9 @@ export default function LoginPage() {
         return;
       }
 
-      // 3. Explicitly sign out so the user must authenticate with the new password
-      await supabase.auth.signOut();
+      // 3. Explicitly sign out all sessions so user must authenticate with new password
+      // SECURITY FIX: Invalidate all active sessions globally across all devices on password reset
+      await supabase.auth.signOut({ scope: 'global' });
 
       setRecoverySuccess(true);
       setRecoveryLoading(false);
@@ -650,7 +646,7 @@ export default function LoginPage() {
             </div>
 
             {/* Success Message display ABOVE the form */}
-            {activeTab === 'signin' && successMessage && (
+            {successMessage && (
               <motion.div
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -716,6 +712,7 @@ export default function LoginPage() {
                     id="email"
                     name="email"
                     type="email"
+                    autoComplete="email" // SECURITY FIX: Standard email autocomplete to prevent phishing and improve credential manager fidelity
                     className="auth-input"
                     placeholder="alex@company.com"
                     value={formData.email}
@@ -738,6 +735,7 @@ export default function LoginPage() {
                     id="password"
                     name="password"
                     type={showPassword ? 'text' : 'password'}
+                    autoComplete={activeTab === 'signup' ? 'new-password' : 'current-password'} // SECURITY FIX: Explicit password autocomplete to prevent credential interception
                     className="auth-input"
                     placeholder="••••••••••••"
                     value={formData.password}

@@ -8,11 +8,43 @@ import { supabase } from '../supabase/client';
  * Fetch profile by ID.
  */
 export async function getProfile(id) {
-  return await supabase
+  const res = await supabase
     .from('profiles')
     .select('*')
     .eq('id', id)
     .maybeSingle();
+
+  if (res.data) return res;
+
+  // Auto-heal missing profile for current authenticated user
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user && session.user.id === id) {
+      const u = session.user;
+      const meta = u.user_metadata || {};
+      const newProfile = {
+        id: u.id,
+        full_name: meta.full_name || meta.name || (u.email ? u.email.split('@')[0] : 'User'),
+        email: u.email || '',
+        username: meta.username || (u.email ? u.email.split('@')[0] : 'user'),
+      };
+
+      const { data: inserted, error: insErr } = await supabase
+        .from('profiles')
+        .upsert(newProfile)
+        .select()
+        .maybeSingle();
+
+      if (!insErr && inserted) {
+        return { data: inserted, error: null };
+      }
+      return { data: newProfile, error: null };
+    }
+  } catch (healErr) {
+    console.warn('[ProfilesDB] Auto-heal profile error:', healErr);
+  }
+
+  return res;
 }
 
 /**

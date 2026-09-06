@@ -222,6 +222,12 @@ export default function AdminPage() {
 
   useEffect(() => {
     async function checkAuth() {
+      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr || !session || !session.user) {
+        window.location.href = '/admin/login';
+        return;
+      }
+
       const { authorized, profile } = await checkRouteAuth({
         requiredRole: 'admin',
         redirectOnFail: '/admin/login',
@@ -232,6 +238,16 @@ export default function AdminPage() {
       }
     }
     checkAuth();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        window.location.href = '/admin/login';
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, []);
 
   const handleLogout = async (e) => {

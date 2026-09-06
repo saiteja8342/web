@@ -20,8 +20,9 @@ export default function ShimmerText({ text, className = "" }) {
             ease: "linear",
             repeat: Infinity,
           }}
-          dangerouslySetInnerHTML={{ __html: text }}
-        />
+        >
+          {text}
+        </motion.h2>
       </motion.div>
     </div>
   );

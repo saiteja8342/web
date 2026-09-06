@@ -497,7 +497,7 @@ CREATE POLICY "Users can update own notifications"
 CREATE POLICY "Authenticated users can insert notifications"
   ON notifications FOR INSERT
   TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (user_id = auth.uid());
 
 -- ==============================================================================
 -- REAL-TIME SUBSCRIPTIONS
