@@ -103,7 +103,9 @@ export async function getUserProfile(userId) {
       const meta = u.user_metadata || {};
       const appMeta = u.app_metadata || {};
 
-      let resolvedRole = (appMeta.role || meta.role || '').toLowerCase().trim();
+      // SECURITY: Only trust app_metadata (set by server) or configured admin emails.
+      // NEVER trust user_metadata for admin privileges, as users can modify it via devtools!
+      let resolvedRole = (appMeta.role || '').toLowerCase().trim();
       if (!resolvedRole) {
         if (isConfiguredAdminEmail(u.email)) {
           resolvedRole = 'admin';
@@ -150,7 +152,8 @@ export async function getCurrentUserProfile() {
 
 /**
  * Check if the given profile, role string, or user object is Admin.
- * Checks profiles.role, user_metadata.role, app_metadata.role, and configured admin emails.
+ * SECURITY NOTICE: Only checks database role, server-controlled app_metadata, or configured admin emails.
+ * Client-writable user_metadata is intentionally ignored to prevent privilege escalation via DevTools.
  */
 export function isAdmin(profileOrRoleOrUser) {
   if (!profileOrRoleOrUser) return false;
@@ -159,40 +162,27 @@ export function isAdmin(profileOrRoleOrUser) {
     return profileOrRoleOrUser.toLowerCase().trim() === 'admin';
   }
 
-  // Check object role (e.g. from profiles table)
+  // 1. Check verified database record role (from public.profiles)
   const role = (profileOrRoleOrUser.role || '').toLowerCase().trim();
   if (role === 'admin') return true;
 
-  // Check user metadata role (e.g. from auth.users)
-  const metaRole = (
-    profileOrRoleOrUser.user_metadata?.role ||
-    profileOrRoleOrUser.raw_user_meta_data?.role ||
-    ''
-  ).toLowerCase().trim();
-  if (metaRole === 'admin') return true;
-
-  // Check app metadata role
+  // 2. Check server-controlled app_metadata (users CANNOT modify app_metadata from client)
   const appMetaRole = (
     profileOrRoleOrUser.app_metadata?.role ||
     profileOrRoleOrUser.raw_app_meta_data?.role ||
     ''
   ).toLowerCase().trim();
-  if (appMetaRole === 'admin') return true;
-
-  // Check explicit boolean flags
-  if (
-    profileOrRoleOrUser.user_metadata?.is_admin === true ||
-    profileOrRoleOrUser.app_metadata?.is_admin === true
-  ) {
+  if (appMetaRole === 'admin' || profileOrRoleOrUser.app_metadata?.is_admin === true) {
     return true;
   }
 
-  // Check email
+  // 3. Check configured admin email whitelist
   const email = profileOrRoleOrUser.email || '';
   if (isConfiguredAdminEmail(email)) return true;
 
   return false;
 }
+
 
 /**
  * Check if the given profile or role string is Editor.

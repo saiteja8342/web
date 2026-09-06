@@ -212,7 +212,7 @@ export default function LoginPage() {
           return;
         }
 
-        // Direct profile provisioning fallback with pending status
+        // Direct profile provisioning with approved status so user can enter client dashboard directly
         if (data?.user?.id) {
           try {
             await supabase.from('profiles').upsert({
@@ -220,16 +220,21 @@ export default function LoginPage() {
               full_name: formData.fullName,
               email: formData.email,
               role: 'client',
-              status: 'pending',
+              status: 'approved',
+              username: formData.fullName.toLowerCase().replace(/\s+/g, '') || signupEmail.split('@')[0],
             });
           } catch (pErr) {
             console.warn('Profile direct provision:', pErr);
           }
         }
 
-        // If Supabase gave an immediate session, sign out so unapproved user cannot access dashboard
+        // If Supabase returned an active session, navigate directly to Client Dashboard!
         if (data?.session) {
-          await supabase.auth.signOut();
+          setSuccessMessage('Registration successful! Entering Client Dashboard...');
+          setTimeout(() => {
+            window.location.href = '/dashboard/client';
+          }, 600);
+          return;
         }
 
         // Switch to Sign In tab, keep/pre-fill the email, clear password
@@ -239,7 +244,7 @@ export default function LoginPage() {
           email: signupEmail,
           password: '',
         }));
-        setSuccessMessage('Registration submitted! Your account is currently pending administrator approval. Once approved, you will be able to sign in.');
+        setSuccessMessage('Registration successful! You can now sign in immediately with your password.');
         setIsLoading(false);
 
         // Update URL query parameters so if refreshed, the state and email persist
@@ -248,6 +253,7 @@ export default function LoginPage() {
           const newUrl = `${loginPath}?tab=signin&email=${encodeURIComponent(signupEmail)}&signup_success=true`;
           window.history.replaceState({}, '', newUrl);
         }
+
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: formData.email,
@@ -255,14 +261,56 @@ export default function LoginPage() {
         });
 
         if (error) {
-          if (error.message.toLowerCase().includes('email not confirmed')) {
+          const errLower = (error.message || '').toLowerCase();
+          const cleanEmail = (formData.email || '').trim().toLowerCase();
+
+          if (errLower.includes('email not confirmed')) {
             setErrorMessage('Email not confirmed. Please check your inbox or disable "Confirm Email" in your Supabase Auth settings.');
+            setIsLoading(false);
+            return;
+          }
+
+          if (errLower.includes('invalid login credentials') || errLower.includes('invalid_grant') || errLower.includes('user not found')) {
+            // Check if an account actually exists with this email address
+            let accountExists = true;
+            try {
+              const { data: existsResult, error: rpcErr } = await supabase.rpc('check_user_exists', {
+                target_email: cleanEmail,
+              });
+
+              if (!rpcErr && typeof existsResult === 'boolean') {
+                accountExists = existsResult;
+              }
+            } catch (_) {
+              // fallback
+            }
+
+            // If user account is not found, automatically redirect to Sign Up tab with the entered email!
+            if (!accountExists) {
+              setActiveTab('signup');
+              setFormData((prev) => ({
+                ...prev,
+                email: cleanEmail,
+              }));
+              if (typeof window !== 'undefined') {
+                const loginPath = window.location.pathname.includes('.html') ? '/login.html' : '/login';
+                const newUrl = `${loginPath}?tab=signup&email=${encodeURIComponent(cleanEmail)}`;
+                window.history.replaceState({}, '', newUrl);
+              }
+              setErrorMessage('No account found with this email. Please enter your name to create your account.');
+              setIsLoading(false);
+              return;
+            }
+
+            // User exists, but credentials were wrong:
+            setErrorMessage('Incorrect email or password. Please try again.');
           } else {
             setErrorMessage(error.message);
           }
           setIsLoading(false);
           return;
         }
+
 
         // Check profiles table and read the user's role and approval status
         if (data?.session && data?.user) {
@@ -277,7 +325,7 @@ export default function LoginPage() {
             const status = (profile?.status || '').toLowerCase().trim();
             const userIsGoogle = isGoogleUser(data.user);
 
-            // Block access if account was rejected or suspended by administrator
+            // Block access if account was explicitly rejected or suspended by an administrator
             if (role !== 'admin' && status === 'rejected') {
               await supabase.auth.signOut();
               setErrorMessage('Your account was suspended or declined by an administrator. Please contact support.');
@@ -285,20 +333,13 @@ export default function LoginPage() {
               return;
             }
 
-            // Google OAuth users bypass pending approval!
-            if (!userIsGoogle && role !== 'admin' && status === 'pending') {
-              await supabase.auth.signOut();
-              setErrorMessage('⏳ Your account is pending administrator approval. You will be able to log in once an admin approves your account.');
-              setIsLoading(false);
-              return;
-            }
-
-            // If Google user is pending, auto-approve in DB
-            if (userIsGoogle && status !== 'approved') {
+            // If account is still marked pending in DB, auto-promote to approved
+            if (role === 'client' && status !== 'approved') {
               try {
                 await supabase.from('profiles').update({ status: 'approved' }).eq('id', data.user.id);
               } catch (_) {}
             }
+
 
             // STRICT RULE: Admins CANNOT log in from normal /login.
             // Pretend the account does not exist on this client login panel for security!

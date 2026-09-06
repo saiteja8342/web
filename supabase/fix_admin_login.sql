@@ -26,7 +26,87 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE;
 
 GRANT EXECUTE ON FUNCTION public.is_admin() TO anon, authenticated, service_role;
 
--- 3. Enable RLS and establish non-recursive policies on public.profiles
+-- 2.1 Function to check if a user account exists (used by login page to redirect un-registered visitors to signup)
+CREATE OR REPLACE FUNCTION public.check_user_exists(target_email TEXT)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM auth.users WHERE LOWER(email) = LOWER(TRIM(target_email))
+    UNION
+    SELECT 1 FROM public.profiles WHERE LOWER(email) = LOWER(TRIM(target_email))
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+GRANT EXECUTE ON FUNCTION public.check_user_exists(TEXT) TO anon, authenticated, service_role;
+
+-- 3. Hard-Block Privilege Escalation via Database Triggers
+-- Even if an attacker uses Inspect Element / DevTools console to call:
+-- supabase.from('profiles').update({ role: 'admin' })
+-- This trigger blocks it at the database engine level!
+CREATE OR REPLACE FUNCTION public.protect_profile_privilege_escalation()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF public.is_admin() THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.role IS DISTINCT FROM OLD.role THEN
+    RAISE EXCEPTION 'Access Denied: You cannot modify user role.';
+  END IF;
+  IF NEW.status IS DISTINCT FROM OLD.status THEN
+    RAISE EXCEPTION 'Access Denied: You cannot modify user approval status.';
+  END IF;
+  IF NEW.id IS DISTINCT FROM OLD.id THEN
+    RAISE EXCEPTION 'Access Denied: Profile ID cannot be altered.';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_protect_profile_privilege_escalation ON public.profiles;
+CREATE TRIGGER trg_protect_profile_privilege_escalation
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.protect_profile_privilege_escalation();
+
+-- Prevent non-admins from inserting role='admin' on signup, and auto-approve new clients
+CREATE OR REPLACE FUNCTION public.enforce_profile_insert_security()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    IF LOWER(COALESCE(NEW.role, '')) = 'admin' THEN
+      NEW.role := 'client';
+    END IF;
+  END IF;
+
+  -- New client accounts are automatically approved to access the client dashboard directly
+  IF NEW.status IS NULL OR NEW.status = 'pending' THEN
+    NEW.status := 'approved';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_profile_insert_security ON public.profiles;
+CREATE TRIGGER trg_enforce_profile_insert_security
+  BEFORE INSERT ON public.profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_profile_insert_security();
+
+-- Auto-approve any previously registered clients currently stuck in 'pending'
+UPDATE public.profiles
+SET status = 'approved'
+WHERE status = 'pending' AND (role = 'client' OR role IS NULL);
+
+
+-- 4. Enable RLS and establish non-recursive policies on public.profiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
@@ -63,6 +143,7 @@ CREATE POLICY "Allow user insert on signup"
   ON public.profiles FOR INSERT
   TO anon, authenticated
   WITH CHECK (true);
+
 
 -- 4. Grant table permissions
 GRANT ALL ON public.profiles TO postgres, service_role;
@@ -105,21 +186,42 @@ GRANT EXECUTE ON FUNCTION public.delete_user_by_admin(UUID) TO authenticated;
 DO $$
 DECLARE
   v_target_email TEXT := 'admin@motionnodeedits.com'; -- <--- SET YOUR ADMIN EMAIL HERE
+  v_found_user_id UUID;
 BEGIN
-  -- Update in public.profiles
-  UPDATE public.profiles
-  SET 
-    role = 'admin',
-    status = 'approved',
-    username = COALESCE(username, 'admin')
-  WHERE LOWER(email) = LOWER(v_target_email);
+  -- 1. Find user in auth.users
+  SELECT id INTO v_found_user_id
+  FROM auth.users
+  WHERE LOWER(email) = LOWER(TRIM(v_target_email))
+  LIMIT 1;
 
-  -- Also update metadata in auth.users
-  UPDATE auth.users
-  SET 
-    raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || '{"role":"admin"}'::jsonb,
-    raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || '{"role":"admin"}'::jsonb
-  WHERE LOWER(email) = LOWER(v_target_email);
+  IF v_found_user_id IS NULL THEN
+    RAISE WARNING 'User with email "%" was not found in auth.users. Please sign up or create this user first, then re-run.', v_target_email;
+  ELSE
+    -- 2. Insert or update in public.profiles
+    INSERT INTO public.profiles (id, full_name, email, role, status, username)
+    SELECT 
+      u.id,
+      COALESCE(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'name', 'Administrator'),
+      u.email,
+      'admin',
+      'approved',
+      COALESCE(u.raw_user_meta_data->>'username', 'admin')
+    FROM auth.users u
+    WHERE u.id = v_found_user_id
+    ON CONFLICT (id) DO UPDATE
+    SET 
+      role = 'admin',
+      status = 'approved',
+      username = COALESCE(public.profiles.username, 'admin');
 
-  RAISE NOTICE 'Administrator privileges successfully applied for %', v_target_email;
+    -- 3. Also update server-controlled metadata in auth.users
+    UPDATE auth.users
+    SET 
+      raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || '{"role":"admin"}'::jsonb,
+      raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || '{"role":"admin"}'::jsonb
+    WHERE id = v_found_user_id;
+
+    RAISE NOTICE 'SUCCESS: Administrator privileges successfully granted to % (User ID: %)', v_target_email, v_found_user_id;
+  END IF;
 END $$;
+

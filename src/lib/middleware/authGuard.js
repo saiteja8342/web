@@ -49,12 +49,12 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
     let userRole = userIsAdmin ? 'admin' : (profile.role || '').toLowerCase().trim();
     let userStatus = (profile.status || '').toLowerCase().trim();
 
-    // ─── GOOGLE SIGN-IN INSTANT ACCESS ──────────────────────────────
-    // When a user signs in with Google, they can enter the Client Dashboard
-    // immediately without waiting for admin approval.
-    if (!userIsAdmin && userIsGoogle) {
+    // ─── INSTANT ACCESS WITHOUT ADMIN APPROVAL ──────────────────────
+    // All newly registered clients can enter the Client Dashboard immediately.
+    // Only accounts that were explicitly suspended/declined by an administrator are blocked.
+    if (!userIsAdmin) {
       if (userStatus === 'rejected') {
-        // Suspicious / blocked by administrator: deny access!
+        // Suspended or blocked by administrator: deny access!
         await signOutUser();
         if (typeof window !== 'undefined') {
           window.location.href = '/login?status=rejected';
@@ -62,7 +62,7 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
         return { authorized: false, session: null, profile };
       }
 
-      // If pending or unset, auto-approve Google users
+      // If pending or unset, auto-approve client user
       if (userStatus !== 'approved') {
         userStatus = 'approved';
         profile.status = 'approved';
@@ -80,30 +80,13 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
               avatar_url: profile.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
             })
             .then(() => {})
-            .catch((uErr) => console.warn('[AuthGuard] Google auto-approve sync notice:', uErr));
+            .catch((uErr) => console.warn('[AuthGuard] Client auto-approve sync notice:', uErr));
         } catch (_) {
           // ignore
         }
       }
     }
 
-    // Block non-admins if account is pending approval (for standard email/password registrations)
-    if (!userIsAdmin && userStatus === 'pending') {
-      await signOutUser();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login?status=pending';
-      }
-      return { authorized: false, session: null, profile };
-    }
-
-    // Block non-admins if account was rejected or blocked by admin
-    if (!userIsAdmin && userStatus === 'rejected') {
-      await signOutUser();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login?status=rejected';
-      }
-      return { authorized: false, session: null, profile };
-    }
 
     // Check specific role requirement
     if (requiredRole) {

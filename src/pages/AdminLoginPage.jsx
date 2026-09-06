@@ -105,14 +105,15 @@ export default function AdminLoginPage() {
       });
 
       if (error) {
-        if (error.message.toLowerCase().includes('invalid login credentials')) {
-          setErrorMessage('Invalid administrator credentials.');
+        if (error.message.toLowerCase().includes('invalid login credentials') || error.message.toLowerCase().includes('invalid_grant')) {
+          setErrorMessage('Incorrect email or password. Please try again.');
         } else {
           setErrorMessage(error.message);
         }
         setIsLoading(false);
         return;
       }
+
 
       // 2. Multi-Source Role Verification
       if (data?.session && data?.user) {
