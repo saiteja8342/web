@@ -1,11 +1,48 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Film, Cpu, Megaphone, Smartphone, Users, Box } from 'lucide-react';
+import {
+  Film,
+  Cpu,
+  Megaphone,
+  Smartphone,
+  Users,
+  Box,
+  Video,
+  Sparkles,
+  Play,
+  Award,
+  Zap,
+  Layers,
+  Globe,
+  Camera,
+  Scissors,
+  Flame
+} from 'lucide-react';
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import ShimmerText from './ShimmerText';
+import { getServicesSettings, DEFAULT_SERVICES_SETTINGS } from '../lib/db/cms';
 
 gsap.registerPlugin(ScrollTrigger);
+
+const ICON_MAP = {
+  Film,
+  Cpu,
+  Megaphone,
+  Smartphone,
+  Users,
+  Box,
+  Video,
+  Sparkles,
+  Play,
+  Award,
+  Zap,
+  Layers,
+  Globe,
+  Camera,
+  Scissors,
+  Flame
+};
 
 const TILT_MAX = 9;
 const TILT_SPRING = { stiffness: 300, damping: 28 };
@@ -14,7 +51,10 @@ const GLOW_SPRING = { stiffness: 180, damping: 22 };
 const cn = (...classes) => classes.filter(Boolean).join(' ');
 
 function Card({ item, dimmed, onHoverStart, onHoverEnd }) {
-  const Icon = item.icon;
+  const Icon = typeof item.icon === 'string'
+    ? (ICON_MAP[item.icon] || Film)
+    : (item.icon || Film);
+  const cardColor = item.color || '#FFFFFF';
   const cardRef = useRef(null);
 
   const normX = useMotionValue(0.5);
@@ -80,7 +120,7 @@ function Card({ item, dimmed, onHoverStart, onHoverEnd }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{
-          background: `radial-gradient(ellipse at 20% 20%, ${item.color}05, transparent 65%)`,
+          background: `radial-gradient(ellipse at 20% 20%, ${cardColor}05, transparent 65%)`,
         }}
       />
 
@@ -90,7 +130,7 @@ function Card({ item, dimmed, onHoverStart, onHoverEnd }) {
         className="pointer-events-none absolute inset-0"
         style={{
           opacity: glowOpacity,
-          background: `radial-gradient(ellipse at 20% 20%, ${item.color}15, transparent 65%)`,
+          background: `radial-gradient(ellipse at 20% 20%, ${cardColor}15, transparent 65%)`,
         }}
       />
       
@@ -110,8 +150,8 @@ function Card({ item, dimmed, onHoverStart, onHoverEnd }) {
       <div
         className="relative z-10"
         style={{
-          background: `${item.color}0c`,
-          boxShadow: `inset 0 0 0 1px ${item.color}25`,
+          background: `${cardColor}0c`,
+          boxShadow: `inset 0 0 0 1px ${cardColor}25`,
           width: 40,
           height: 40,
           display: 'flex',
@@ -120,7 +160,7 @@ function Card({ item, dimmed, onHoverStart, onHoverEnd }) {
           marginBottom: 20
         }}
       >
-        <Icon size={17} strokeWidth={1.9} style={{ color: item.color }} />
+        <Icon size={17} strokeWidth={1.9} style={{ color: cardColor }} />
       </div>
 
       {/* Text */}
@@ -138,7 +178,7 @@ function Card({ item, dimmed, onHoverStart, onHoverEnd }) {
         aria-hidden="true"
         className="spotlight-bottom-line"
         style={{
-          background: `linear-gradient(to right, ${item.color}80, transparent)`,
+          background: `linear-gradient(to right, ${cardColor}80, transparent)`,
         }}
       />
     </motion.div>
@@ -148,48 +188,25 @@ function Card({ item, dimmed, onHoverStart, onHoverEnd }) {
 export default function Services() {
   const sectionRef = useRef(null);
   const [hoveredTitle, setHoveredTitle] = useState(null);
+  const [settings, setSettings] = useState(DEFAULT_SERVICES_SETTINGS);
 
-  const items = [
-    {
-      icon: Film,
-      title: 'Video Editing',
-      description: 'Cinematic editing, professional color grading, and custom sound design to craft highly engaging narratives.',
-      color: '#E5E5EA'
-    },
-    {
-      icon: Cpu,
-      title: 'AI Video Production',
-      description: 'Merging cutting-edge generative tools with professional post-production for unmatched visual styling.',
-      color: '#C5C6C9'
-    },
-    {
-      icon: Megaphone,
-      title: 'AI Advertisements',
-      description: 'Tailored ad campaigns and commercial copy combining algorithmic precision with high-end storytelling.',
-      color: '#D1D1D6'
-    },
-    {
-      icon: Smartphone,
-      title: 'Social Media Reels',
-      description: 'Scroll-stopping TikToks, Instagram Reels, and Shorts engineered specifically to retain views and go viral.',
-      color: '#8E8F94'
-    },
-    {
-      icon: Users,
-      title: 'UGC Ads',
-      description: 'Authentic consumer-focused style editing that builds instant trust and converts viewer interest into sales.',
-      color: '#A2A2A7'
-    },
-    {
-      icon: Box,
-      title: 'Product Videos',
-      description: 'Sleek, atmospheric product highlights with dynamic macro shots, sound syncs, and 3D camera feel.',
-      color: '#FFFFFF'
-    }
-  ];
+  useEffect(() => {
+    let isMounted = true;
+    getServicesSettings().then((data) => {
+      if (isMounted && data) {
+        setSettings(data);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
+  const visibleItems = (settings.items || DEFAULT_SERVICES_SETTINGS.items).filter(
+    (item) => item.is_active !== false
+  );
 
   useEffect(() => {
     const el = sectionRef.current;
+    if (!el) return;
     
     // GSAP Scroll reveals
     const reveals = el.querySelectorAll('.reveal-element');
@@ -228,7 +245,7 @@ export default function Services() {
         }
       );
     });
-  }, []);
+  }, [visibleItems.length]);
 
   return (
     <section id="services" ref={sectionRef}>
@@ -237,21 +254,23 @@ export default function Services() {
           
           {/* Top text header */}
           <div className="services-header">
-            <span className="caption eyebrow section-heading-clip">WHAT WE DO</span>
+            <span className="caption eyebrow section-heading-clip">
+              {settings.eyebrow || 'WHAT WE DO'}
+            </span>
             <ShimmerText
-              text="Every frame.<br />Intentional."
+              text={settings.title || 'Every frame. Intentional.'}
               className="h2 section-heading-clip"
             />
             <p className="body-large services-desc reveal-element" style={{ marginTop: 24 }}>
-              We combine professional visual direction with cutting-edge production to deliver edits that don't just look cinematic — they capture attention.
+              {settings.subtitle || "We combine professional visual direction with cutting-edge production to deliver edits that don't just look cinematic — they capture attention."}
             </p>
           </div>
 
           {/* Services cards grid */}
           <div className="services-grid spotlight-grid">
-            {items.map((item) => (
+            {visibleItems.map((item) => (
               <Card
-                key={item.title}
+                key={item.id || item.title}
                 item={item}
                 dimmed={hoveredTitle !== null && hoveredTitle !== item.title}
                 onHoverStart={() => setHoveredTitle(item.title)}
@@ -265,3 +284,4 @@ export default function Services() {
     </section>
   );
 }
+

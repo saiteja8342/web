@@ -24,7 +24,17 @@ import {
   Globe,
   Award,
   Check,
-  Pencil
+  Pencil,
+  Film,
+  Cpu,
+  Megaphone,
+  Smartphone,
+  Users,
+  Box,
+  Scissors,
+  Camera,
+  Zap,
+  Flame
 } from 'lucide-react';
 import {
   getAllTestimonialsAdmin,
@@ -37,9 +47,49 @@ import {
   getSiteSettings,
   updateSiteSettings,
   getClientOrderRatingsForAdmin,
-  DEFAULT_FOOTER_SETTINGS
+  DEFAULT_FOOTER_SETTINGS,
+  getServicesSettings,
+  updateServicesSettings,
+  DEFAULT_SERVICES_SETTINGS,
+  getOurWorkSettings,
+  updateOurWorkSettings,
+  DEFAULT_OUR_WORK_SETTINGS
 } from '../../lib/db/cms';
 import { parseYouTubeInput } from '../../utils/youtube';
+
+const CMS_SERVICE_ICONS = {
+  Film,
+  Cpu,
+  Megaphone,
+  Smartphone,
+  Users,
+  Box,
+  Video,
+  Sparkles,
+  Play,
+  Award,
+  Zap,
+  Layers,
+  Globe,
+  Camera,
+  Scissors,
+  Flame
+};
+
+const CMS_COLOR_PRESETS = [
+  '#FFFFFF',
+  '#E5E5EA',
+  '#C5C6C9',
+  '#D1D1D6',
+  '#8E8F94',
+  '#A2A2A7',
+  '#38BDF8',
+  '#818CF8',
+  '#A78BFA',
+  '#F472B6',
+  '#34D399',
+  '#FBBF24'
+];
 
 export default function WebsiteCMS() {
   const [activeTab, setActiveTab] = useState('testimonials'); // 'testimonials' | 'videos' | 'footer'
@@ -352,12 +402,149 @@ export default function WebsiteCMS() {
     setSavingFooter(false);
   };
 
+  // ----------------------------------------------------------------------------
+  // WHAT WE DO (SERVICES) STATE
+  // ----------------------------------------------------------------------------
+  const [servicesSettings, setServicesSettings] = useState(DEFAULT_SERVICES_SETTINGS);
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [savingServices, setSavingServices] = useState(false);
+  const [showAddServiceModal, setShowAddServiceModal] = useState(false);
+  const [editingServiceItem, setEditingServiceItem] = useState(null);
+  const [deleteServiceConfirm, setDeleteServiceConfirm] = useState(null);
+  const [newServiceItem, setNewServiceItem] = useState({
+    title: '',
+    description: '',
+    icon: 'Film',
+    color: '#FFFFFF'
+  });
+
+  const loadServicesSettings = async () => {
+    setLoadingServices(true);
+    const data = await getServicesSettings();
+    if (data) {
+      setServicesSettings(data);
+    }
+    setLoadingServices(false);
+  };
+
+  const handleSaveServicesHeader = async (e) => {
+    e.preventDefault();
+    setSavingServices(true);
+    const { error } = await updateServicesSettings(servicesSettings);
+    if (!error) {
+      showToast('What We Do section saved and updated on website!');
+    } else {
+      showToast(error?.message || 'Failed to save services settings', 'error');
+    }
+    setSavingServices(false);
+  };
+
+  const handleToggleServiceActive = async (itemId) => {
+    const updatedItems = (servicesSettings.items || []).map(item => {
+      const match = item.id === itemId || item.title === itemId;
+      return match ? { ...item, is_active: item.is_active === false ? true : false } : item;
+    });
+    const updated = { ...servicesSettings, items: updatedItems };
+    setServicesSettings(updated);
+    await updateServicesSettings(updated);
+    showToast('Service card visibility updated.');
+  };
+
+  const handleAddServiceItem = async (e) => {
+    e.preventDefault();
+    if (!newServiceItem.title.trim()) {
+      showToast('Please enter a title for the service.', 'error');
+      return;
+    }
+    const id = newServiceItem.title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const newItem = {
+      id,
+      title: newServiceItem.title.trim(),
+      description: newServiceItem.description.trim(),
+      icon: newServiceItem.icon || 'Film',
+      color: newServiceItem.color || '#FFFFFF',
+      is_active: true
+    };
+    const updated = {
+      ...servicesSettings,
+      items: [...(servicesSettings.items || []), newItem]
+    };
+    setServicesSettings(updated);
+    setShowAddServiceModal(false);
+    setNewServiceItem({ title: '', description: '', icon: 'Film', color: '#FFFFFF' });
+    await updateServicesSettings(updated);
+    showToast('New service card added!');
+  };
+
+  const handleOpenEditServiceItem = (item) => {
+    setEditingServiceItem({
+      id: item.id || item.title,
+      title: item.title || '',
+      description: item.description || '',
+      icon: item.icon || 'Film',
+      color: item.color || '#FFFFFF'
+    });
+  };
+
+  const handleSaveEditServiceItem = async (e) => {
+    e.preventDefault();
+    if (!editingServiceItem.title.trim()) {
+      showToast('Service title cannot be empty.', 'error');
+      return;
+    }
+    const updatedItems = (servicesSettings.items || []).map(item => {
+      const match = item.id === editingServiceItem.id || item.title === editingServiceItem.id;
+      return match ? { ...item, ...editingServiceItem } : item;
+    });
+    const updated = { ...servicesSettings, items: updatedItems };
+    setServicesSettings(updated);
+    setEditingServiceItem(null);
+    await updateServicesSettings(updated);
+    showToast('Service card updated successfully!');
+  };
+
+  const handleDeleteServiceItem = async (itemId) => {
+    const updatedItems = (servicesSettings.items || []).filter(item => item.id !== itemId && item.title !== itemId);
+    const updated = { ...servicesSettings, items: updatedItems };
+    setServicesSettings(updated);
+    setDeleteServiceConfirm(null);
+    await updateServicesSettings(updated);
+    showToast('Service card removed.');
+  };
+
+  // ----------------------------------------------------------------------------
+  // OUR WORK (FEATURED PROJECTS) HEADER STATE
+  // ----------------------------------------------------------------------------
+  const [ourWorkSettings, setOurWorkSettings] = useState(DEFAULT_OUR_WORK_SETTINGS);
+  const [savingOurWork, setSavingOurWork] = useState(false);
+
+  const loadOurWorkSettings = async () => {
+    const data = await getOurWorkSettings();
+    if (data) {
+      setOurWorkSettings(data);
+    }
+  };
+
+  const handleSaveOurWorkHeader = async (e) => {
+    e.preventDefault();
+    setSavingOurWork(true);
+    const { error } = await updateOurWorkSettings(ourWorkSettings);
+    if (!error) {
+      showToast('Our Work section header saved and updated on website!');
+    } else {
+      showToast(error?.message || 'Failed to save Our Work settings', 'error');
+    }
+    setSavingOurWork(false);
+  };
+
   // Initial fetch on mount
   useEffect(() => {
     loadTestimonials();
     loadClientReviews();
     loadVideos();
     loadFooterSettings();
+    loadServicesSettings();
+    loadOurWorkSettings();
   }, []);
 
   return (
@@ -398,6 +585,16 @@ export default function WebsiteCMS() {
             <Video className="h-4 w-4" />
             <span>Our Work Videos</span>
             <span className="cms-count-badge">{videos.length}</span>
+          </button>
+
+          <button
+            type="button"
+            className={`cms-tab-pill ${activeTab === 'services' ? 'active' : ''}`}
+            onClick={() => setActiveTab('services')}
+          >
+            <Layers className="h-4 w-4" />
+            <span>What We Do</span>
+            <span className="cms-count-badge">{(servicesSettings.items || []).length}</span>
           </button>
 
           <button
@@ -898,6 +1095,65 @@ export default function WebsiteCMS() {
       {/* ==================================================================== */}
       {activeTab === 'videos' && (
         <div className="cms-tab-content">
+          {/* SECTION: OUR WORK SECTION HEADER */}
+          <form onSubmit={handleSaveOurWorkHeader} className="cms-section-card" style={{ marginBottom: '32px' }}>
+            <div className="cms-section-card-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Sparkles className="h-5 w-5 text-amber-400" />
+                <div>
+                  <h3 className="cms-card-heading">Section Header & Description</h3>
+                  <p className="cms-card-subheading">
+                    Edit the eyebrow tag, title, and intro text displayed above the video portfolio on the homepage.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="vel-btn-primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                disabled={savingOurWork}
+              >
+                <Save className="h-4 w-4" />
+                <span>{savingOurWork ? 'Saving...' : 'Save Header'}</span>
+              </button>
+            </div>
+
+            <div className="cms-form-grid" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div className="vel-form-group">
+                <label className="vel-label">Section Eyebrow (Small Top Tag)</label>
+                <input
+                  type="text"
+                  className="vel-input"
+                  placeholder="OUR WORK"
+                  value={ourWorkSettings.eyebrow || ''}
+                  onChange={e => setOurWorkSettings({ ...ourWorkSettings, eyebrow: e.target.value })}
+                />
+              </div>
+
+              <div className="vel-form-group">
+                <label className="vel-label">Section Main Heading</label>
+                <input
+                  type="text"
+                  className="vel-input"
+                  placeholder="Featured Projects"
+                  value={ourWorkSettings.title || ''}
+                  onChange={e => setOurWorkSettings({ ...ourWorkSettings, title: e.target.value })}
+                />
+              </div>
+
+              <div className="vel-form-group">
+                <label className="vel-label">Section Subtitle / Description</label>
+                <textarea
+                  className="vel-textarea"
+                  rows={3}
+                  placeholder="Explore our portfolio filtered by category. Drag or swipe horizontally to view our vertical reels and widescreen productions."
+                  value={ourWorkSettings.subtitle || ''}
+                  onChange={e => setOurWorkSettings({ ...ourWorkSettings, subtitle: e.target.value })}
+                />
+              </div>
+            </div>
+          </form>
+
           <div className="cms-section-toolbar">
             <div className="cms-toolbar-left">
               <h2 className="cms-section-title">Our Work Video Showcase</h2>
@@ -1439,6 +1695,431 @@ export default function WebsiteCMS() {
           </form>
         </div>
       )}
+
+      {/* ==================================================================== */}
+      {/* TAB 4: WHAT WE DO (SERVICES SECTION)                                 */}
+      {/* ==================================================================== */}
+      {activeTab === 'services' && (
+        <div className="cms-tab-content">
+          <div className="cms-section-toolbar">
+            <div className="cms-toolbar-left">
+              <h2 className="cms-section-title">What We Do (Services Section)</h2>
+              <span className="cms-section-hint">
+                Customize the main heading, subtitle, and service cards displayed on the homepage.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                className="vel-btn-secondary"
+                onClick={loadServicesSettings}
+                disabled={loadingServices}
+                title="Refresh from Database"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingServices ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
+
+              <button
+                type="button"
+                className="vel-btn-primary"
+                onClick={() => setShowAddServiceModal(true)}
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Service Card</span>
+              </button>
+            </div>
+          </div>
+
+          {/* SECTION 1: HEADER & COPY CONFIG */}
+          <form onSubmit={handleSaveServicesHeader} className="cms-section-card" style={{ marginBottom: '24px' }}>
+            <div className="cms-section-card-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Sparkles className="h-5 w-5 text-blue-400" />
+                <div>
+                  <h3 className="cms-card-heading">Section Header & Description</h3>
+                  <p className="cms-card-subheading">Control the eyebrow text, title, and descriptive intro.</p>
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="vel-btn-primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                disabled={savingServices}
+              >
+                <Save className="h-4 w-4" />
+                <span>{savingServices ? 'Saving...' : 'Save Header'}</span>
+              </button>
+            </div>
+
+            <div className="cms-form-grid" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div className="vel-form-group">
+                <label className="vel-label">Section Eyebrow (Small Top Tag)</label>
+                <input
+                  type="text"
+                  className="vel-input"
+                  placeholder="WHAT WE DO"
+                  value={servicesSettings.eyebrow || ''}
+                  onChange={e => setServicesSettings({ ...servicesSettings, eyebrow: e.target.value })}
+                />
+              </div>
+
+              <div className="vel-form-group">
+                <label className="vel-label">Section Main Heading</label>
+                <input
+                  type="text"
+                  className="vel-input"
+                  placeholder="Every frame. Intentional."
+                  value={servicesSettings.title || ''}
+                  onChange={e => setServicesSettings({ ...servicesSettings, title: e.target.value })}
+                />
+              </div>
+
+              <div className="vel-form-group">
+                <label className="vel-label">Section Subtitle / Description</label>
+                <textarea
+                  className="vel-textarea"
+                  rows={3}
+                  placeholder="We combine professional visual direction with cutting-edge production..."
+                  value={servicesSettings.subtitle || ''}
+                  onChange={e => setServicesSettings({ ...servicesSettings, subtitle: e.target.value })}
+                />
+              </div>
+            </div>
+          </form>
+
+          {/* SECTION 2: SERVICES CARDS */}
+          <div className="cms-section-card">
+            <div className="cms-section-card-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Layers className="h-5 w-5 text-indigo-400" />
+                <div>
+                  <h3 className="cms-card-heading">Service Cards</h3>
+                  <p className="cms-card-subheading">
+                    Showing {(servicesSettings.items || []).filter(i => i.is_active !== false).length} active cards on live website.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '24px' }}>
+              {(servicesSettings.items || []).length === 0 ? (
+                <div className="cms-empty-state">
+                  <h3>No Service Cards Found</h3>
+                  <p>Click "Add Service Card" above to add your first service spotlight.</p>
+                </div>
+              ) : (
+                <div className="cms-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                  {(servicesSettings.items || []).map((card) => {
+                    const IconComp = CMS_SERVICE_ICONS[card.icon] || Film;
+                    const cardColor = card.color || '#FFFFFF';
+
+                    return (
+                      <div key={card.id || card.title} className="cms-item-card" style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div className="cms-item-header" style={{ alignItems: 'flex-start' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: '8px',
+                              background: `${cardColor}15`,
+                              border: `1px solid ${cardColor}30`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              <IconComp size={18} style={{ color: cardColor }} />
+                            </div>
+                            <div>
+                              <h4 style={{ color: '#FFFFFF', fontSize: '1rem', fontWeight: 600, margin: 0 }}>
+                                {card.title}
+                              </h4>
+                              <span style={{ fontSize: '0.72rem', color: '#9CA3AF' }}>
+                                Icon: {card.icon || 'Film'} • <span style={{ color: cardColor }}>●</span> Color
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <p style={{
+                          color: '#A1A1AA',
+                          fontSize: '0.85rem',
+                          lineHeight: 1.5,
+                          margin: '14px 0 18px 0',
+                          flexGrow: 1
+                        }}>
+                          {card.description}
+                        </p>
+
+                        <div className="cms-item-footer">
+                          <button
+                            type="button"
+                            className={`cms-toggle-pill ${card.is_active !== false ? 'active' : 'inactive'}`}
+                            onClick={() => handleToggleServiceActive(card.id || card.title)}
+                            title="Click to toggle visibility on website"
+                          >
+                            {card.is_active !== false ? '● Live on Site' : '○ Hidden'}
+                          </button>
+
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <button
+                              type="button"
+                              className="cms-action-btn-secondary"
+                              onClick={() => handleOpenEditServiceItem(card)}
+                              title="Edit Service"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              className="cms-action-btn-danger"
+                              onClick={() => setDeleteServiceConfirm(card)}
+                              title="Delete Service"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ADD SERVICE MODAL */}
+          {showAddServiceModal && (
+            <div className="vel-modal-backdrop" onClick={() => setShowAddServiceModal(false)}>
+              <div className="vel-modal-box cms-modal" onClick={e => e.stopPropagation()}>
+                <div className="vel-modal-header">
+                  <h3 className="vel-modal-title">Add New Service Card</h3>
+                  <button
+                    type="button"
+                    className="vel-btn-ghost-icon"
+                    onClick={() => setShowAddServiceModal(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleAddServiceItem} className="vel-modal-body">
+                  <div className="vel-form-group">
+                    <label className="vel-label">Service Title *</label>
+                    <input
+                      type="text"
+                      className="vel-input"
+                      placeholder="e.g. 3D Motion Graphics"
+                      value={newServiceItem.title}
+                      onChange={e => setNewServiceItem({ ...newServiceItem, title: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="vel-form-group">
+                    <label className="vel-label">Select Icon</label>
+                    <div className="cms-icon-selector-grid">
+                      {Object.keys(CMS_SERVICE_ICONS).map((iconKey) => {
+                        const IconComponent = CMS_SERVICE_ICONS[iconKey];
+                        const isSelected = (newServiceItem.icon || 'Film') === iconKey;
+                        return (
+                          <button
+                            key={iconKey}
+                            type="button"
+                            className={`cms-icon-btn ${isSelected ? 'selected' : ''}`}
+                            onClick={() => setNewServiceItem({ ...newServiceItem, icon: iconKey })}
+                            title={iconKey}
+                          >
+                            <IconComponent size={18} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="vel-form-group">
+                    <label className="vel-label">Accent Color</label>
+                    <div className="cms-color-swatches">
+                      {CMS_COLOR_PRESETS.map((colorHex) => (
+                        <div
+                          key={colorHex}
+                          className={`cms-color-swatch ${newServiceItem.color === colorHex ? 'selected' : ''}`}
+                          style={{ backgroundColor: colorHex }}
+                          onClick={() => setNewServiceItem({ ...newServiceItem, color: colorHex })}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="vel-form-group">
+                    <label className="vel-label">Description *</label>
+                    <textarea
+                      className="vel-textarea"
+                      rows={3}
+                      placeholder="Highlight what makes this service stand out..."
+                      value={newServiceItem.description}
+                      onChange={e => setNewServiceItem({ ...newServiceItem, description: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="vel-modal-footer" style={{ marginTop: '20px' }}>
+                    <button
+                      type="button"
+                      className="vel-btn-secondary"
+                      onClick={() => setShowAddServiceModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="vel-btn-primary"
+                    >
+                      Publish Card
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* EDIT SERVICE MODAL */}
+          {editingServiceItem && (
+            <div className="vel-modal-backdrop" onClick={() => setEditingServiceItem(null)}>
+              <div className="vel-modal-box cms-modal" onClick={e => e.stopPropagation()}>
+                <div className="vel-modal-header">
+                  <h3 className="vel-modal-title">Edit Service Card</h3>
+                  <button
+                    type="button"
+                    className="vel-btn-ghost-icon"
+                    onClick={() => setEditingServiceItem(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveEditServiceItem} className="vel-modal-body">
+                  <div className="vel-form-group">
+                    <label className="vel-label">Service Title *</label>
+                    <input
+                      type="text"
+                      className="vel-input"
+                      value={editingServiceItem.title}
+                      onChange={e => setEditingServiceItem({ ...editingServiceItem, title: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="vel-form-group">
+                    <label className="vel-label">Select Icon</label>
+                    <div className="cms-icon-selector-grid">
+                      {Object.keys(CMS_SERVICE_ICONS).map((iconKey) => {
+                        const IconComponent = CMS_SERVICE_ICONS[iconKey];
+                        const isSelected = (editingServiceItem.icon || 'Film') === iconKey;
+                        return (
+                          <button
+                            key={iconKey}
+                            type="button"
+                            className={`cms-icon-btn ${isSelected ? 'selected' : ''}`}
+                            onClick={() => setEditingServiceItem({ ...editingServiceItem, icon: iconKey })}
+                            title={iconKey}
+                          >
+                            <IconComponent size={18} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="vel-form-group">
+                    <label className="vel-label">Accent Color</label>
+                    <div className="cms-color-swatches">
+                      {CMS_COLOR_PRESETS.map((colorHex) => (
+                        <div
+                          key={colorHex}
+                          className={`cms-color-swatch ${editingServiceItem.color === colorHex ? 'selected' : ''}`}
+                          style={{ backgroundColor: colorHex }}
+                          onClick={() => setEditingServiceItem({ ...editingServiceItem, color: colorHex })}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="vel-form-group">
+                    <label className="vel-label">Description *</label>
+                    <textarea
+                      className="vel-textarea"
+                      rows={3}
+                      value={editingServiceItem.description}
+                      onChange={e => setEditingServiceItem({ ...editingServiceItem, description: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="vel-modal-footer" style={{ marginTop: '20px' }}>
+                    <button
+                      type="button"
+                      className="vel-btn-secondary"
+                      onClick={() => setEditingServiceItem(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="vel-btn-primary"
+                    >
+                      Save Changes
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* DELETE SERVICE CONFIRMATION MODAL */}
+          {deleteServiceConfirm && (
+            <div className="vel-modal-backdrop" onClick={() => setDeleteServiceConfirm(null)}>
+              <div className="vel-modal-box vel-modal-sm" onClick={e => e.stopPropagation()}>
+                <div className="vel-modal-header">
+                  <h3 className="vel-modal-title">Delete Service Card?</h3>
+                  <button
+                    type="button"
+                    className="vel-btn-ghost-icon"
+                    onClick={() => setDeleteServiceConfirm(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="vel-modal-body">
+                  <p style={{ color: '#D1D5DB', fontSize: '0.9rem' }}>
+                    Are you sure you want to delete the <strong>{deleteServiceConfirm.title}</strong> service card?
+                  </p>
+                </div>
+                <div className="vel-modal-footer">
+                  <button
+                    type="button"
+                    className="vel-btn-secondary"
+                    onClick={() => setDeleteServiceConfirm(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="vel-btn-danger"
+                    onClick={() => handleDeleteServiceItem(deleteServiceConfirm.id || deleteServiceConfirm.title)}
+                  >
+                    Delete Card
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
     </div>
   );
 }

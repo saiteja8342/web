@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
+import { Volume2, VolumeX } from 'lucide-react';
 import BackgroundRippleEffect from './BackgroundRippleEffect';
-
-
 
 export default function Hero({ isLoaded }) {
   const containerRef = useRef(null);
@@ -10,9 +9,11 @@ export default function Hero({ isLoaded }) {
   const subRef = useRef(null);
   const btnRef = useRef(null);
   const videoWrapperRef = useRef(null);
+  const iframeRef = useRef(null);
 
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [isMuted, setIsMuted] = useState(true);
 
   // GSAP Entrance Animations
   useEffect(() => {
@@ -100,6 +101,36 @@ export default function Hero({ isLoaded }) {
     setTilt({ x: 0, y: 0 });
   };
 
+  // Toggle video mute / unmute using YouTube IFrame Player postMessage API
+  const toggleAudio = (e) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        JSON.stringify({
+          event: 'command',
+          func: nextMuted ? 'mute' : 'unMute',
+          args: []
+        }),
+        '*'
+      );
+      if (!nextMuted) {
+        iframeRef.current.contentWindow.postMessage(
+          JSON.stringify({
+            event: 'command',
+            func: 'setVolume',
+            args: [100]
+          }),
+          '*'
+        );
+      }
+    }
+  };
+
   return (
     <section className="hero" ref={containerRef} style={{ position: 'relative', overflow: 'hidden' }}>
       <BackgroundRippleEffect />
@@ -136,14 +167,16 @@ export default function Hero({ isLoaded }) {
             <div 
               className="hero-video-wrapper"
               ref={videoWrapperRef}
+              onClick={toggleAudio}
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
               style={{
                 transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-                transition: 'transform 0.1s ease-out'
+                transition: 'transform 0.1s ease-out',
+                cursor: 'pointer'
               }}
               data-hover-type="card"
-              data-hover-label="PLAY"
+              data-hover-label={isMuted ? "UNMUTE" : "MUTE"}
             >
               {!videoLoaded && (
                 <div className="skeleton-loader hero-skeleton" aria-hidden="true"></div>
@@ -159,7 +192,8 @@ export default function Hero({ isLoaded }) {
                 pointerEvents: 'none'
               }}>
                 <iframe
-                  src="https://www.youtube-nocookie.com/embed/qouiu4CbHU8?autoplay=1&mute=1&loop=1&playlist=qouiu4CbHU8&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&iv_load_policy=3&cc_load_policy=0&fs=0"
+                  ref={iframeRef}
+                  src="https://www.youtube-nocookie.com/embed/qouiu4CbHU8?autoplay=1&mute=1&loop=1&playlist=qouiu4CbHU8&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&iv_load_policy=3&cc_load_policy=0&fs=0&enablejsapi=1"
                   title="MotionNodeEdits Hero Reel"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
@@ -175,8 +209,40 @@ export default function Hero({ isLoaded }) {
                     display: 'block',
                     pointerEvents: 'none'
                   }}
-                  onLoad={() => setVideoLoaded(true)}
+                  onLoad={() => {
+                    setVideoLoaded(true);
+                    if (iframeRef.current?.contentWindow) {
+                      iframeRef.current.contentWindow.postMessage(
+                        JSON.stringify({ event: 'listening' }),
+                        '*'
+                      );
+                    }
+                  }}
                 />
+              </div>
+
+              {/* Floating Mute / Unmute Sound Control */}
+              <div className="hero-vid-controls">
+                <button
+                  type="button"
+                  onClick={toggleAudio}
+                  className={`hero-sound-btn ${!isMuted ? 'is-unmuted' : ''}`}
+                  aria-label={isMuted ? "Unmute video audio" : "Mute video audio"}
+                  title={isMuted ? "Click to unmute sound" : "Click to mute sound"}
+                  data-hover-type="link"
+                >
+                  {isMuted ? (
+                    <>
+                      <VolumeX size={15} strokeWidth={2.4} />
+                      <span>Unmute</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 size={15} strokeWidth={2.4} className="sound-active-pulse" />
+                      <span>Mute</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>

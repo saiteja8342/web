@@ -199,3 +199,76 @@ VALUES (
   }'::jsonb
 )
 ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO public.site_settings (key, value)
+VALUES (
+  'services_section',
+  '{
+    "eyebrow": "WHAT WE DO",
+    "title": "Every frame. Intentional.",
+    "subtitle": "We combine professional visual direction with cutting-edge production to deliver edits that don''t just look cinematic — they capture attention.",
+    "items": [
+      {
+        "id": "video-editing",
+        "icon": "Film",
+        "title": "Video Editing",
+        "description": "Cinematic editing, professional color grading, and custom sound design to craft highly engaging narratives.",
+        "color": "#E5E5EA",
+        "is_active": true
+      },
+      {
+        "id": "ai-video-production",
+        "icon": "Cpu",
+        "title": "AI Video Production",
+        "description": "Merging cutting-edge generative tools with professional post-production for unmatched visual styling.",
+        "color": "#C5C6C9",
+        "is_active": true
+      },
+      {
+        "id": "ai-advertisements",
+        "icon": "Megaphone",
+        "title": "AI Advertisements",
+        "description": "Tailored ad campaigns and commercial copy combining algorithmic precision with high-end storytelling.",
+        "color": "#D1D1D6",
+        "is_active": true
+      },
+      {
+        "id": "social-media-reels",
+        "icon": "Smartphone",
+        "title": "Social Media Reels",
+        "description": "Scroll-stopping TikToks, Instagram Reels, and Shorts engineered specifically to retain views and go viral.",
+        "color": "#8E8F94",
+        "is_active": true
+      },
+      {
+        "id": "ugc-ads",
+        "icon": "Users",
+        "title": "UGC Ads",
+        "description": "Authentic consumer-focused style editing that builds instant trust and converts viewer interest into sales.",
+        "color": "#A2A2A7",
+        "is_active": true
+      },
+      {
+        "id": "product-videos",
+        "icon": "Box",
+        "title": "Product Videos",
+        "description": "Sleek, atmospheric product highlights with dynamic macro shots, sound syncs, and 3D camera feel.",
+        "color": "#FFFFFF",
+        "is_active": true
+      }
+    ]
+  }'::jsonb
+)
+ON CONFLICT (key) DO NOTHING;
+
+INSERT INTO public.site_settings (key, value)
+VALUES (
+  'our_work_settings',
+  '{
+    "eyebrow": "OUR WORK",
+    "title": "Featured Projects",
+    "subtitle": "Explore our portfolio filtered by category. Drag or swipe horizontally to view our vertical reels and widescreen productions."
+  }'::jsonb
+)
+ON CONFLICT (key) DO NOTHING;
+

@@ -3,10 +3,12 @@ import { projects as defaultProjects, categories as defaultCategories } from '..
 import CarouselNavigation from './CarouselNavigation';
 import VideoCarousel from './VideoCarousel';
 import CarouselPagination from './CarouselPagination';
-import { getPublicPortfolioVideos } from '../lib/db/cms';
+import ShimmerText from './ShimmerText';
+import { getPublicPortfolioVideos, getOurWorkSettings, DEFAULT_OUR_WORK_SETTINGS } from '../lib/db/cms';
 
 export default function VideoPortfolio({ isHeadingH1 = false }) {
   const [allProjects, setAllProjects] = useState(defaultProjects);
+  const [headerSettings, setHeaderSettings] = useState(DEFAULT_OUR_WORK_SETTINGS);
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -27,6 +29,13 @@ export default function VideoPortfolio({ isHeadingH1 = false }) {
         setAllProjects(transformed);
       }
     }).catch(() => {});
+
+    getOurWorkSettings().then((data) => {
+      if (isMounted && data) {
+        setHeaderSettings(data);
+      }
+    }).catch(() => {});
+
     return () => { isMounted = false; };
   }, []);
 
@@ -71,41 +80,45 @@ export default function VideoPortfolio({ isHeadingH1 = false }) {
 
   return (
     <section className="video-portfolio-section" id="work" aria-label="Featured Projects Video Portfolio">
-      <div className="portfolio-content-container">
-        
+      {/* Container aligned with the rest of the site (Hero, Services, Contact) */}
+      <div className="container">
         {/* Section Header */}
         <div className="portfolio-top-header">
-          <span className="portfolio-eyebrow-tag">OUR WORK</span>
-          {isHeadingH1 ? (
-            <h1 className="portfolio-main-headline">Featured Projects</h1>
-          ) : (
-            <h2 className="portfolio-main-headline">Featured Projects</h2>
-          )}
-          <p className="portfolio-subtext">
-            Explore our portfolio filtered by category. Drag or swipe horizontally to view our vertical reels and widescreen productions.
+          <span className="caption eyebrow">
+            {headerSettings.eyebrow || 'OUR WORK'}
+          </span>
+          <ShimmerText
+            text={headerSettings.title || 'Featured Projects'}
+            className="h2 portfolio-main-headline"
+            as={isHeadingH1 ? 'h1' : 'h2'}
+          />
+          <p className="body-large portfolio-subtext">
+            {headerSettings.subtitle || 'Explore our portfolio filtered by category. Drag or swipe horizontally to view our vertical reels and widescreen productions.'}
           </p>
-
-          {/* Category Filter Pills */}
-          <div className="portfolio-category-filters" role="tablist" aria-label="Filter portfolio by category">
-            {categories.map((category) => {
-              const isActive = activeCategory === category;
-              return (
-                <button
-                  key={category}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  className={`category-filter-pill ${isActive ? 'active' : ''}`}
-                  onClick={() => handleSelectCategory(category)}
-                  data-hover-type="link"
-                >
-                  {category}
-                </button>
-              );
-            })}
-          </div>
         </div>
 
+        {/* Category Filter Pills (Centered in the middle) */}
+        <div className="portfolio-category-filters" role="tablist" aria-label="Filter portfolio by category">
+          {categories.map((category) => {
+            const isActive = activeCategory === category;
+            return (
+              <button
+                key={category}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={`category-filter-pill ${isActive ? 'active' : ''}`}
+                onClick={() => handleSelectCategory(category)}
+                data-hover-type="link"
+              >
+                {category}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="portfolio-content-container">
         {/* Carousel Top Navigation Bar */}
         <CarouselNavigation
           total={total}
