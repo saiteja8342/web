@@ -67,7 +67,7 @@ export default function AboutFooter() {
           gap: '16px'
         }}>
           <div style={{ fontSize: '12px', color: 'var(--about-text-secondary)' }}>
-            © 2024 MotionNodeEdits. All Rights Reserved.
+            © {new Date().getFullYear()} MotionNodeEdits. All Rights Reserved.
           </div>
           <div style={{ fontSize: '12px', color: 'var(--about-text-secondary)', display: 'flex', gap: '16px' }}>
             <a href="#" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}>Privacy Policy</a>

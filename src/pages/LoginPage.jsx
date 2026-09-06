@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 import CustomCursor from '../components/CustomCursor';
-import { supabase } from '../supabaseClient';
+import { supabase, signInWithGoogle } from '../supabaseClient';
 import './login.css';
 
 export default function LoginPage() {
@@ -324,7 +324,31 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    setErrorMessage('');
+    try {
+      const baseOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+      const redirectUrl = `${baseOrigin}/dashboard/client`;
+
+      const { data, error } = await signInWithGoogle({
+        redirectTo: redirectUrl,
+      });
+
+      if (error) {
+        setErrorMessage(`Google sign-in is currently unavailable: ${error.message}`);
+        setIsLoading(false);
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Google sign-in is not configured. Please use email and password.');
+      setIsLoading(false);
+    }
+  };
+
   const handleSocialAuth = async (provider) => {
+    if (provider.toLowerCase() === 'google') {
+      return handleGoogleLogin();
+    }
     setIsLoading(true);
     setErrorMessage('');
     try {
@@ -545,7 +569,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 className="auth-social-btn"
-                onClick={() => handleSocialAuth('google')}
+                onClick={handleGoogleLogin}
                 data-hover-type="link"
               >
                 <svg className="h-4 w-4" viewBox="0 0 24 24">
@@ -1058,7 +1082,7 @@ export default function LoginPage() {
       {/* Footer Minimal */}
       <footer className="auth-footer">
         <div>
-          © {new Date().getFullYear()} MotionNodeEdits AI Studio. All rights reserved.
+          © {new Date().getFullYear()} MotionNodeEdits. All rights reserved.
         </div>
         <div style={{ display: 'flex', gap: '20px' }}>
           <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }} data-hover-type="link">

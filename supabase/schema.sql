@@ -122,57 +122,88 @@ CREATE TABLE IF NOT EXISTS notifications (
 -- AUTOMATIC PROFILE CREATION TRIGGER ON AUTH SIGNUP
 -- ==============================================================================
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
 DECLARE
-  v_role user_role := 'client';
-  v_status user_status := 'pending';
+  v_role TEXT := 'client';
+  v_status TEXT := 'pending';
+  v_full_name TEXT;
   v_meta_role TEXT;
 BEGIN
-  v_meta_role := new.raw_user_meta_data->>'role';
+  v_meta_role := LOWER(COALESCE(NEW.raw_user_meta_data->>'role', ''));
 
-  -- Public signups can only be client or editor; role admin cannot be self-assigned
   IF v_meta_role = 'editor' THEN
     v_role := 'editor';
-    v_status := 'pending';
   ELSE
-    -- Default to client with pending admin approval
     v_role := 'client';
-    v_status := 'pending';
   END IF;
 
-  INSERT INTO public.profiles (
-    id,
-    full_name,
-    email,
-    phone,
-    company_name,
-    role,
-    status,
-    editor_title
-  )
-  VALUES (
-    new.id,
-    COALESCE(new.raw_user_meta_data->>'full_name', new.email),
-    new.email,
-    new.raw_user_meta_data->>'phone',
-    new.raw_user_meta_data->>'company_name',
-    v_role,
-    v_status,
-    new.raw_user_meta_data->>'editor_title'
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    full_name = EXCLUDED.full_name,
-    email = EXCLUDED.email;
+  v_full_name := COALESCE(
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.raw_user_meta_data->>'name',
+    SPLIT_PART(NEW.email, '@', 1),
+    'User'
+  );
+
+  BEGIN
+    INSERT INTO public.profiles (
+      id,
+      full_name,
+      email,
+      phone,
+      company_name,
+      role,
+      status,
+      editor_title
+    )
+    VALUES (
+      NEW.id,
+      v_full_name,
+      NEW.email,
+      NEW.raw_user_meta_data->>'phone',
+      NEW.raw_user_meta_data->>'company_name',
+      v_role,
+      v_status,
+      NEW.raw_user_meta_data->>'editor_title'
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      full_name = EXCLUDED.full_name,
+      email = EXCLUDED.email;
+  EXCEPTION WHEN OTHERS THEN
+    BEGIN
+      EXECUTE '
+        INSERT INTO public.profiles (
+          id, full_name, email, role, status
+        ) VALUES (
+          $1, $2, $3, $4::public.user_role, $5::public.user_status
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          full_name = EXCLUDED.full_name,
+          email = EXCLUDED.email
+      ' USING NEW.id, v_full_name, NEW.email, v_role, v_status;
+    EXCEPTION WHEN OTHERS THEN
+      BEGIN
+        INSERT INTO public.profiles (id, full_name, email)
+        VALUES (NEW.id, v_full_name, NEW.email)
+        ON CONFLICT (id) DO NOTHING;
+      EXCEPTION WHEN OTHERS THEN
+        RAISE WARNING 'handle_new_user profile creation warning for %: %', NEW.id, SQLERRM;
+      END;
+    END;
+  END;
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Drop and recreate the trigger
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES

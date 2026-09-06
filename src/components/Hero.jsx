@@ -148,21 +148,36 @@ export default function Hero({ isLoaded }) {
               {!videoLoaded && (
                 <div className="skeleton-loader hero-skeleton" aria-hidden="true"></div>
               )}
-              <iframe
-                src="https://www.youtube-nocookie.com/embed/qouiu4CbHU8?autoplay=1&mute=1&loop=1&playlist=qouiu4CbHU8&playsinline=1&rel=0&modestbranding=1&controls=1"
-                title="MotionNodeEdits Hero Reel"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-                className="hero-video"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  border: 0,
-                  borderRadius: '20px',
-                  display: 'block'
-                }}
-                onLoad={() => setVideoLoaded(true)}
-              />
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                overflow: 'hidden',
+                borderRadius: '20px',
+                pointerEvents: 'none'
+              }}>
+                <iframe
+                  src="https://www.youtube-nocookie.com/embed/qouiu4CbHU8?autoplay=1&mute=1&loop=1&playlist=qouiu4CbHU8&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&iv_load_policy=3&cc_load_policy=0&fs=0"
+                  title="MotionNodeEdits Hero Reel"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  className="hero-video"
+                  style={{
+                    position: 'absolute',
+                    top: '48%',
+                    left: '50%',
+                    width: '140%',
+                    height: '140%',
+                    transform: 'translate(-50%, -50%)',
+                    border: 0,
+                    display: 'block',
+                    pointerEvents: 'none'
+                  }}
+                  onLoad={() => setVideoLoaded(true)}
+                />
+              </div>
             </div>
           </div>
 
