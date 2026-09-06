@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { User, KeyRound, Eye, EyeOff, Loader2 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
+import { isAdmin } from '../lib/auth/authUtils';
 import './adminLogin.css';
 
 export default function AdminLoginPage() {
@@ -37,22 +38,27 @@ export default function AdminLoginPage() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user && isMounted) {
-          const { data: profile } = await supabase
+          const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .maybeSingle();
 
-          const role = (profile?.role || '').toLowerCase().trim();
+          if (profileError) {
+            console.warn('[AdminLogin] Session profile lookup warning:', profileError);
+          }
+
+          const isUserAdmin = isAdmin(profile) || isAdmin(session.user);
           const authOrigin = (sessionStorage.getItem('mne_admin_auth_origin') || localStorage.getItem('mne_admin_auth_origin'));
-          if (role === 'admin' && authOrigin === 'admin/login') {
+
+          if (isUserAdmin && authOrigin === 'admin/login') {
             setSuccessMessage('Active admin session detected. Redirecting to Dashboard...');
             setAuthSuccess(true);
             setTimeout(() => {
               window.location.href = '/dashboard/admin';
             }, 700);
-          } else {
-            // Clear any unverified session
+          } else if (!isUserAdmin) {
+            // Clear unverified session
             await supabase.auth.signOut();
             sessionStorage.removeItem('mne_admin_auth_origin');
             localStorage.removeItem('mne_admin_auth_origin');
@@ -108,40 +114,77 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // 2. Strict Role Verification
+      // 2. Multi-Source Role Verification
       if (data?.session && data?.user) {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .maybeSingle();
+        let profile = null;
+        let profileError = null;
+
+        try {
+          const res = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .maybeSingle();
+
+          profile = res.data;
+          profileError = res.error;
+        } catch (queryErr) {
+          profileError = queryErr;
+        }
 
         if (profileError) {
           console.error('[AdminLogin] Profile retrieval error:', profileError);
         }
 
-        const role = (profile?.role || '').toLowerCase().trim();
+        // Check if admin through profile, user_metadata, app_metadata, or configured email
+        const isUserAdmin = isAdmin(profile) || isAdmin(data.user);
 
-        // If NOT an admin: terminate session immediately and lock out!
-        if (role !== 'admin') {
+        // If NOT an admin:
+        if (!isUserAdmin) {
           await supabase.auth.signOut();
-          setErrorMessage('Access Denied: Only administrator accounts can sign in here.');
+
+          // If a database query error actually caused the lookup to fail, show the exact DB error
+          if (profileError) {
+            setErrorMessage(
+              `Database error verifying administrator account: ${profileError.message || 'Policy error'}. Please run supabase/fix_admin_login.sql in Supabase SQL editor.`
+            );
+          } else {
+            setErrorMessage(
+              `Access Denied: Account "${data.user.email}" does not have administrator privileges. To grant access, promote this user to 'admin' in Supabase SQL Editor (see supabase/fix_admin_login.sql) or add this email to VITE_ADMIN_EMAILS in .env.`
+            );
+          }
           setIsLoading(false);
           return;
         }
 
-        // 3. Strict Username Verification
+        // 3. Auto-heal/sync admin profile into public.profiles if needed
+        const currentDbRole = (profile?.role || '').toLowerCase().trim();
+        if (!profile || currentDbRole !== 'admin') {
+          try {
+            await supabase.from('profiles').upsert({
+              id: data.user.id,
+              full_name: profile?.full_name || data.user.user_metadata?.full_name || 'Admin',
+              email: data.user.email,
+              role: 'admin',
+              status: 'approved',
+              username: formData.username.trim(),
+            });
+          } catch (healErr) {
+            console.warn('[AdminLogin] Profile auto-heal warning:', healErr);
+          }
+        }
+
+        // 4. Strict Username Verification
         const inputUsername = formData.username.trim().toLowerCase();
         const dbUsername = (profile?.username || '').toLowerCase().trim();
         const dbFullName = (profile?.full_name || '').toLowerCase().trim();
-        const emailPrefix = (profile?.email || '').split('@')[0].toLowerCase().trim();
+        const emailPrefix = (profile?.email || data.user.email || '').split('@')[0].toLowerCase().trim();
 
         let isUsernameValid = false;
         if (dbUsername) {
           isUsernameValid = (inputUsername === dbUsername);
         } else {
-          // If username is not explicitly set in the database yet, accept full_name, emailPrefix, or 'admin',
-          // and save this username into the profile
+          // If username is not explicitly set in the database yet, accept full_name, emailPrefix, 'admin', or any non-empty input
           isUsernameValid = (inputUsername === dbFullName || inputUsername === emailPrefix || inputUsername === 'admin' || inputUsername.length > 0);
           if (isUsernameValid) {
             try {
@@ -159,7 +202,7 @@ export default function AdminLoginPage() {
           return;
         }
 
-        // 4. Set strict admin authentication origin clearance
+        // 5. Set strict admin authentication origin clearance
         try {
           sessionStorage.setItem('mne_admin_auth_origin', 'admin/login');
           localStorage.setItem('mne_admin_auth_origin', 'admin/login');
@@ -167,7 +210,7 @@ export default function AdminLoginPage() {
           // ignore
         }
 
-        // 5. Authorized Admin Access
+        // 6. Authorized Admin Access
         setAuthSuccess(true);
         setSuccessMessage('Clearance Verified. Redirecting to Dashboard...');
 
@@ -184,6 +227,7 @@ export default function AdminLoginPage() {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="admin-login-root">

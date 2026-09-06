@@ -1,4 +1,5 @@
-import { getSession, getUserProfile, signOutUser } from '../auth/authUtils';
+import { getSession, getUserProfile, signOutUser, isAdmin, isGoogleUser } from '../auth/authUtils';
+import { supabase } from '../supabase/client';
 
 /**
  * Client Navigation & Route Permission Guard
@@ -23,19 +24,71 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
       return { authorized: false, session: null, profile: null };
     }
 
-    const profile = await getUserProfile(session.user.id);
+    let profile = await getUserProfile(session.user.id);
+    const userIsAdmin = isAdmin(profile) || isAdmin(session.user);
+    const userIsGoogle = isGoogleUser(session.user);
+
     if (!profile) {
-      if (typeof window !== 'undefined' && finalRedirect) {
-        window.location.href = finalRedirect;
+      if (userIsAdmin) {
+        profile = {
+          id: session.user.id,
+          email: session.user.email,
+          full_name: session.user.user_metadata?.full_name || 'Administrator',
+          role: 'admin',
+          status: 'approved',
+          username: session.user.user_metadata?.username || 'admin',
+        };
+      } else {
+        if (typeof window !== 'undefined' && finalRedirect) {
+          window.location.href = finalRedirect;
+        }
+        return { authorized: false, session, profile: null };
       }
-      return { authorized: false, session, profile: null };
     }
 
-    const userRole = (profile.role || '').toLowerCase().trim();
-    const userStatus = (profile.status || '').toLowerCase().trim();
+    let userRole = userIsAdmin ? 'admin' : (profile.role || '').toLowerCase().trim();
+    let userStatus = (profile.status || '').toLowerCase().trim();
 
-    // Block non-admins if account is pending approval
-    if (userRole !== 'admin' && userStatus === 'pending') {
+    // ─── GOOGLE SIGN-IN INSTANT ACCESS ──────────────────────────────
+    // When a user signs in with Google, they can enter the Client Dashboard
+    // immediately without waiting for admin approval.
+    if (!userIsAdmin && userIsGoogle) {
+      if (userStatus === 'rejected') {
+        // Suspicious / blocked by administrator: deny access!
+        await signOutUser();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login?status=rejected';
+        }
+        return { authorized: false, session: null, profile };
+      }
+
+      // If pending or unset, auto-approve Google users
+      if (userStatus !== 'approved') {
+        userStatus = 'approved';
+        profile.status = 'approved';
+
+        // Synchronize approved status to database in the background
+        try {
+          supabase
+            .from('profiles')
+            .upsert({
+              id: session.user.id,
+              full_name: profile.full_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Client',
+              email: session.user.email,
+              role: 'client',
+              status: 'approved',
+              avatar_url: profile.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
+            })
+            .then(() => {})
+            .catch((uErr) => console.warn('[AuthGuard] Google auto-approve sync notice:', uErr));
+        } catch (_) {
+          // ignore
+        }
+      }
+    }
+
+    // Block non-admins if account is pending approval (for standard email/password registrations)
+    if (!userIsAdmin && userStatus === 'pending') {
       await signOutUser();
       if (typeof window !== 'undefined') {
         window.location.href = '/login?status=pending';
@@ -43,8 +96,8 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
       return { authorized: false, session: null, profile };
     }
 
-    // Block non-admins if account was rejected
-    if (userRole !== 'admin' && userStatus === 'rejected') {
+    // Block non-admins if account was rejected or blocked by admin
+    if (!userIsAdmin && userStatus === 'rejected') {
       await signOutUser();
       if (typeof window !== 'undefined') {
         window.location.href = '/login?status=rejected';
@@ -55,7 +108,7 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
     // Check specific role requirement
     if (requiredRole) {
       const normalizedRequired = requiredRole.toLowerCase().trim();
-      if (userRole !== normalizedRequired && userRole !== 'admin') {
+      if (userRole !== normalizedRequired && !userIsAdmin) {
         console.warn(`[AuthGuard] Access denied: User role "${userRole}" does not match required "${requiredRole}"`);
         if (typeof window !== 'undefined') {
           // Route user to their own valid dashboard instead of unauthorized page
@@ -96,3 +149,4 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
     return { authorized: false, session: null, profile: null };
   }
 }
+

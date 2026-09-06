@@ -64,24 +64,23 @@ DO $$ BEGIN
 EXCEPTION WHEN undefined_object THEN null;
 END $$;
 
+-- Helper function to safely check admin role with SECURITY DEFINER (avoids infinite recursion)
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role::text = 'admin'
+  );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, anon, service_role;
+
 -- Admins can manage all profiles
 CREATE POLICY "Admin full access on profiles"
   ON public.profiles FOR ALL
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role::text = 'admin'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid()
-      AND profiles.role::text = 'admin'
-    )
-  );
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
 
 -- Users can view their own profile
 CREATE POLICY "Users can read own profile"
@@ -104,7 +103,7 @@ CREATE POLICY "Allow user insert on signup"
 
 -- 6. Grant Permissions on public.profiles
 GRANT ALL ON public.profiles TO postgres, service_role;
-GRANT SELECT, INSERT, UPDATE ON public.profiles TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles TO authenticated;
 GRANT SELECT, INSERT ON public.profiles TO anon;
 
 -- 7. Bulletproof handle_new_user() Trigger Function
@@ -119,14 +118,26 @@ DECLARE
   v_status TEXT := 'pending';
   v_full_name TEXT;
   v_meta_role TEXT;
+  v_provider TEXT;
 BEGIN
   -- Determine role safely from user metadata
-  v_meta_role := LOWER(COALESCE(NEW.raw_user_meta_data->>'role', ''));
+  v_meta_role := LOWER(COALESCE(NEW.raw_user_meta_data->>'role', NEW.raw_app_meta_data->>'role', ''));
+  v_provider := LOWER(COALESCE(NEW.raw_app_meta_data->>'provider', ''));
 
-  IF v_meta_role = 'editor' THEN
+  IF v_meta_role = 'admin' OR LOWER(NEW.email) = 'admin@motionnodeedits.com' THEN
+    v_role := 'admin';
+    v_status := 'approved';
+  ELSIF v_meta_role = 'editor' THEN
     v_role := 'editor';
+    v_status := 'pending';
   ELSE
     v_role := 'client';
+    -- Google OAuth registrations get instant dashboard access without admin approval
+    IF v_provider = 'google' OR NEW.raw_user_meta_data->>'iss' LIKE '%google%' THEN
+      v_status := 'approved';
+    ELSE
+      v_status := 'pending';
+    END IF;
   END IF;
 
   -- Determine display name safely
@@ -136,6 +147,7 @@ BEGIN
     SPLIT_PART(NEW.email, '@', 1),
     'User'
   );
+
 
   -- Safe profile insertion with nested exception handling
   -- This guarantees that auth.users is NEVER rolled back!

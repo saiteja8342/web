@@ -44,13 +44,14 @@ import {
   ShieldCheck,
   Phone,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Ban
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, assignEditorToOrder, getEditorActiveOrderCounts, getUnassignedOrders, generateOrderCode, formatOrderCode, stripOrderCodeTag, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
-import { getProfile, getApprovedEditors, getApprovedClients, getPendingProfiles, updateProfileStatus } from '../lib/db/profiles';
+import { getProfile, getApprovedEditors, getApprovedClients, getAllClientsForAdmin, getPendingProfiles, updateProfileStatus, blockClient, unblockClient, deleteClient } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
 import { getEditorRatingStats, getAllDeliveredOrdersRatingsMap } from '../lib/db/ratings';
 import { getContactRequests, updateContactRequestStatus, updateContactRequestNotes, deleteContactRequest, PROJECT_TYPE_LABELS, STATUS_CONFIG as CONTACT_STATUS_CONFIG } from '../lib/db/contactRequests';
@@ -192,15 +193,28 @@ function transformEditor(profile, activeCount = 0, avgRating = 0) {
 
 /** Transform client profile into shape the UI expects. */
 function transformClient(profile, activeCount = 0) {
+  const isGoogle = Boolean(
+    (profile.avatar_url && (profile.avatar_url.includes('googleusercontent.com') || profile.avatar_url.includes('google'))) ||
+    profile.editor_title === 'Google User' ||
+    profile.company_name === 'Google Client'
+  );
+
+  const status = (profile.status || 'approved').toLowerCase().trim();
+
   return {
     id: profile.id,
-    name: profile.company_name || profile.full_name,
+    name: profile.company_name || profile.full_name || profile.email || 'Client',
     tier: 'Client',
     activeProjects: activeCount,
     spend: '—',
-    contact: profile.full_name,
+    contact: profile.full_name || profile.email,
+    email: profile.email || '',
+    status: status,
+    isGoogle: isGoogle,
+    created_at: profile.created_at,
   };
 }
+
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -350,7 +364,7 @@ export default function AdminPage() {
   }, []);
 
   const fetchClients = useCallback(async () => {
-    const { data, error } = await getApprovedClients();
+    const { data, error } = await getAllClientsForAdmin();
     if (!error && data) {
       // Count active projects per client from orders
       const orderCounts = {};
@@ -362,6 +376,58 @@ export default function AdminPage() {
       setClientsList(data.map(cl => transformClient(cl, orderCounts[cl.id] || 0)));
     }
   }, [orders]);
+
+  const handleBlockClient = async (cl) => {
+    const displayName = cl.name || cl.contact || cl.email;
+    if (!window.confirm(`Are you sure you want to block/suspend client "${displayName}"? They will be immediately denied access to their dashboard.`)) {
+      return;
+    }
+    try {
+      const { error } = await blockClient(cl.id);
+      if (error) {
+        showToast(`Failed to block user: ${error.message}`);
+      } else {
+        showToast(`Client "${displayName}" has been blocked.`);
+        setClientsList(prev => prev.map(c => c.id === cl.id ? { ...c, status: 'rejected' } : c));
+      }
+    } catch (err) {
+      showToast(`Error blocking user: ${err.message}`);
+    }
+  };
+
+  const handleUnblockClient = async (cl) => {
+    const displayName = cl.name || cl.contact || cl.email;
+    try {
+      const { error } = await unblockClient(cl.id);
+      if (error) {
+        showToast(`Failed to unblock user: ${error.message}`);
+      } else {
+        showToast(`Client "${displayName}" has been unblocked.`);
+        setClientsList(prev => prev.map(c => c.id === cl.id ? { ...c, status: 'approved' } : c));
+      }
+    } catch (err) {
+      showToast(`Error unblocking user: ${err.message}`);
+    }
+  };
+
+  const handleDeleteClient = async (cl) => {
+    const displayName = cl.name || cl.contact || cl.email;
+    if (!window.confirm(`WARNING: Are you sure you want to permanently delete user "${displayName}" (${cl.email})? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      const { error } = await deleteClient(cl.id);
+      if (error) {
+        showToast(`Failed to delete user: ${error.message}`);
+      } else {
+        showToast(`Client "${displayName}" was permanently deleted.`);
+        setClientsList(prev => prev.filter(c => c.id !== cl.id));
+      }
+    } catch (err) {
+      showToast(`Error deleting user: ${err.message}`);
+    }
+  };
+
 
   const fetchPendingUsers = useCallback(async () => {
     const { data, error } = await getPendingProfiles();
@@ -2589,34 +2655,141 @@ export default function AdminPage() {
                             key={cl.id}
                             style={{
                               background: 'var(--vel-bg-card)',
-                              border: '1px solid var(--vel-border)',
+                              border: cl.status === 'rejected' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--vel-border)',
                               borderRadius: '12px',
                               padding: '16px 20px',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
                               flexWrap: 'wrap',
-                              gap: '12px'
+                              gap: '14px'
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                              <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: '#181824', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: '#3B82F6' }}>
-                                {cl.name.charAt(0)}
+                              <div style={{
+                                width: '38px',
+                                height: '38px',
+                                borderRadius: '8px',
+                                background: cl.status === 'rejected' ? 'rgba(239, 68, 68, 0.15)' : '#181824',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 700,
+                                color: cl.status === 'rejected' ? '#EF4444' : '#3B82F6'
+                              }}>
+                                {cl.name ? cl.name.charAt(0).toUpperCase() : 'C'}
                               </div>
                               <div>
-                                <div style={{ fontSize: '0.92rem', fontWeight: 700 }}>{cl.name}</div>
-                                <div style={{ fontSize: '0.74rem', color: 'var(--vel-text-secondary)' }}>Contact: {cl.contact} • {cl.tier}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '0.92rem', fontWeight: 700 }}>{cl.name}</span>
+                                  {cl.isGoogle && (
+                                    <span style={{
+                                      fontSize: '0.68rem',
+                                      padding: '2px 7px',
+                                      borderRadius: '6px',
+                                      background: 'rgba(59, 130, 246, 0.12)',
+                                      color: '#60A5FA',
+                                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                                      fontWeight: 600
+                                    }}>
+                                      Google Auth
+                                    </span>
+                                  )}
+                                  {cl.status === 'rejected' ? (
+                                    <span style={{
+                                      fontSize: '0.68rem',
+                                      padding: '2px 7px',
+                                      borderRadius: '6px',
+                                      background: 'rgba(239, 68, 68, 0.15)',
+                                      color: '#F87171',
+                                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                                      fontWeight: 600
+                                    }}>
+                                      Suspended / Blocked
+                                    </span>
+                                  ) : (
+                                    <span style={{
+                                      fontSize: '0.68rem',
+                                      padding: '2px 7px',
+                                      borderRadius: '6px',
+                                      background: 'rgba(34, 197, 94, 0.12)',
+                                      color: '#4ADE80',
+                                      border: '1px solid rgba(34, 197, 94, 0.25)',
+                                      fontWeight: 600
+                                    }}>
+                                      Active
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '0.74rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
+                                  Email: <span style={{ color: '#E2E8F0' }}>{cl.email || '—'}</span> • Contact: {cl.contact}
+                                </div>
                               </div>
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
                               <div style={{ textAlign: 'right' }}>
                                 <span style={{ fontSize: '0.75rem', color: 'var(--vel-text-secondary)', display: 'block' }}>Active Projects</span>
                                 <strong style={{ fontSize: '0.88rem' }}>{cl.activeProjects}</strong>
                               </div>
-                              <div style={{ textAlign: 'right' }}>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--vel-text-secondary)', display: 'block' }}>Total Spend</span>
-                                <strong style={{ fontSize: '0.88rem', color: '#22C55E' }}>{cl.spend}</strong>
+
+                              {/* Moderation Actions for Suspicious Accounts */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {cl.status === 'rejected' ? (
+                                  <button
+                                    onClick={() => handleUnblockClient(cl)}
+                                    className="vel-btn-outline"
+                                    style={{
+                                      padding: '6px 12px',
+                                      fontSize: '0.76rem',
+                                      color: '#4ADE80',
+                                      borderColor: 'rgba(34, 197, 94, 0.3)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px'
+                                    }}
+                                    title="Unblock user and restore dashboard access"
+                                  >
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                    <span>Unblock</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleBlockClient(cl)}
+                                    className="vel-btn-outline"
+                                    style={{
+                                      padding: '6px 12px',
+                                      fontSize: '0.76rem',
+                                      color: '#F87171',
+                                      borderColor: 'rgba(239, 68, 68, 0.3)',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px'
+                                    }}
+                                    title="Block / suspend suspicious user immediately"
+                                  >
+                                    <Ban className="h-3.5 w-3.5" />
+                                    <span>Block</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() => handleDeleteClient(cl)}
+                                  className="vel-btn-outline"
+                                  style={{
+                                    padding: '6px 10px',
+                                    fontSize: '0.76rem',
+                                    color: '#F87171',
+                                    borderColor: 'rgba(239, 68, 68, 0.2)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                  title="Permanently delete user profile"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  <span>Delete</span>
+                                </button>
                               </div>
                             </div>
                           </div>

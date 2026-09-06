@@ -38,6 +38,17 @@ export async function getApprovedClients() {
 }
 
 /**
+ * Fetch ALL clients for the Admin Dashboard (including approved, pending, and suspended/blocked).
+ */
+export async function getAllClientsForAdmin() {
+  return await supabase
+    .from('profiles')
+    .select('*')
+    .or('role.eq.client,role.is.null')
+    .order('created_at', { ascending: false });
+}
+
+/**
  * Fetch all approved editors (Admin view).
  */
 export async function getApprovedEditors() {
@@ -88,6 +99,38 @@ export async function updateProfileStatus(id, status) {
 }
 
 /**
+ * Block / suspend a client immediately.
+ */
+export async function blockClient(id) {
+  return await updateProfileStatus(id, 'rejected');
+}
+
+/**
+ * Unblock / restore a client to active status.
+ */
+export async function unblockClient(id) {
+  return await updateProfileStatus(id, 'approved');
+}
+
+/**
+ * Delete a user profile (and optionally via admin RPC if configured).
+ */
+export async function deleteClient(id) {
+  try {
+    // Attempt RPC delete (removes from auth.users as well if RPC exists)
+    const { data, error } = await supabase.rpc('delete_user_by_admin', { target_user_id: id });
+    if (!error) return { data, error: null };
+  } catch (_) {
+    // RPC not present, fallback to direct profiles table deletion
+  }
+
+  return await supabase
+    .from('profiles')
+    .delete()
+    .eq('id', id);
+}
+
+/**
  * Create or upsert a profile for a user.
  */
 export async function createProfile(profileData) {
@@ -97,3 +140,4 @@ export async function createProfile(profileData) {
     .select()
     .single();
 }
+

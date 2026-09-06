@@ -14,6 +14,7 @@ import {
 
 import CustomCursor from '../components/CustomCursor';
 import { supabase, signInWithGoogle } from '../supabaseClient';
+import { isGoogleUser, isAdmin } from '../lib/auth/authUtils';
 import './login.css';
 
 export default function LoginPage() {
@@ -274,21 +275,29 @@ export default function LoginPage() {
 
             const role = (profile?.role || '').toLowerCase().trim();
             const status = (profile?.status || '').toLowerCase().trim();
+            const userIsGoogle = isGoogleUser(data.user);
 
-            // Block access for non-admins if account is pending approval
-            if (role !== 'admin' && status === 'pending') {
+            // Block access if account was rejected or suspended by administrator
+            if (role !== 'admin' && status === 'rejected') {
+              await supabase.auth.signOut();
+              setErrorMessage('Your account was suspended or declined by an administrator. Please contact support.');
+              setIsLoading(false);
+              return;
+            }
+
+            // Google OAuth users bypass pending approval!
+            if (!userIsGoogle && role !== 'admin' && status === 'pending') {
               await supabase.auth.signOut();
               setErrorMessage('⏳ Your account is pending administrator approval. You will be able to log in once an admin approves your account.');
               setIsLoading(false);
               return;
             }
 
-            // Block access if account was rejected
-            if (role !== 'admin' && status === 'rejected') {
-              await supabase.auth.signOut();
-              setErrorMessage('Your account registration request was declined. Please contact support if you believe this is an error.');
-              setIsLoading(false);
-              return;
+            // If Google user is pending, auto-approve in DB
+            if (userIsGoogle && status !== 'approved') {
+              try {
+                await supabase.from('profiles').update({ status: 'approved' }).eq('id', data.user.id);
+              } catch (_) {}
             }
 
             // STRICT RULE: Admins CANNOT log in from normal /login.
