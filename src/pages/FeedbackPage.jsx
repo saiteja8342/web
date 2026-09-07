@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Star, CheckCircle2, Send, Sparkles, Check, ArrowRight, ShieldCheck } from 'lucide-react';
+import CustomCursor from '../components/CustomCursor';
 import { submitLinkFeedback, updateLinkFeedbackConsent } from '../lib/db/linkFeedback';
 import './feedback.css';
 
@@ -154,16 +155,13 @@ export default function FeedbackPage() {
 
   return (
     <div className="fb-page-wrapper">
+      <CustomCursor />
       <div className="fb-glow-1" />
       <div className="fb-glow-2" />
 
       <div className="fb-container">
         {/* Brand Header */}
         <div className="fb-brand-header">
-          <div className="fb-brand-badge">
-            <span className="fb-brand-dot" />
-            <span>MotionNodeEdits Client Portal</span>
-          </div>
           <h1 className="fb-title-h1">Client Feedback & Review</h1>
           <p className="fb-subtext">
             Your insights help us elevate production quality, communication speed, and our creative storytelling.
@@ -186,6 +184,7 @@ export default function FeedbackPage() {
                 className="fb-consent-box"
                 style={{ width: '100%', textAlign: 'left', marginTop: '6px' }}
                 onClick={handleTogglePostSubmitConsent}
+                data-hover-type="link"
               >
                 <div className={`fb-checkbox-custom ${testimonialConsent ? 'checked' : ''}`}>
                   {testimonialConsent && <Check className="h-3 w-3 text-black stroke-[3]" />}
@@ -202,6 +201,7 @@ export default function FeedbackPage() {
                 className="fb-submit-btn"
                 onClick={handleFinishConsent}
                 style={{ marginTop: '14px' }}
+                data-hover-type="link"
               >
                 <span>Confirm & Finish</span>
                 <ArrowRight className="h-4 w-4 text-black" />
@@ -217,7 +217,7 @@ export default function FeedbackPage() {
                 Your feedback has been received and delivered directly to the MotionNodeEdits production team. We truly appreciate you taking the time to share your perspective!
               </p>
               <div className="fb-success-btn-row">
-                <button type="button" className="fb-btn-outline" onClick={handleReset}>
+                <button type="button" className="fb-btn-outline" onClick={handleReset} data-hover-type="link">
                   Submit Another Response
                 </button>
               </div>
@@ -239,6 +239,7 @@ export default function FeedbackPage() {
                         onMouseLeave={() => setHoverRating(0)}
                         onClick={() => setRating(star)}
                         aria-label={`Rate ${star} star`}
+                        data-hover-type="link"
                       >
                         <Star
                           className="h-8 w-8 transition-all duration-150"
@@ -359,6 +360,7 @@ export default function FeedbackPage() {
                 type="submit"
                 className="fb-submit-btn"
                 disabled={isSubmitting}
+                data-hover-type="link"
               >
                 {isSubmitting ? (
                   <>Submitting Feedback...</>
