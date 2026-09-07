@@ -11,5 +11,7 @@ Disallow: /client.html
 Disallow: /dashboard/
 Disallow: /login
 Disallow: /login.html
+Disallow: /feedback
+Disallow: /feedback.html
 
 Sitemap: https://motionnodeedits.com/sitemap.xml

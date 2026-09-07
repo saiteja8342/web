@@ -4,16 +4,13 @@ import {
   Film,
   History,
   User,
-  Settings,
   LogOut,
   Bell,
   Download,
   ExternalLink,
   ArrowRight,
-  SlidersHorizontal,
   CheckCircle2,
   Check,
-  Clapperboard,
   Eye,
   Send,
   StickyNote,
@@ -23,13 +20,17 @@ import {
   Clock,
   Star,
   Award,
-  MessageSquare
+  Lock,
+  ShieldCheck,
+  EyeOff,
+  ChevronDown
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
+import { isGoogleUser } from '../lib/auth/authUtils';
 import { getClientOrders, formatOrderCode, STATUS_MAP, VIDEO_TYPE_MAP } from '../lib/db/orders';
-import { getProfile } from '../lib/db/profiles';
+import { getProfile, updateProfile } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
 import { submitRevisionRequest, getOrderRevisions } from '../lib/db/revisions';
 import { submitOrderRating, stripTestimonialTag, parseIsTestimonial } from '../lib/db/ratings';
@@ -84,6 +85,26 @@ export default function ClientDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
+  const notifRef = useRef(null);
+  const profileMenuRef = useRef(null);
+
+  // Close notifications or profile dropdown when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, []);
 
   const [notifications, setNotifications] = useState([]);
   const [editorNotes, setEditorNotes] = useState([]);
@@ -96,6 +117,52 @@ export default function ClientDashboard() {
   const [feedbackText, setFeedbackText] = useState('');
   const [isTestimonialConsent, setIsTestimonialConsent] = useState(false);
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+
+  // Profile Management State
+  const [profileForm, setProfileForm] = useState({
+    full_name: '',
+    company_name: '',
+    phone: '',
+  });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Password Management State
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Synchronize profileForm whenever clientProfile is loaded or updated
+  useEffect(() => {
+    if (clientProfile) {
+      setProfileForm({
+        full_name: clientProfile.full_name || '',
+        company_name: clientProfile.company_name || '',
+        phone: clientProfile.phone || '',
+      });
+    }
+  }, [clientProfile]);
+
+  // Check whether user made any edits to their profile details
+  const hasProfileChanges = Boolean(
+    clientProfile && (
+      (profileForm.full_name || '').trim() !== (clientProfile.full_name || '').trim() ||
+      (profileForm.company_name || '').trim() !== (clientProfile.company_name || '').trim() ||
+      (profileForm.phone || '').trim() !== (clientProfile.phone || '').trim()
+    )
+  );
+
+  // Check whether user entered all fields for password update
+  const hasPasswordChanges = Boolean(
+    passwordForm.currentPassword.trim() &&
+    passwordForm.newPassword.trim() &&
+    passwordForm.confirmPassword.trim()
+  );
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
@@ -117,6 +184,170 @@ export default function ClientDashboard() {
     if (e) e.preventDefault();
     await supabase.auth.signOut();
     window.location.href = '/login';
+  };
+
+  // ─── Profile & Password Security Handlers ─────────────────────────
+  const handleUpdateProfile = async (e) => {
+    if (e) e.preventDefault();
+    if (!currentUser?.id) return;
+
+    const trimmedName = (profileForm.full_name || '').trim();
+    const trimmedCompany = (profileForm.company_name || '').trim();
+    const trimmedPhone = (profileForm.phone || '').trim();
+
+    if (!hasProfileChanges) {
+      showToast('No changes detected to save.');
+      return;
+    }
+
+    if (!trimmedName || trimmedName.length < 2) {
+      showToast('Please enter a valid full name (at least 2 characters).');
+      return;
+    }
+    if (trimmedName.length > 80) {
+      showToast('Full name cannot exceed 80 characters.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      // 1. Update public.profiles table (protected by RLS & privilege escalation trigger)
+      const isNameChanged = trimmedName !== (clientProfile?.full_name || '').trim();
+      const payload = {
+        full_name: trimmedName,
+        company_name: trimmedCompany,
+        phone: trimmedPhone,
+      };
+      if (isNameChanged && clientProfile?.full_name) {
+        payload.previous_name = clientProfile.full_name;
+      }
+
+      const { data: updatedProfile, error: dbError } = await updateProfile(currentUser.id, payload);
+
+      if (dbError) {
+        console.error('[ClientDashboard] Profile update DB error:', dbError);
+        showToast(dbError.message || 'Failed to update profile.');
+        setIsSavingProfile(false);
+        return;
+      }
+
+      // 2. Synchronize auth.users user_metadata
+      try {
+        await supabase.auth.updateUser({
+          data: {
+            full_name: trimmedName,
+            company_name: trimmedCompany,
+            phone: trimmedPhone,
+            previous_name: payload.previous_name || clientProfile?.previous_name || null,
+          },
+        });
+      } catch (authErr) {
+        console.warn('[ClientDashboard] Auth metadata sync warning:', authErr);
+      }
+
+      // 3. Update local state
+      setClientProfile(prev => ({
+        ...prev,
+        ...(updatedProfile || {}),
+        full_name: trimmedName,
+        company_name: trimmedCompany,
+        phone: trimmedPhone,
+        previous_name: payload.previous_name || prev?.previous_name || null,
+      }));
+
+      showToast('Profile updated successfully!');
+    } catch (err) {
+      console.error('[ClientDashboard] Profile update unexpected error:', err);
+      showToast(err.message || 'Error updating profile.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    if (e) e.preventDefault();
+    if (!currentUser) return;
+
+    // Security Check 1: Check if user is authenticated via Google OAuth
+    if (isGoogleUser(currentUser)) {
+      showToast('Google OAuth accounts cannot change password here. Manage via Google.');
+      return;
+    }
+
+    const { currentPassword, newPassword, confirmPassword } = passwordForm;
+
+    // Validation
+    if (!currentPassword) {
+      showToast('Please enter your current password.');
+      return;
+    }
+    if (!newPassword) {
+      showToast('Please enter your new password.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      showToast('New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword === currentPassword) {
+      showToast('New password must be different from your current password.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showToast('New passwords do not match. Please re-enter.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      // Security Check 2: Verify current password first by re-authenticating with Supabase
+      const userEmail = currentUser.email || clientProfile?.email;
+      if (!userEmail) {
+        showToast('Unable to identify account email.');
+        setIsChangingPassword(false);
+        return;
+      }
+
+      const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: userEmail,
+        password: currentPassword,
+      });
+
+      if (verifyError) {
+        showToast('Current password is incorrect.');
+        setIsChangingPassword(false);
+        return;
+      }
+
+      // Security Check 3: Update password via official Supabase auth API
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) {
+        console.error('[ClientDashboard] Password update error:', updateError);
+        showToast(updateError.message || 'Failed to update password.');
+        setIsChangingPassword(false);
+        return;
+      }
+
+      // Clear password form on success
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
+
+      showToast('Password changed successfully!');
+    } catch (err) {
+      console.error('[ClientDashboard] Password update exception:', err);
+      showToast(err.message || 'Unexpected error updating password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   // ─── Data Fetching ────────────────────────────────────────────────
@@ -704,15 +935,6 @@ export default function ClientDashboard() {
 
         {/* Footer Links */}
         <div className="cp-sidebar-footer">
-          <button
-            className={`cp-nav-item ${activeNav === 'settings' ? 'active' : ''}`}
-            onClick={() => handleNavClick('settings')}
-            style={{ padding: '8px 0' }}
-          >
-            <Settings className="h-4 w-4 shrink-0" />
-            <span>Settings</span>
-          </button>
-
           <a href="/login" onClick={handleLogout} className="cp-nav-item" style={{ padding: '8px 0', textDecoration: 'none' }}>
             <LogOut className="h-4 w-4 shrink-0" />
             <span>Logout</span>
@@ -738,11 +960,14 @@ export default function ClientDashboard() {
           </div>
 
           <div className="cp-topbar-actions">
-            <div className="notif-wrapper">
+            <div className="notif-wrapper" ref={notifRef}>
               <button
                 className={`cp-icon-btn ${notifOpen ? 'active' : ''}`}
                 aria-label="Notifications"
-                onClick={() => setNotifOpen(!notifOpen)}
+                onClick={() => {
+                  setNotifOpen(!notifOpen);
+                  setProfileMenuOpen(false);
+                }}
               >
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
@@ -810,14 +1035,148 @@ export default function ClientDashboard() {
                 </div>
               )}
             </div>
-            <div
-              style={{ width: '30px', height: '30px', borderRadius: '50%', background: '#1E1E28', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden' }}
-              onClick={() => handleNavClick('profile')}
-            >
-              {clientProfile?.avatar_url ? (
-                <img src={clientProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <User className="h-4 w-4 text-white/80" />
+
+            {/* Profile Shortcuts Dropdown */}
+            <div className="cp-user-menu-wrapper" ref={profileMenuRef}>
+              <button
+                type="button"
+                className={`cp-user-avatar-btn ${profileMenuOpen ? 'active' : ''}`}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  background: '#1E1E28',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  border: profileMenuOpen ? '2px solid #3B82F6' : '1px solid rgba(255, 255, 255, 0.15)',
+                  padding: 0,
+                  transition: 'all 0.15s ease'
+                }}
+                onClick={() => {
+                  setProfileMenuOpen(!profileMenuOpen);
+                  setNotifOpen(false);
+                }}
+                aria-label="User profile menu"
+              >
+                {clientProfile?.avatar_url ? (
+                  <img src={clientProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <User className="h-4 w-4 text-white/80" />
+                )}
+              </button>
+
+              {profileMenuOpen && (
+                <div className="cp-profile-dropdown">
+                  {/* Top card with user details */}
+                  <div className="cp-dropdown-header">
+                    <div className="cp-dropdown-avatar">
+                      {clientProfile?.avatar_url ? (
+                        <img src={clientProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <User className="h-5 w-5 text-white/80" />
+                      )}
+                    </div>
+                    <div className="cp-dropdown-info">
+                      <div className="cp-dropdown-name-row">
+                        <span className="cp-dropdown-name">
+                          {clientProfile?.full_name || currentUser?.user_metadata?.full_name || 'Client User'}
+                        </span>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-blue-400 flex-shrink-0" title="Verified Client" />
+                      </div>
+                      <span className="cp-dropdown-email">
+                        {clientProfile?.company_name || currentUser?.email || 'MotionNode Client'}
+                      </span>
+                    </div>
+                    <ChevronDown className="h-3.5 w-3.5 text-white/40" />
+                  </div>
+
+                  {/* Quick Summary Pill inspired by reference design */}
+                  <div className="cp-dropdown-summary-pill">
+                    <span className="cp-dropdown-summary-title">Active Projects</span>
+                    <span className="cp-dropdown-summary-val">{runningOrders.length} In Progress</span>
+                  </div>
+
+                  {/* Navigation Shortcuts */}
+                  <div className="cp-dropdown-menu">
+                    <button
+                      type="button"
+                      className={`cp-dropdown-btn ${activeNav === 'home' ? 'active' : ''}`}
+                      onClick={() => {
+                        handleNavClick('home');
+                        setProfileMenuOpen(false);
+                      }}
+                    >
+                      <div className="cp-dropdown-btn-left">
+                        <Home className="h-4 w-4 text-white/70" />
+                        <span>Dashboard</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`cp-dropdown-btn ${activeNav === 'current' ? 'active' : ''}`}
+                      onClick={() => {
+                        handleNavClick('current');
+                        setProfileMenuOpen(false);
+                      }}
+                    >
+                      <div className="cp-dropdown-btn-left">
+                        <Film className="h-4 w-4 text-white/70" />
+                        <span>Current Projects</span>
+                      </div>
+                      {runningOrders.length > 0 && (
+                        <span className="cp-dropdown-pill">{runningOrders.length}</span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`cp-dropdown-btn ${activeNav === 'history' ? 'active' : ''}`}
+                      onClick={() => {
+                        handleNavClick('history');
+                        setProfileMenuOpen(false);
+                      }}
+                    >
+                      <div className="cp-dropdown-btn-left">
+                        <History className="h-4 w-4 text-white/70" />
+                        <span>Project History</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`cp-dropdown-btn ${activeNav === 'profile' ? 'active' : ''}`}
+                      onClick={() => {
+                        handleNavClick('profile');
+                        setProfileMenuOpen(false);
+                      }}
+                    >
+                      <div className="cp-dropdown-btn-left">
+                        <User className="h-4 w-4 text-white/70" />
+                        <span>Profile & Security</span>
+                      </div>
+                    </button>
+
+                    <div className="cp-dropdown-hr" />
+
+                    <button
+                      type="button"
+                      className="cp-dropdown-btn logout"
+                      onClick={(e) => {
+                        setProfileMenuOpen(false);
+                        handleLogout(e);
+                      }}
+                    >
+                      <div className="cp-dropdown-btn-left">
+                        <LogOut className="h-4 w-4 text-red-400" />
+                        <span>Log out</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -1718,78 +2077,252 @@ export default function ClientDashboard() {
               )}
 
               {/* ============================================================== */}
-              {/* VIEW 4: PROFILE / ACCOUNT SETTINGS (Reference Image 3)         */}
+              {/* VIEW 4: PROFILE & SECURITY                                     */}
               {/* ============================================================== */}
               {activeNav === 'profile' && (
                 <>
                   <div className="cp-header-block">
-                    <h1 className="cp-title-h1">Account Settings</h1>
-                    <p className="cp-subtext">Manage your profile, preferences, and company details.</p>
+                    <h1 className="cp-title-h1">Profile & Security</h1>
+                    <p className="cp-subtext">Manage your profile, personal details, and account security.</p>
                   </div>
 
-                  <div className="cp-profile-card">
-                    <div className="cp-avatar-wrap">
-                      <img
-                        src={clientProfile?.avatar_url || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80'}
-                        alt={clientProfile?.full_name || 'Client'}
-                        className="cp-avatar-img"
-                      />
-                      <span className="cp-status-dot-avatar" />
-                    </div>
+                  <div className="cp-profile-layout">
+                    {/* Left: Original Profile Card (Preserved 100%) */}
+                    <div className="cp-profile-card">
+                      <div className="cp-avatar-wrap" style={{ background: '#181824', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {clientProfile?.avatar_url ? (
+                          <img
+                            src={clientProfile.avatar_url}
+                            alt={clientProfile?.full_name || 'Client'}
+                            className="cp-avatar-img"
+                          />
+                        ) : (
+                          <div style={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'linear-gradient(135deg, #1A1A24 0%, #252536 100%)',
+                          }}>
+                            <User className="h-8 w-8 text-white/70" />
+                          </div>
+                        )}
+                        <span className="cp-status-dot-avatar" />
+                      </div>
 
-                    <div>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#FFFFFF' }}>
-                        {clientProfile?.full_name || currentUser?.email}
-                      </h3>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--cp-text-secondary)', marginTop: '2px' }}>
-                        {clientProfile?.email || currentUser?.email}
-                      </p>
-                      {clientProfile?.company_name && (
-                        <p style={{ fontSize: '0.78rem', color: '#60A5FA', marginTop: '2px', fontWeight: 600 }}>
-                          Company: {clientProfile.company_name}
+                      <div>
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#FFFFFF' }}>
+                          {clientProfile?.full_name || currentUser?.email}
+                        </h3>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--cp-text-secondary)', marginTop: '2px' }}>
+                          {clientProfile?.email || currentUser?.email}
                         </p>
-                      )}
+                        {clientProfile?.company_name && (
+                          <p style={{ fontSize: '0.78rem', color: '#60A5FA', marginTop: '2px', fontWeight: 600 }}>
+                            Company: {clientProfile.company_name}
+                          </p>
+                        )}
+                      </div>
+
+                      <span className="cp-badge-pill" style={{ fontSize: '0.65rem', letterSpacing: '0.06em', fontWeight: 700 }}>
+                        ● CLIENT ACCOUNT
+                      </span>
                     </div>
 
-                    <span className="cp-badge-pill" style={{ fontSize: '0.65rem', letterSpacing: '0.06em', fontWeight: 700 }}>
-                      ● CLIENT ACCOUNT
-                    </span>
-                  </div>
-                </>
-              )}
+                    {/* Right: Profile Details & Password Management Forms */}
+                    <div className="cp-profile-forms-col">
+                      {/* CARD 1: Personal / Profile Details */}
+                      <form onSubmit={handleUpdateProfile} className="cp-card" style={{ gap: '16px', minHeight: 'auto' }}>
+                        <div>
+                          <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>Personal Information</h2>
+                          <p className="cp-subtext" style={{ fontSize: '0.78rem', marginTop: '4px' }}>
+                            Update your display name and contact details.
+                          </p>
+                        </div>
 
-              {/* ============================================================== */}
-              {/* VIEW 5: SETTINGS                                               */}
-              {/* ============================================================== */}
-              {activeNav === 'settings' && (
-                <>
-                  <div className="cp-header-block">
-                    <h1 className="cp-title-h1">Preferences & Notification Settings</h1>
-                    <p className="cp-subtext">Configure automated notifications and cloud storage defaults.</p>
-                  </div>
+                        <div className="cp-form-group">
+                          <label className="cp-form-label">Full Name</label>
+                          <input
+                            type="text"
+                            value={profileForm.full_name}
+                            onChange={(e) => setProfileForm(p => ({ ...p, full_name: e.target.value }))}
+                            placeholder="Your full name"
+                            className="cp-form-input"
+                            required
+                          />
+                        </div>
 
-                  <div className="cp-card" style={{ maxWidth: '560px', gap: '16px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--cp-text-secondary)', fontWeight: 600 }}>Company / Brand</label>
-                      <input
-                        type="text"
-                        defaultValue={clientProfile?.company_name || ''}
-                        placeholder="Your Company Name"
-                        style={{ background: '#15151C', border: '1px solid var(--cp-border)', borderRadius: '8px', padding: '10px 14px', color: '#FFFFFF', outline: 'none' }}
-                      />
+                        <div className="cp-form-group">
+                          <label className="cp-form-label">Email Address</label>
+                          <div className="cp-form-input-wrap">
+                            <input
+                              type="email"
+                              value={clientProfile?.email || currentUser?.email || ''}
+                              disabled
+                              className="cp-form-input"
+                              style={{ paddingRight: '36px' }}
+                            />
+                            <Lock className="h-4 w-4" style={{ position: 'absolute', right: '12px', color: 'var(--cp-text-tertiary)' }} />
+                          </div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--cp-text-tertiary)' }}>
+                            Email is linked to your login and cannot be modified directly.
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+                          <div className="cp-form-group">
+                            <label className="cp-form-label">Company / Brand</label>
+                            <input
+                              type="text"
+                              value={profileForm.company_name}
+                              onChange={(e) => setProfileForm(p => ({ ...p, company_name: e.target.value }))}
+                              placeholder="e.g. Acme Media"
+                              className="cp-form-input"
+                            />
+                          </div>
+
+                          <div className="cp-form-group">
+                            <label className="cp-form-label">Phone Number</label>
+                            <input
+                              type="tel"
+                              value={profileForm.phone}
+                              onChange={(e) => setProfileForm(p => ({ ...p, phone: e.target.value }))}
+                              placeholder="e.g. +1 (555) 019-2834"
+                              className="cp-form-input"
+                            />
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
+                          <button
+                            type="submit"
+                            disabled={isSavingProfile || !hasProfileChanges}
+                            className="cp-btn-solid"
+                            style={{
+                              opacity: (isSavingProfile || !hasProfileChanges) ? 0.45 : 1,
+                              cursor: (isSavingProfile || !hasProfileChanges) ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {isSavingProfile ? 'Saving...' : 'Save Profile Changes'}
+                          </button>
+                        </div>
+                      </form>
+
+                      {/* CARD 2: Password & Security */}
+                      <div className="cp-card" style={{ gap: '16px', minHeight: 'auto' }}>
+                        <div>
+                          <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>Security & Password</h2>
+                          <p className="cp-subtext" style={{ fontSize: '0.78rem', marginTop: '4px' }}>
+                            Keep your account safe by setting a strong password.
+                          </p>
+                        </div>
+
+                        {isGoogleUser(currentUser) ? (
+                          <div style={{ background: '#15151C', border: '1px solid var(--cp-border)', borderRadius: '10px', padding: '16px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                            <ShieldCheck className="h-5 w-5 shrink-0" style={{ color: '#60A5FA', marginTop: '2px' }} />
+                            <div>
+                              <p style={{ fontSize: '0.84rem', fontWeight: 600, color: '#FFFFFF', margin: 0 }}>
+                                Signed in with Google
+                              </p>
+                              <p style={{ fontSize: '0.78rem', color: 'var(--cp-text-secondary)', marginTop: '4px', lineHeight: 1.4 }}>
+                                Your account is authenticated securely via Google OAuth. To update your password or login security, manage your settings directly in your Google Account.
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                            <div className="cp-form-group">
+                              <label className="cp-form-label">Current Password</label>
+                              <div className="cp-form-input-wrap">
+                                <input
+                                  type={showCurrentPassword ? 'text' : 'password'}
+                                  value={passwordForm.currentPassword}
+                                  onChange={(e) => setPasswordForm(p => ({ ...p, currentPassword: e.target.value }))}
+                                  placeholder="Enter your current password"
+                                  className="cp-form-input"
+                                  style={{ paddingRight: '40px' }}
+                                  required
+                                />
+                                <button
+                                  type="button"
+                                  className="cp-input-eye-btn"
+                                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                  tabIndex={-1}
+                                  aria-label="Toggle current password visibility"
+                                >
+                                  {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+                              <div className="cp-form-group">
+                                <label className="cp-form-label">New Password</label>
+                                <div className="cp-form-input-wrap">
+                                  <input
+                                    type={showNewPassword ? 'text' : 'password'}
+                                    value={passwordForm.newPassword}
+                                    onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
+                                    placeholder="At least 6 characters"
+                                    className="cp-form-input"
+                                    style={{ paddingRight: '40px' }}
+                                    required
+                                  />
+                                  <button
+                                    type="button"
+                                    className="cp-input-eye-btn"
+                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                    tabIndex={-1}
+                                    aria-label="Toggle new password visibility"
+                                  >
+                                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="cp-form-group">
+                                <label className="cp-form-label">Confirm New Password</label>
+                                <div className="cp-form-input-wrap">
+                                  <input
+                                    type={showConfirmPassword ? 'text' : 'password'}
+                                    value={passwordForm.confirmPassword}
+                                    onChange={(e) => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                                    placeholder="Re-enter new password"
+                                    className="cp-form-input"
+                                    style={{ paddingRight: '40px' }}
+                                    required
+                                  />
+                                  <button
+                                    type="button"
+                                    className="cp-input-eye-btn"
+                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    tabIndex={-1}
+                                    aria-label="Toggle confirm password visibility"
+                                  >
+                                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+                              <button
+                                type="submit"
+                                disabled={isChangingPassword || !hasPasswordChanges}
+                                className="cp-btn-solid"
+                                style={{
+                                  opacity: (isChangingPassword || !hasPasswordChanges) ? 0.45 : 1,
+                                  cursor: (isChangingPassword || !hasPasswordChanges) ? 'not-allowed' : 'pointer',
+                                }}
+                              >
+                                {isChangingPassword ? 'Updating Password...' : 'Update Password'}
+                              </button>
+                            </div>
+                          </form>
+                        )}
+                      </div>
                     </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '0.78rem', color: 'var(--cp-text-secondary)', fontWeight: 600 }}>Default Storage Provider</label>
-                      <select style={{ background: '#15151C', border: '1px solid var(--cp-border)', borderRadius: '8px', padding: '10px 14px', color: '#FFFFFF', outline: 'none' }}>
-                        <option>Google Drive</option>
-                        <option>Dropbox</option>
-                      </select>
-                    </div>
-
-                    <button className="cp-btn-solid" style={{ alignSelf: 'flex-start' }} onClick={() => showToast('Client preferences saved.')}>
-                      Save Settings
-                    </button>
                   </div>
                 </>
               )}

@@ -44,6 +44,8 @@
     { "source": "/work", "destination": "/work.html" },
     { "source": "/our-work", "destination": "/our-work.html" },
     { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/feedback", "destination": "/feedback.html" },
+    { "source": "/feedback/:path*", "destination": "/feedback.html" },
     { "source": "/admin", "destination": "/admin.html" },
     { "source": "/client", "destination": "/client.html" },
     { "source": "/editor", "destination": "/editor.html" }

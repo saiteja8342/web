@@ -17,12 +17,7 @@ import {
   Star,
   Check,
   TrendingUp,
-  SlidersHorizontal,
-  ChevronDown,
   ExternalLink,
-  Clapperboard,
-  ChevronLeft,
-  ChevronRight,
   Menu,
   X,
   CheckCircle2
@@ -30,8 +25,7 @@ import {
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
-import { getEditorActiveProject, getEditorProjectHistory, getEditorStats, updateOrderStatus, updateOrder, formatOrderCode, STATUS_MAP } from '../lib/db/orders';
-import { getProfile } from '../lib/db/profiles';
+import { getEditorActiveProject, getEditorProjectHistory, getEditorStats, updateOrderStatus, updateOrder, formatOrderCode } from '../lib/db/orders';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
 import { getEditorRatingStats } from '../lib/db/ratings';
 import { subscribeToOrders, subscribeToUserNotifications, unsubscribeChannel } from '../lib/supabase/realtime';

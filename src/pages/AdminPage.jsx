@@ -46,17 +46,20 @@ import {
   Trash2,
   RefreshCw,
   Ban,
-  Globe
+  Globe,
+  Copy,
+  MessageSquareQuote
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import WebsiteCMS from '../components/Admin/WebsiteCMS';
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, assignEditorToOrder, getEditorActiveOrderCounts, getUnassignedOrders, generateOrderCode, formatOrderCode, stripOrderCodeTag, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
-import { getProfile, getApprovedEditors, getApprovedClients, getAllClientsForAdmin, getPendingProfiles, updateProfileStatus, blockClient, unblockClient, deleteClient } from '../lib/db/profiles';
+import { getApprovedEditors, getAllClientsForAdmin, getPendingProfiles, updateProfileStatus, blockClient, unblockClient, deleteClient } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
 import { getEditorRatingStats, getAllDeliveredOrdersRatingsMap } from '../lib/db/ratings';
 import { getContactRequests, updateContactRequestStatus, updateContactRequestNotes, deleteContactRequest, PROJECT_TYPE_LABELS, STATUS_CONFIG as CONTACT_STATUS_CONFIG } from '../lib/db/contactRequests';
+import { getLinkFeedbacks, deleteLinkFeedback } from '../lib/db/linkFeedback';
 import { subscribeToOrders, subscribeToProfiles, subscribeToUserNotifications, subscribeToContactRequests, unsubscribeChannel } from '../lib/supabase/realtime';
 import './admin.css';
 
@@ -205,15 +208,20 @@ function transformClient(profile, activeCount = 0) {
 
   return {
     id: profile.id,
-    name: profile.company_name || profile.full_name || profile.email || 'Client',
+    name: profile.full_name || profile.company_name || profile.email || 'Client',
+    previous_name: profile.previous_name || '',
+    company: profile.company_name || '',
+    company_name: profile.company_name || '',
+    phone: profile.phone || '',
     tier: 'Client',
     activeProjects: activeCount,
     spend: '—',
-    contact: profile.full_name || profile.email,
+    contact: profile.full_name || profile.email || 'Client',
     email: profile.email || '',
     status: status,
     isGoogle: isGoogle,
     created_at: profile.created_at,
+    updated_at: profile.updated_at,
   };
 }
 
@@ -276,6 +284,7 @@ export default function AdminPage() {
   const [historySearch, setHistorySearch] = useState('');
   const [editorsList, setEditorsList] = useState([]);
   const [clientsList, setClientsList] = useState([]);
+  const [selectedClientModal, setSelectedClientModal] = useState(null);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [approvalsSearch, setApprovalsSearch] = useState('');
   const [approvalsActionLoading, setApprovalsActionLoading] = useState({});
@@ -296,6 +305,13 @@ export default function AdminPage() {
   const [tempContactNotes, setTempContactNotes] = useState('');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
 
+  // ─── Link Feedback State ──────────────────────────────────────────
+  const [linkFeedbacks, setLinkFeedbacks] = useState([]);
+  const [linkFeedbacksLoading, setLinkFeedbacksLoading] = useState(false);
+  const [feedbackSearch, setFeedbackSearch] = useState('');
+  const [feedbackRatingFilter, setFeedbackRatingFilter] = useState('ALL');
+  const [isCopiedFeedbackLink, setIsCopiedFeedbackLink] = useState(false);
+
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const markAllRead = async () => {
@@ -314,6 +330,9 @@ export default function AdminPage() {
     if (nav !== activeNav) {
       setIsLoading(true);
       setActiveNav(nav);
+      if (nav === 'link-feedback') {
+        fetchLinkFeedbacks();
+      }
       setTimeout(() => setIsLoading(false), 300);
     }
     setSidebarOpen(false);
@@ -515,6 +534,52 @@ export default function AdminPage() {
     }
   }, []);
 
+  const fetchLinkFeedbacks = useCallback(async () => {
+    setLinkFeedbacksLoading(true);
+    try {
+      const { data, error } = await getLinkFeedbacks();
+      if (!error && data) {
+        setLinkFeedbacks(data);
+      }
+    } catch (err) {
+      console.warn('Error fetching link feedbacks:', err);
+    } finally {
+      setLinkFeedbacksLoading(false);
+    }
+  }, []);
+
+  const handleDeleteFeedback = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this feedback?')) return;
+    try {
+      const { error } = await deleteLinkFeedback(id);
+      if (error) {
+        showToast('Failed to delete feedback: ' + (error.message || 'Error'));
+      } else {
+        setLinkFeedbacks(prev => prev.filter(item => item.id !== id));
+        showToast('Feedback removed.');
+      }
+    } catch (err) {
+      showToast('Error deleting feedback');
+    }
+  };
+
+  const handleCopyFeedbackLink = () => {
+    const url = `${window.location.origin}/feedback`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url);
+    } else {
+      const el = document.createElement('textarea');
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    setIsCopiedFeedbackLink(true);
+    showToast('Feedback link copied to clipboard!');
+    setTimeout(() => setIsCopiedFeedbackLink(false), 2500);
+  };
+
   const fetchNotifications = useCallback(async () => {
     if (!adminProfile) return;
     const { data, error } = await getUserNotifications(adminProfile.id);
@@ -527,11 +592,11 @@ export default function AdminPage() {
   useEffect(() => {
     if (!isAuthenticated) return;
     async function loadAll() {
-      await Promise.all([fetchOrders(), fetchEditors(), fetchMetrics(), fetchPendingUsers(), fetchContactRequests()]);
+      await Promise.all([fetchOrders(), fetchEditors(), fetchMetrics(), fetchPendingUsers(), fetchContactRequests(), fetchLinkFeedbacks()]);
       setDataLoaded(true);
     }
     loadAll();
-  }, [isAuthenticated, fetchOrders, fetchEditors, fetchMetrics, fetchPendingUsers, fetchContactRequests]);
+  }, [isAuthenticated, fetchOrders, fetchEditors, fetchMetrics, fetchPendingUsers, fetchContactRequests, fetchLinkFeedbacks]);
 
   // Fetch clients after orders are loaded (depends on order counts)
   useEffect(() => {
@@ -1444,6 +1509,9 @@ export default function AdminPage() {
     const q = searchQuery.toLowerCase().trim();
     return !q ||
       cl.name.toLowerCase().includes(q) ||
+      (cl.email && cl.email.toLowerCase().includes(q)) ||
+      (cl.phone && cl.phone.toLowerCase().includes(q)) ||
+      (cl.company_name && cl.company_name.toLowerCase().includes(q)) ||
       cl.contact.toLowerCase().includes(q) ||
       cl.tier.toLowerCase().includes(q);
   });
@@ -1478,6 +1546,30 @@ export default function AdminPage() {
   });
 
   const newContactRequestsCount = contactRequests.filter(r => r.status === 'new').length;
+
+  const filteredFeedbacks = linkFeedbacks.filter(fb => {
+    if (feedbackRatingFilter !== 'ALL' && Number(fb.rating) !== Number(feedbackRatingFilter)) {
+      return false;
+    }
+    if (feedbackSearch.trim()) {
+      const q = feedbackSearch.toLowerCase().trim();
+      const matchName = (fb.name || '').toLowerCase().includes(q);
+      const matchEmail = (fb.email || '').toLowerCase().includes(q);
+      const matchCompany = (fb.company || '').toLowerCase().includes(q);
+      const matchFeedback = (fb.feedback || '').toLowerCase().includes(q);
+      const matchImprovements = (fb.improvements || '').toLowerCase().includes(q);
+      if (!matchName && !matchEmail && !matchCompany && !matchFeedback && !matchImprovements) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const avgFeedbackRating = linkFeedbacks.length > 0
+    ? (linkFeedbacks.reduce((acc, curr) => acc + (Number(curr.rating) || 5), 0) / linkFeedbacks.length).toFixed(1)
+    : '5.0';
+  const fiveStarFeedbackCount = linkFeedbacks.filter(f => Number(f.rating) === 5).length;
+  const testimonialConsentCount = linkFeedbacks.filter(f => f.testimonial_consent).length;
 
   if (!isAuthenticated) {
     return null;
@@ -1616,6 +1708,19 @@ export default function AdminPage() {
             </button>
 
             <button
+              className={`vel-nav-item ${activeNav === 'link-feedback' ? 'active' : ''}`}
+              onClick={() => handleNavClick('link-feedback')}
+            >
+              <MessageSquareQuote className="h-4 w-4 shrink-0" />
+              <span>Link Feedback</span>
+              {linkFeedbacks.length > 0 && (
+                <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#FBBF24', marginLeft: 'auto', fontWeight: 700 }}>
+                  {linkFeedbacks.length}
+                </span>
+              )}
+            </button>
+
+            <button
               className={`vel-nav-item ${activeNav === 'cms' ? 'active' : ''}`}
               onClick={() => handleNavClick('cms')}
             >
@@ -1659,6 +1764,8 @@ export default function AdminPage() {
             <span className="vel-page-title-top">
               {activeNav === 'cms'
                 ? 'Website Content Management (CMS)'
+                : activeNav === 'link-feedback'
+                ? 'Link Feedback'
                 : activeNav === 'contact-requests'
                 ? 'Contact Requests'
                 : activeNav === 'approvals'
@@ -2710,6 +2817,19 @@ export default function AdminPage() {
                               <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                   <span style={{ fontSize: '0.92rem', fontWeight: 700 }}>{cl.name}</span>
+                                  {cl.previous_name && (
+                                    <span style={{
+                                      fontSize: '0.68rem',
+                                      padding: '2px 8px',
+                                      borderRadius: '6px',
+                                      background: 'rgba(234, 179, 8, 0.15)',
+                                      color: '#FBBF24',
+                                      border: '1px solid rgba(234, 179, 8, 0.3)',
+                                      fontWeight: 600
+                                    }} title={`Previously registered as: ${cl.previous_name}`}>
+                                      Old Name: {cl.previous_name}
+                                    </span>
+                                  )}
                                   {cl.isGoogle && (
                                     <span style={{
                                       fontSize: '0.68rem',
@@ -2749,8 +2869,11 @@ export default function AdminPage() {
                                     </span>
                                   )}
                                 </div>
-                                <div style={{ fontSize: '0.74rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
-                                  Email: <span style={{ color: '#E2E8F0' }}>{cl.email || '—'}</span> • Contact: {cl.contact}
+                                <div style={{ fontSize: '0.74rem', color: 'var(--vel-text-secondary)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span>Email: <span style={{ color: '#E2E8F0' }}>{cl.email || '—'}</span></span>
+                                  {cl.company_name && <span>• Company: <strong style={{ color: '#93C5FD' }}>{cl.company_name}</strong></span>}
+                                  {cl.phone && <span>• Phone: <span style={{ color: '#4ADE80' }}>{cl.phone}</span></span>}
+                                  {cl.previous_name && <span>• Changed from: <strong style={{ color: '#FBBF24' }}>{cl.previous_name}</strong></span>}
                                 </div>
                               </div>
                             </div>
@@ -2763,6 +2886,23 @@ export default function AdminPage() {
 
                               {/* Moderation Actions for Suspicious Accounts */}
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <button
+                                  onClick={() => setSelectedClientModal(cl)}
+                                  className="vel-btn-outline"
+                                  style={{
+                                    padding: '6px 12px',
+                                    fontSize: '0.76rem',
+                                    color: '#93C5FD',
+                                    borderColor: 'rgba(59, 130, 246, 0.3)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px'
+                                  }}
+                                  title="View full client details and name history"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  <span>Details</span>
+                                </button>
                                 {cl.status === 'rejected' ? (
                                   <button
                                     onClick={() => handleUnblockClient(cl)}
@@ -3477,6 +3617,426 @@ export default function AdminPage() {
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                                 <span>Delete</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* ============================================================== */}
+              {/* VIEW: LINK FEEDBACK (Private shareable URL submissions)        */}
+              {/* ============================================================== */}
+              {activeNav === 'link-feedback' && (
+                <>
+                  <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                    <div>
+                      <h1 className="vel-page-h1">Link Feedback</h1>
+                      <p className="vel-page-sub">Direct reviews and ratings collected via your private shareable link.</p>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                      <button
+                        className="vel-btn-solid"
+                        onClick={handleCopyFeedbackLink}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        {isCopiedFeedbackLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        <span>{isCopiedFeedbackLink ? 'Link Copied!' : 'Copy Feedback Link'}</span>
+                      </button>
+
+                      <a
+                        href="/feedback"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="vel-btn-outline"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        <span>Preview Page</span>
+                      </a>
+
+                      <button
+                        className="vel-btn-outline"
+                        onClick={fetchLinkFeedbacks}
+                        disabled={linkFeedbacksLoading}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${linkFeedbacksLoading ? 'animate-spin' : ''}`} />
+                        <span>{linkFeedbacksLoading ? 'Refreshing...' : 'Refresh'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Summary Metric Cards */}
+                  <div className="vel-metric-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+                    <div className="vel-metric-card">
+                      <div className="vel-metric-top">
+                        <span className="vel-metric-label">Total Submissions</span>
+                        <div className="vel-metric-icon">
+                          <MessageSquareQuote className="h-3.5 w-3.5" />
+                        </div>
+                      </div>
+                      <div className="vel-metric-bottom">
+                        <div className="vel-metric-number">{linkFeedbacks.length}</div>
+                        <span className="vel-metric-pill-badge">Via Link</span>
+                      </div>
+                    </div>
+
+                    <div className="vel-metric-card">
+                      <div className="vel-metric-top">
+                        <span className="vel-metric-label">Average Rating</span>
+                        <div className="vel-metric-icon" style={{ color: '#F59E0B' }}>
+                          <Star className="h-3.5 w-3.5 fill-amber-400" />
+                        </div>
+                      </div>
+                      <div className="vel-metric-bottom">
+                        <div className="vel-metric-number" style={{ color: '#FBBF24' }}>
+                          {avgFeedbackRating} <span style={{ fontSize: '0.9rem', color: 'var(--vel-text-secondary)' }}>/ 5</span>
+                        </div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', fontWeight: 600 }}>Overall Score</span>
+                      </div>
+                    </div>
+
+                    <div className="vel-metric-card">
+                      <div className="vel-metric-top">
+                        <span className="vel-metric-label">5-Star Reviews</span>
+                        <div className="vel-metric-icon" style={{ color: '#10B981' }}>
+                          <Award className="h-3.5 w-3.5" />
+                        </div>
+                      </div>
+                      <div className="vel-metric-bottom">
+                        <div className="vel-metric-number">{fiveStarFeedbackCount}</div>
+                        <span style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 600 }}>
+                          {linkFeedbacks.length > 0 ? `${Math.round((fiveStarFeedbackCount / linkFeedbacks.length) * 100)}% of total` : '0%'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="vel-metric-card">
+                      <div className="vel-metric-top">
+                        <span className="vel-metric-label">Testimonial Consents</span>
+                        <div className="vel-metric-icon" style={{ color: '#60A5FA' }}>
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        </div>
+                      </div>
+                      <div className="vel-metric-bottom">
+                        <div className="vel-metric-number">{testimonialConsentCount}</div>
+                        <span style={{ fontSize: '0.72rem', color: '#60A5FA', fontWeight: 600 }}>Ready for Website</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Share Link Banner */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%)',
+                    border: '1px solid rgba(59, 130, 246, 0.2)',
+                    borderRadius: '12px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '14px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        background: 'rgba(59, 130, 246, 0.15)',
+                        color: '#60A5FA',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <Quote className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#FFFFFF' }}>
+                          Your Private Shareable Feedback URL
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
+                          This page is not linked anywhere on the public website. Send this link directly to clients via WhatsApp, Email, or Slack.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <code style={{
+                        background: '#12121A',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        color: '#93C5FD',
+                        fontFamily: 'monospace'
+                      }}>
+                        {typeof window !== 'undefined' ? `${window.location.origin}/feedback` : '/feedback'}
+                      </code>
+                      <button
+                        type="button"
+                        className="vel-btn-solid"
+                        onClick={handleCopyFeedbackLink}
+                        style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        {isCopiedFeedbackLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        <span>{isCopiedFeedbackLink ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filter & Search Bar */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <div className="vel-search-pill" style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+                      <Search className="h-3.5 w-3.5" style={{ position: 'absolute', left: '12px', color: 'var(--vel-text-tertiary)' }} />
+                      <input
+                        type="text"
+                        placeholder="Search feedback by client name, email, company, or comments..."
+                        value={feedbackSearch}
+                        onChange={(e) => setFeedbackSearch(e.target.value)}
+                        className="vel-search-input"
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <select
+                        value={feedbackRatingFilter}
+                        onChange={(e) => setFeedbackRatingFilter(e.target.value)}
+                        style={{
+                          background: '#181822',
+                          border: '1px solid var(--vel-border)',
+                          borderRadius: '8px',
+                          padding: '8px 12px',
+                          color: '#FFFFFF',
+                          fontSize: '0.8rem',
+                          outline: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="ALL">All Ratings</option>
+                        <option value="5">5 Stars Only</option>
+                        <option value="4">4 Stars Only</option>
+                        <option value="3">3 Stars Only</option>
+                        <option value="2">2 Stars Only</option>
+                        <option value="1">1 Star Only</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Feedback Cards List */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {filteredFeedbacks.length === 0 ? (
+                      <div className="vel-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+                        <div style={{
+                          width: '54px',
+                          height: '54px',
+                          borderRadius: '50%',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          margin: '0 auto 16px',
+                          color: 'var(--vel-text-tertiary)'
+                        }}>
+                          <MessageSquareQuote className="h-6 w-6" />
+                        </div>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#FFFFFF', marginBottom: '6px' }}>
+                          No Feedback Found
+                        </h3>
+                        <p style={{ fontSize: '0.82rem', color: 'var(--vel-text-secondary)', maxWidth: '400px', margin: '0 auto 20px' }}>
+                          {feedbackSearch || feedbackRatingFilter !== 'ALL'
+                            ? 'No feedback entries match your current search or rating filter.'
+                            : 'Send your private feedback link to clients after delivering projects to collect testimonials and workflow reviews.'}
+                        </p>
+                        <button
+                          type="button"
+                          className="vel-btn-solid"
+                          onClick={handleCopyFeedbackLink}
+                          style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          <span>Copy Feedback Link to Share</span>
+                        </button>
+                      </div>
+                    ) : (
+                      filteredFeedbacks.map((fb) => {
+                        const starNum = Number(fb.rating) || 5;
+                        return (
+                          <div
+                            key={fb.id}
+                            className="vel-card"
+                            style={{
+                              padding: '22px 24px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '14px',
+                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                              background: '#15151F'
+                            }}
+                          >
+                            {/* Top row: Client info, Rating Stars, Testimonial badge */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+                                    {fb.name}
+                                  </h3>
+                                  {fb.company && (
+                                    <span style={{ fontSize: '0.78rem', color: '#93C5FD', fontWeight: 600 }}>
+                                      • {fb.company}
+                                    </span>
+                                  )}
+                                  {fb.project_type && (
+                                    <span style={{
+                                      fontSize: '0.7rem',
+                                      padding: '2px 8px',
+                                      borderRadius: '6px',
+                                      background: 'rgba(255, 255, 255, 0.05)',
+                                      color: 'var(--vel-text-secondary)',
+                                      border: '1px solid rgba(255, 255, 255, 0.08)'
+                                    }}>
+                                      {fb.project_type}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', fontSize: '0.75rem', color: 'var(--vel-text-tertiary)' }}>
+                                  {fb.email && (
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <Mail className="h-3 w-3" />
+                                      {fb.email}
+                                    </span>
+                                  )}
+                                  <span>
+                                    {fb.created_at ? new Date(fb.created_at).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    }) : 'Recent'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                {/* Stars */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'rgba(245, 158, 11, 0.1)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+                                  {[1, 2, 3, 4, 5].map((s) => (
+                                    <Star
+                                      key={s}
+                                      className="h-3.5 w-3.5"
+                                      style={{
+                                        fill: s <= starNum ? '#F59E0B' : 'transparent',
+                                        color: s <= starNum ? '#F59E0B' : 'rgba(255, 255, 255, 0.2)'
+                                      }}
+                                    />
+                                  ))}
+                                  <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#FBBF24', marginLeft: '3px' }}>
+                                    {starNum}.0
+                                  </span>
+                                </div>
+
+                                {/* Consent Badge */}
+                                {fb.testimonial_consent ? (
+                                  <span style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    padding: '3px 10px',
+                                    borderRadius: '9999px',
+                                    background: 'rgba(16, 185, 129, 0.12)',
+                                    color: '#34D399',
+                                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}>
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    <span>Testimonial Consent</span>
+                                  </span>
+                                ) : (
+                                  <span style={{
+                                    fontSize: '0.72rem',
+                                    padding: '3px 10px',
+                                    borderRadius: '9999px',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    color: 'var(--vel-text-tertiary)',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)'
+                                  }}>
+                                    Private Review
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Review Content */}
+                            <div style={{
+                              background: '#101017',
+                              border: '1px solid rgba(255, 255, 255, 0.06)',
+                              borderRadius: '10px',
+                              padding: '14px 16px',
+                              fontSize: '0.86rem',
+                              lineHeight: '1.55',
+                              color: '#F3F4F6'
+                            }}>
+                              {fb.feedback}
+                            </div>
+
+                            {/* Improvements note if present */}
+                            {fb.improvements && (
+                              <div style={{
+                                background: 'rgba(245, 158, 11, 0.05)',
+                                border: '1px solid rgba(245, 158, 11, 0.15)',
+                                borderRadius: '10px',
+                                padding: '10px 14px',
+                                fontSize: '0.8rem',
+                                color: '#E2E8F0',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '3px'
+                              }}>
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#FBBF24', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                  Suggestions for Improvement:
+                                </span>
+                                <span>{fb.improvements}</span>
+                              </div>
+                            )}
+
+                            {/* Bottom action row */}
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '4px' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteFeedback(fb.id)}
+                                style={{
+                                  background: 'transparent',
+                                  border: '1px solid transparent',
+                                  color: 'var(--vel-text-tertiary)',
+                                  borderRadius: '6px',
+                                  padding: '5px 10px',
+                                  fontSize: '0.78rem',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  transition: 'all 0.15s'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = '#F87171';
+                                  e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = 'var(--vel-text-tertiary)';
+                                  e.currentTarget.style.borderColor = 'transparent';
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                <span>Delete Feedback</span>
                               </button>
                             </div>
                           </div>
@@ -4686,6 +5246,187 @@ export default function AdminPage() {
                 type="button"
                 className="vel-btn-outline"
                 onClick={() => setSelectedContactRequest(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* CLIENT DETAILS & NAME HISTORY MODAL                            */}
+      {/* ============================================================== */}
+      {selectedClientModal && (
+        <div className="vel-modal-backdrop" onClick={() => setSelectedClientModal(null)}>
+          <div
+            className="vel-modal"
+            style={{ maxWidth: '580px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="vel-modal-head">
+              <div>
+                <h3 className="vel-modal-title">Client Account Details</h3>
+                <p className="vel-subtext" style={{ fontSize: '0.78rem', marginTop: '2px' }}>
+                  Complete identity, contact, and name modification history.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="vel-icon-btn"
+                onClick={() => setSelectedClientModal(null)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="vel-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Profile Overview Header Card */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', background: 'rgba(255,255,255,0.03)', padding: '14px', borderRadius: '10px', border: '1px solid var(--vel-border)' }}>
+                <div style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '10px',
+                  background: '#181824',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.2rem',
+                  fontWeight: 800,
+                  color: '#60A5FA'
+                }}>
+                  {selectedClientModal.name ? selectedClientModal.name.charAt(0).toUpperCase() : 'C'}
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <h4 style={{ fontSize: '1rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+                      {selectedClientModal.name}
+                    </h4>
+                    {selectedClientModal.isGoogle && (
+                      <span style={{ fontSize: '0.66rem', padding: '2px 7px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.15)', color: '#60A5FA', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 600 }}>
+                        Google Auth
+                      </span>
+                    )}
+                    <span style={{
+                      fontSize: '0.66rem',
+                      padding: '2px 7px',
+                      borderRadius: '6px',
+                      background: selectedClientModal.status === 'rejected' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.12)',
+                      color: selectedClientModal.status === 'rejected' ? '#F87171' : '#4ADE80',
+                      border: selectedClientModal.status === 'rejected' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(34, 197, 94, 0.25)',
+                      fontWeight: 600
+                    }}>
+                      {selectedClientModal.status === 'rejected' ? 'Suspended / Blocked' : 'Active Client'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--vel-text-secondary)', marginTop: '3px', margin: 0 }}>
+                    User ID: <span style={{ fontFamily: 'monospace', fontSize: '0.74rem' }}>{selectedClientModal.id}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Name Change Notice if client previously altered their name */}
+              {selectedClientModal.previous_name && (
+                <div style={{ background: 'rgba(234, 179, 8, 0.08)', border: '1px solid rgba(234, 179, 8, 0.25)', borderRadius: '10px', padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#FACC15' }}>
+                      ● Client Name Modification Detected
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: '#E2E8F0', marginTop: '4px', margin: 0 }}>
+                    This client previously registered under the name: <strong style={{ color: '#FDE047' }}>{selectedClientModal.previous_name}</strong>
+                  </p>
+                </div>
+              )}
+
+              {/* Details Key-Value Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
+                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                    Current Display Name
+                  </label>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#FFFFFF', marginTop: '3px' }}>
+                    {selectedClientModal.name || 'Not provided'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
+                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                    Previous Name (Old Name)
+                  </label>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: selectedClientModal.previous_name ? '#FACC15' : 'var(--vel-text-tertiary)', marginTop: '3px' }}>
+                    {selectedClientModal.previous_name ? selectedClientModal.previous_name : 'No previous name (never changed)'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
+                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                    Company / Brand
+                  </label>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#93C5FD', marginTop: '3px' }}>
+                    {selectedClientModal.company_name || 'Not provided'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
+                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                    Phone Number
+                  </label>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: selectedClientModal.phone ? '#34D399' : 'var(--vel-text-tertiary)', marginTop: '3px' }}>
+                    {selectedClientModal.phone || 'Not provided'}
+                  </div>
+                </div>
+
+                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
+                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                    Email Address
+                  </label>
+                  <div style={{ fontSize: '0.86rem', color: '#FFFFFF', marginTop: '3px', wordBreak: 'break-all' }}>
+                    {selectedClientModal.email}
+                  </div>
+                </div>
+
+                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
+                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                    Registered On
+                  </label>
+                  <div style={{ fontSize: '0.84rem', color: '#FFFFFF', marginTop: '3px' }}>
+                    {selectedClientModal.created_at ? new Date(selectedClientModal.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="vel-modal-foot">
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {selectedClientModal.phone && (
+                  <a
+                    href={`https://wa.me/${selectedClientModal.phone.replace(/[^\\d+]/g, '').replace(/^0+/, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="vel-btn-solid"
+                    style={{ background: '#25D366', borderColor: '#25D366', color: '#000000', textDecoration: 'none', fontSize: '0.8rem' }}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    <span>WhatsApp</span>
+                  </a>
+                )}
+                {selectedClientModal.email && (
+                  <a
+                    href={`mailto:${selectedClientModal.email}`}
+                    className="vel-btn-outline"
+                    style={{ textDecoration: 'none', fontSize: '0.8rem' }}
+                  >
+                    <Mail className="h-4 w-4" />
+                    <span>Send Email</span>
+                  </a>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className="vel-btn-outline"
+                onClick={() => setSelectedClientModal(null)}
               >
                 Close
               </button>

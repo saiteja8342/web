@@ -39,6 +39,8 @@ const dashboardRewrite = () => ({
         '/our-work/': '/our-work.html',
         '/terms': '/terms.html',
         '/terms/': '/terms.html',
+        '/feedback': '/feedback.html',
+        '/feedback/': '/feedback.html',
       };
 
       if (routeMap[pathname]) {
@@ -56,6 +58,7 @@ const candidateEntries = {
   work: path.resolve(__dirname, 'work.html'),
   ourWork: path.resolve(__dirname, 'our-work.html'),
   terms: path.resolve(__dirname, 'terms.html'),
+  feedback: path.resolve(__dirname, 'feedback.html'),
   login: path.resolve(__dirname, 'login.html'),
   adminLogin: path.resolve(__dirname, 'admin/login.html'),
   adminLoginIndex: path.resolve(__dirname, 'admin/login/index.html'),

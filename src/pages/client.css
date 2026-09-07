@@ -426,6 +426,180 @@
   color: #FFFFFF;
 }
 
+/* User Profile Shortcuts Dropdown (Inspired by Reference Design) */
+.cp-user-menu-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.cp-profile-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 280px;
+  background: #13131A;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  z-index: 120;
+  animation: notif-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 480px) {
+  .cp-profile-dropdown {
+    width: 260px;
+    right: -10px;
+  }
+}
+
+.cp-dropdown-header {
+  padding: 14px 16px 12px;
+  background: #171722;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cp-dropdown-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #222230;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+}
+
+.cp-dropdown-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.cp-dropdown-name-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.cp-dropdown-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cp-dropdown-email {
+  font-size: 0.72rem;
+  color: var(--cp-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.cp-dropdown-summary-pill {
+  margin: 10px 12px 4px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cp-dropdown-summary-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--cp-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cp-dropdown-summary-val {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #60A5FA;
+}
+
+.cp-dropdown-menu {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cp-dropdown-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: #D1D5DB;
+  font-size: 0.82rem;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.cp-dropdown-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+}
+
+.cp-dropdown-btn.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.cp-dropdown-btn-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cp-dropdown-pill {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: #20202E;
+  color: #93C5FD;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cp-dropdown-hr {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  margin: 4px 6px;
+}
+
+.cp-dropdown-btn.logout {
+  color: #F87171;
+}
+
+.cp-dropdown-btn.logout:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #EF4444;
+}
+
 /* Content Area */
 .cp-content {
   padding: 32px 36px 60px;
@@ -793,6 +967,88 @@
   background: #3A3A46;
   border: 2px solid var(--cp-bg-card);
 }
+
+.cp-profile-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .cp-profile-layout {
+    grid-template-columns: 1fr;
+  }
+  .cp-profile-card {
+    width: 100%;
+    max-width: 400px;
+  }
+}
+
+.cp-profile-forms-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 640px;
+}
+
+.cp-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cp-form-label {
+  font-size: 0.78rem;
+  color: var(--cp-text-secondary);
+  font-weight: 600;
+}
+
+.cp-form-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.cp-form-input {
+  width: 100%;
+  background: #15151C;
+  border: 1px solid var(--cp-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #FFFFFF;
+  font-size: 0.84rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.cp-form-input:focus {
+  border-color: var(--cp-border-focus);
+}
+
+.cp-form-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #0E0E12;
+}
+
+.cp-input-eye-btn {
+  position: absolute;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--cp-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.cp-input-eye-btn:hover {
+  color: #FFFFFF;
+}
+
 
 /* Toast */
 .cp-toast {

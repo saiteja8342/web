@@ -11,6 +11,8 @@
 /work                 /work.html                    200
 /our-work             /our-work.html                200
 /terms                /terms.html                   200
-/admin                /admin.html                   200
-/client               /client.html                  200
-/editor               /editor.html                  200
+/feedback/*             /feedback.html                200
+/feedback               /feedback.html                200
+/admin                  /admin.html                   200
+/client                 /client.html                  200
+/editor                 /editor.html                  200
