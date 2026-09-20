@@ -31,7 +31,7 @@ export default function AboutFooter() {
             <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
               <a href="/" style={{ fontSize: '13px', color: 'var(--about-text-secondary)', textDecoration: 'none', transition: 'color 0.2s' }}>Home</a>
               <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
-              <a href="/about.html" style={{ fontSize: '13px', color: 'var(--about-text-secondary)', textDecoration: 'none', transition: 'color 0.2s' }}>About</a>
+              <a href="/about" style={{ fontSize: '13px', color: 'var(--about-text-secondary)', textDecoration: 'none', transition: 'color 0.2s' }}>About</a>
               <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
               <a href="/work" style={{ fontSize: '13px', color: 'var(--about-text-secondary)', textDecoration: 'none', transition: 'color 0.2s' }}>Services</a>
               <span style={{ color: 'rgba(255,255,255,0.2)' }}>·</span>
@@ -70,9 +70,9 @@ export default function AboutFooter() {
             © {new Date().getFullYear()} MotionNodeEdits. All Rights Reserved.
           </div>
           <div style={{ fontSize: '12px', color: 'var(--about-text-secondary)', display: 'flex', gap: '16px' }}>
-            <a href="#" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}>Privacy Policy</a>
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}>Privacy Policy</a>
             <span>·</span>
-            <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}>Terms</a>
+            <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none', transition: 'color 0.2s' }}>Terms</a>
           </div>
         </div>
 

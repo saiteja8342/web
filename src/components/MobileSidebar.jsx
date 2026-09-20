@@ -15,13 +15,14 @@ export default function MobileSidebar({ isOpen, onClose }) {
   const isAboutPage = typeof window !== 'undefined' && window.location.pathname.includes('about');
   const isWorkPage = typeof window !== 'undefined' && window.location.pathname.includes('work');
   const isTermsPage = typeof window !== 'undefined' && window.location.pathname.includes('terms');
-  const isSecondaryPage = isAboutPage || isWorkPage || isTermsPage;
+  const isPrivacyPage = typeof window !== 'undefined' && window.location.pathname.includes('privacy');
+  const isSecondaryPage = isAboutPage || isWorkPage || isTermsPage || isPrivacyPage;
 
   const links = [
     { label: 'Home', href: isSecondaryPage ? '/' : '#', icon: <Home className="h-5 w-5 shrink-0 text-white/80" /> },
     { label: 'Services', href: isSecondaryPage ? '/#services' : '#services', icon: <Sparkles className="h-5 w-5 shrink-0 text-white/80" /> },
-    { label: 'Our Work', href: '/work.html', icon: <Film className="h-5 w-5 shrink-0 text-white/80" /> },
-    { label: 'About Us', href: '/about.html', icon: <Sparkles className="h-5 w-5 shrink-0 text-white/80" /> },
+    { label: 'Our Work', href: '/work', icon: <Film className="h-5 w-5 shrink-0 text-white/80" /> },
+    { label: 'About Us', href: '/about', icon: <Sparkles className="h-5 w-5 shrink-0 text-white/80" /> },
     { label: 'Client Reviews', href: isSecondaryPage ? '/#testimonials' : '#testimonials', icon: <Star className="h-5 w-5 shrink-0 text-white/80" /> },
     { label: 'Contact', href: isSecondaryPage ? '/#contact' : '#contact', icon: <Mail className="h-5 w-5 shrink-0 text-white/80" /> },
   ];

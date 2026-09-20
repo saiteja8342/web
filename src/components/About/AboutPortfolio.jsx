@@ -129,7 +129,7 @@ export default function AboutPortfolio() {
         </div>
         
         <div className="about-fade-up" style={{ textAlign: 'center' }}>
-           <a href="/work.html" style={{
+           <a href="/work" style={{
              fontSize: '12px',
              fontWeight: 600,
              color: '#FFFFFF',

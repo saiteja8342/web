@@ -789,10 +789,13 @@ export default function LoginPage() {
                   </div>
                   <label htmlFor="agreeTerms" style={{ fontSize: '0.8rem', lineHeight: '1.4', cursor: 'pointer', margin: 0, color: 'var(--text-secondary, #8E8F94)' }}>
                     I agree to the{' '}
-                    <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: '#FF6496', textDecoration: 'underline' }} data-hover-type="link">
+                    <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#FF6496', textDecoration: 'underline' }} data-hover-type="link">
                       Terms of Service
                     </a>{' '}
-                    & Privacy Policy
+                    &{' '}
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#FF6496', textDecoration: 'underline' }} data-hover-type="link">
+                      Privacy Policy
+                    </a>
                   </label>
                 </div>
               )}
@@ -819,10 +822,13 @@ export default function LoginPage() {
               {activeTab === 'signin' && (
                 <p className="auth-terms-note">
                   By continuing, you agree to MotionNodeEdits's{' '}
-                  <a href="/terms.html" target="_blank" rel="noopener noreferrer" data-hover-type="link">
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" data-hover-type="link">
                     Terms of Service
                   </a>{' '}
-                  and Privacy Notice.
+                  and{' '}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" data-hover-type="link">
+                    Privacy Policy
+                  </a>.
                 </p>
               )}
 
@@ -1167,13 +1173,16 @@ export default function LoginPage() {
           © {new Date().getFullYear()} MotionNodeEdits. All rights reserved.
         </div>
         <div style={{ display: 'flex', gap: '20px' }}>
-          <a href="/terms.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }} data-hover-type="link">
-            Terms & Policy
+          <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }} data-hover-type="link">
+            Terms
           </a>
-          <a href="/work.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }} data-hover-type="link">
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }} data-hover-type="link">
+            Privacy Policy
+          </a>
+          <a href="/work" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }} data-hover-type="link">
             Our Work
           </a>
-          <a href="/about.html" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }} data-hover-type="link">
+          <a href="/about" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }} data-hover-type="link">
             About Studio
           </a>
         </div>

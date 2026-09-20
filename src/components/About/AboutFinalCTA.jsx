@@ -39,7 +39,7 @@ export default function AboutFinalCTA() {
 
         <div className="about-fade-up" style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href="/#contact" className="about-btn-primary">START A PROJECT</a>
-          <a href="/work.html" className="about-btn-secondary">VIEW OUR WORK</a>
+          <a href="/work" className="about-btn-secondary">VIEW OUR WORK</a>
         </div>
 
       </div>

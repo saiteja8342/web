@@ -11,6 +11,8 @@
 /work                 /work.html                    200
 /our-work             /our-work.html                200
 /terms                /terms.html                   200
+/privacy              /privacy.html                 200
+/privacy-policy       /privacy.html                 200
 /feedback/*             /feedback.html                200
 /feedback               /feedback.html                200
 /admin                  /admin.html                   200

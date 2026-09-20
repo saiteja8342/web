@@ -43,7 +43,7 @@ export default function AboutNavbar() {
           {/* Center: Desktop Nav */}
           <div className="about-nav-desktop" style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
             <a href="/" style={{ color: 'var(--about-text-secondary)', textDecoration: 'none', fontSize: '13px', fontWeight: 500, transition: 'color 0.2s' }}>Home</a>
-            <a href="/about.html" style={{ color: 'var(--about-white)', textDecoration: 'none', fontSize: '13px', fontWeight: 500, transition: 'color 0.2s' }}>About</a>
+            <a href="/about" style={{ color: 'var(--about-white)', textDecoration: 'none', fontSize: '13px', fontWeight: 500, transition: 'color 0.2s' }}>About</a>
             <a href="/work" style={{ color: 'var(--about-text-secondary)', textDecoration: 'none', fontSize: '13px', fontWeight: 500, transition: 'color 0.2s' }}>Services</a>
             <a href="/work" style={{ color: 'var(--about-text-secondary)', textDecoration: 'none', fontSize: '13px', fontWeight: 500, transition: 'color 0.2s' }}>Our Work</a>
             <a href="/contact" style={{ color: 'var(--about-text-secondary)', textDecoration: 'none', fontSize: '13px', fontWeight: 500, transition: 'color 0.2s' }}>Contact</a>
@@ -102,7 +102,7 @@ export default function AboutNavbar() {
           ×
         </button>
         <a href="/" onClick={() => setMobileMenuOpen(false)} style={{ color: 'white', textDecoration: 'none', fontSize: '24px', fontWeight: 700 }}>Home</a>
-        <a href="/about.html" onClick={() => setMobileMenuOpen(false)} style={{ color: 'var(--about-accent)', textDecoration: 'none', fontSize: '24px', fontWeight: 700 }}>About</a>
+        <a href="/about" onClick={() => setMobileMenuOpen(false)} style={{ color: 'var(--about-accent)', textDecoration: 'none', fontSize: '24px', fontWeight: 700 }}>About</a>
         <a href="/work" onClick={() => setMobileMenuOpen(false)} style={{ color: 'white', textDecoration: 'none', fontSize: '24px', fontWeight: 700 }}>Services</a>
         <a href="/work" onClick={() => setMobileMenuOpen(false)} style={{ color: 'white', textDecoration: 'none', fontSize: '24px', fontWeight: 700 }}>Our Work</a>
         <a href="/contact" onClick={() => setMobileMenuOpen(false)} style={{ color: 'white', textDecoration: 'none', fontSize: '24px', fontWeight: 700 }}>Contact</a>

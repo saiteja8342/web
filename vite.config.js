@@ -39,6 +39,10 @@ const dashboardRewrite = () => ({
         '/our-work/': '/our-work.html',
         '/terms': '/terms.html',
         '/terms/': '/terms.html',
+        '/privacy': '/privacy.html',
+        '/privacy/': '/privacy.html',
+        '/privacy-policy': '/privacy.html',
+        '/privacy-policy/': '/privacy.html',
         '/feedback': '/feedback.html',
         '/feedback/': '/feedback.html',
       };
@@ -58,6 +62,7 @@ const candidateEntries = {
   work: path.resolve(__dirname, 'work.html'),
   ourWork: path.resolve(__dirname, 'our-work.html'),
   terms: path.resolve(__dirname, 'terms.html'),
+  privacy: path.resolve(__dirname, 'privacy.html'),
   feedback: path.resolve(__dirname, 'feedback.html'),
   login: path.resolve(__dirname, 'login.html'),
   adminLogin: path.resolve(__dirname, 'admin/login.html'),

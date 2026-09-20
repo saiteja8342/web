@@ -44,6 +44,8 @@
     { "source": "/work", "destination": "/work.html" },
     { "source": "/our-work", "destination": "/our-work.html" },
     { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/privacy-policy", "destination": "/privacy.html" },
     { "source": "/feedback", "destination": "/feedback.html" },
     { "source": "/feedback/:path*", "destination": "/feedback.html" },
     { "source": "/admin", "destination": "/admin.html" },
