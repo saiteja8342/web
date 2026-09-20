@@ -28,20 +28,46 @@ export default function CustomCursor() {
     let mouseY = window.innerHeight / 2;
     let ringX = mouseX;
     let ringY = mouseY;
+    let hasMoved = false;
+
+    // Start invisible until mouse actually moves inside the document
+    if (dotRef.current) gsap.set(dotRef.current, { opacity: 0 });
+    if (ringRef.current) gsap.set(ringRef.current, { opacity: 0 });
 
     const onMouseMove = (e) => {
       mouseX = e.clientX;
       mouseY = e.clientY;
-      gsap.set(dotRef.current, { x: mouseX, y: mouseY });
+      if (!hasMoved) {
+        hasMoved = true;
+        ringX = mouseX;
+        ringY = mouseY;
+        if (dotRef.current) gsap.set(dotRef.current, { opacity: 1 });
+        if (ringRef.current) gsap.set(ringRef.current, { opacity: 0.4 });
+      }
+      if (dotRef.current) gsap.set(dotRef.current, { x: mouseX, y: mouseY });
+    };
+
+    const onMouseLeave = () => {
+      if (dotRef.current) gsap.to(dotRef.current, { opacity: 0, duration: 0.15 });
+      if (ringRef.current) gsap.to(ringRef.current, { opacity: 0, duration: 0.15 });
+    };
+
+    const onMouseEnter = () => {
+      if (hasMoved) {
+        if (dotRef.current) gsap.to(dotRef.current, { opacity: 1, duration: 0.15 });
+        if (ringRef.current) gsap.to(ringRef.current, { opacity: 0.4, duration: 0.15 });
+      }
     };
 
     window.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseleave', onMouseLeave);
+    document.addEventListener('mouseenter', onMouseEnter);
 
     let animationFrameId;
     const renderCursor = () => {
       ringX += (mouseX - ringX) * 0.15;
       ringY += (mouseY - ringY) * 0.15;
-      gsap.set(ringRef.current, { x: ringX, y: ringY });
+      if (ringRef.current) gsap.set(ringRef.current, { x: ringX, y: ringY });
       animationFrameId = requestAnimationFrame(renderCursor);
     };
     animationFrameId = requestAnimationFrame(renderCursor);
@@ -81,6 +107,8 @@ export default function CustomCursor() {
 
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseleave', onMouseLeave);
+      document.removeEventListener('mouseenter', onMouseEnter);
       window.removeEventListener('mouseover', onMouseOver);
       window.removeEventListener('mouseout', onMouseOut);
       cancelAnimationFrame(animationFrameId);

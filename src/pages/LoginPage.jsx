@@ -194,7 +194,12 @@ export default function LoginPage() {
               return;
             }
           } catch (_) {}
-          setErrorMessage(error.message);
+          const errLower = (error.message || '').toLowerCase();
+          if (errLower.includes('error sending confirmation email')) {
+            setErrorMessage('Unable to send confirmation email. The Supabase email rate limit was reached, or Custom SMTP is not configured. Please disable "Confirm email" in your Supabase Dashboard or configure Custom SMTP.');
+          } else {
+            setErrorMessage(error.message);
+          }
           setIsLoading(false);
           return;
         }
@@ -230,14 +235,16 @@ export default function LoginPage() {
           }
         }
 
-        // 1. Do NOT auto-login (sign out any session automatically created by Supabase)
-        if (data?.session) {
-          try {
-            await supabase.auth.signOut();
-          } catch (_) {}
+        // If session was returned immediately (e.g. Email Confirmation is disabled in Supabase)
+        if (data?.session && data?.user) {
+          setSuccessMessage('Account created successfully! Launching your workspace...');
+          setTimeout(() => {
+            window.location.href = '/dashboard/client';
+          }, 800);
+          return;
         }
 
-        // 2. Redirect user to Sign In view & keep/pre-fill the email used for signup
+        // If email confirmation is required by Supabase
         setActiveTab('signin');
         setFormData((prev) => ({
           ...prev,
@@ -245,12 +252,10 @@ export default function LoginPage() {
           password: '',
         }));
 
-        // 3. Show clear success message above the form
         setSuccessMessage('Your account has been created. Please check your email and verify your address before logging in.');
         setErrorMessage('');
         setIsLoading(false);
 
-        // 4. Pass the email and success indicator via query parameters
         if (typeof window !== 'undefined') {
           const loginPath = window.location.pathname.includes('.html') ? '/login.html' : '/login';
           const newUrl = `${loginPath}?tab=signin&email=${encodeURIComponent(signupEmail)}&signup_success=true`;
@@ -549,8 +554,8 @@ export default function LoginPage() {
       <div className="auth-grid-bg" />
 
       {/* Top Header */}
-      <header className="auth-header">
-        <a href="/" className="nav-logo" data-hover-type="link" style={{ textDecoration: 'none' }}>
+      <header className="auth-header" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxSizing: 'border-box' }}>
+        <a href="/" className="nav-logo" data-hover-type="link" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
           <span className="logo-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <img 
               src="/image/mne_logo.png" 
@@ -567,17 +572,17 @@ export default function LoginPage() {
               }}
             />
             <div className="nav-logo-text-wrap" style={{ display: 'flex', flexDirection: 'column', textAlign: 'left' }}>
-              <span className="nav-logo-brand" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.95rem', fontWeight: '700', color: '#FFFFFF' }}>
+              <span className="nav-logo-brand" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.95rem', fontWeight: '700', color: '#FFFFFF', whiteSpace: 'nowrap' }}>
                 MotionNodeEdits
               </span>
-              <span className="nav-logo-subtitle" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.62rem', color: 'var(--text-secondary)' }}>
+              <span className="nav-logo-subtitle" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.62rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                 Client & Creator Workspace
               </span>
             </div>
           </span>
         </a>
 
-        <a href="/" className="auth-back-link" data-hover-type="link">
+        <a href="/" className="auth-back-link" data-hover-type="link" style={{ marginLeft: 'auto' }}>
           <ArrowLeft className="h-4 w-4" />
           <span>Back to Home</span>
         </a>
@@ -820,6 +825,35 @@ export default function LoginPage() {
                   and Privacy Notice.
                 </p>
               )}
+
+              {/* Quick Tab Switcher */}
+              <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '0.85rem', color: 'var(--text-secondary, #8E8F94)' }}>
+                {activeTab === 'signin' ? (
+                  <span>
+                    Don't have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setActiveTab('signup'); setErrorMessage(''); setSuccessMessage(''); }}
+                      style={{ background: 'none', border: 'none', color: '#FF6496', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                      data-hover-type="link"
+                    >
+                      Sign Up
+                    </button>
+                  </span>
+                ) : (
+                  <span>
+                    Already have an account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setActiveTab('signin'); setErrorMessage(''); setSuccessMessage(''); }}
+                      style={{ background: 'none', border: 'none', color: '#FF6496', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                      data-hover-type="link"
+                    >
+                      Sign In
+                    </button>
+                  </span>
+                )}
+              </div>
             </form>
 
             {/* Error Message display under the form */}

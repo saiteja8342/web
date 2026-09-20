@@ -15,12 +15,15 @@
 
 .auth-page-root {
   min-height: 100vh;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
   background-color: var(--auth-bg-primary);
   color: #FFFFFF;
   position: relative;
   display: flex;
   flex-direction: column;
-  justifyContent: space-between;
+  justify-content: space-between;
   overflow-x: hidden;
   font-family: var(--font-sans, 'Plus Jakarta Sans', sans-serif);
 }
@@ -69,10 +72,13 @@
 .auth-header {
   position: relative;
   z-index: 10;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 24px 40px;
   display: flex;
   align-items: center;
-  justifyContent: space-between;
+  justify-content: space-between;
 }
 
 @media (max-width: 640px) {
@@ -94,6 +100,8 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .auth-back-link:hover {
@@ -392,7 +400,7 @@
 
 .auth-input {
   width: 100%;
-  padding: 12px 14px 12px 42px;
+  padding: 12px 42px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 10px;

@@ -17,18 +17,37 @@ export const STATUS_CONFIG = {
 };
 
 /**
- * Check if an email has already submitted a contact request.
+ * Check if an email has already submitted a contact request within the last 24 hours.
  */
 export async function checkEmailAlreadySubmitted(email) {
   if (!email) return false;
+  const cleanEmail = email.trim().toLowerCase();
+
+  // 1. Check RPC function (with 24h interval check)
   try {
     const { data, error } = await supabase.rpc('has_already_submitted_contact', {
-      p_email: email.trim().toLowerCase()
+      p_email: cleanEmail
     });
     if (!error && typeof data === 'boolean') {
       return data;
     }
   } catch {}
+
+  // 2. Fallback query checking if this email was submitted within the last 24 hours
+  try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from('contact_requests')
+      .select('id')
+      .ilike('email', cleanEmail)
+      .gte('created_at', twentyFourHoursAgo)
+      .limit(1);
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return true;
+    }
+  } catch {}
+
   return false;
 }
 

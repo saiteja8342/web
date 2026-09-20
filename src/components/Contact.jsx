@@ -26,7 +26,11 @@ export default function Contact() {
     error: false,
   });
 
+  const COOLDOWN_HOURS = 24;
+  const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
+
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [remainingHours, setRemainingHours] = useState(0);
 
   useEffect(() => {
     try {
@@ -34,13 +38,37 @@ export default function Contact() {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('reset_contact') === '1' || urlParams.get('reset_contact') === 'true') {
           localStorage.removeItem('mne_contact_submitted');
+          localStorage.removeItem('mne_contact_submitted_time');
           localStorage.removeItem('mne_contact_email');
           setHasSubmitted(false);
+          setStatus({ submitting: false, success: false, error: false });
           return;
         }
-        if (localStorage.getItem('mne_contact_submitted') === 'true') {
-          setHasSubmitted(true);
-          setStatus({ submitting: false, success: true, error: false });
+
+        const submittedTimeStr = localStorage.getItem('mne_contact_submitted_time');
+        if (submittedTimeStr) {
+          const submittedTime = parseInt(submittedTimeStr, 10);
+          const elapsed = Date.now() - submittedTime;
+          if (elapsed < COOLDOWN_MS) {
+            // Still within 24h cooldown
+            const left = Math.max(1, Math.ceil((COOLDOWN_MS - elapsed) / (1000 * 60 * 60)));
+            setRemainingHours(left);
+            setHasSubmitted(true);
+            setStatus({ submitting: false, success: true, error: false });
+            return;
+          } else {
+            // 24 hours have passed! Expire cooldown so user can submit again
+            localStorage.removeItem('mne_contact_submitted');
+            localStorage.removeItem('mne_contact_submitted_time');
+            localStorage.removeItem('mne_contact_email');
+            setHasSubmitted(false);
+            setStatus({ submitting: false, success: false, error: false });
+            return;
+          }
+        } else if (localStorage.getItem('mne_contact_submitted') === 'true') {
+          // Clear legacy indefinite flag to allow submission under the 24h policy
+          localStorage.removeItem('mne_contact_submitted');
+          setHasSubmitted(false);
         }
       }
     } catch {}
@@ -61,11 +89,19 @@ export default function Contact() {
       return;
     }
 
-    // Enforce 1 submission only: block multiple attempts
+    // Enforce 24-hour cooldown: block attempts within 24h
     try {
-      if (hasSubmitted || (typeof window !== 'undefined' && localStorage.getItem('mne_contact_submitted') === 'true')) {
-        setStatus({ submitting: false, success: true, error: false });
-        return;
+      if (typeof window !== 'undefined') {
+        const submittedTimeStr = localStorage.getItem('mne_contact_submitted_time');
+        if (submittedTimeStr) {
+          const elapsed = Date.now() - parseInt(submittedTimeStr, 10);
+          if (elapsed < COOLDOWN_MS) {
+            const left = Math.max(1, Math.ceil((COOLDOWN_MS - elapsed) / (1000 * 60 * 60)));
+            setRemainingHours(left);
+            setStatus({ submitting: false, success: true, error: false });
+            return;
+          }
+        }
       }
     } catch {}
 
@@ -123,12 +159,15 @@ export default function Contact() {
       console.log('[Contact Form] Supabase submission result:', dbResult);
       console.log('[Contact Form] Formspree submission result:', formspreeResponse);
 
-      // Check if duplicate submission by email
+      // Check if duplicate submission by email within 24 hours
       if (dbResult.status === 'fulfilled' && dbResult.value?.isDuplicate) {
         try {
+          const now = Date.now().toString();
           localStorage.setItem('mne_contact_submitted', 'true');
+          localStorage.setItem('mne_contact_submitted_time', now);
           localStorage.setItem('mne_contact_email', formData.email.trim().toLowerCase());
         } catch {}
+        setRemainingHours(24);
         setHasSubmitted(true);
         setStatus({ submitting: false, success: true, error: false });
         setFormData(clearedFormData);
@@ -141,9 +180,12 @@ export default function Contact() {
       // If either Supabase or Formspree succeeded, consider submission a success
       if (dbSuccess || formspreeSuccess) {
         try {
+          const now = Date.now().toString();
           localStorage.setItem('mne_contact_submitted', 'true');
+          localStorage.setItem('mne_contact_submitted_time', now);
           localStorage.setItem('mne_contact_email', formData.email.trim().toLowerCase());
         } catch {}
+        setRemainingHours(24);
         setHasSubmitted(true);
         setStatus({ submitting: false, success: true, error: false });
         setFormData(clearedFormData);
@@ -236,8 +278,20 @@ export default function Contact() {
                     transition={{ delay: 0.3, duration: 0.5 }}
                     className="success-text"
                   >
-                    Thanks for reaching out! Your project quote request has been received and our team will get back to you within 24 hours. (Submissions are limited to 1 per user to prevent duplicate entries).
+                    Thanks for reaching out! Your project quote request has been received and our team will get back to you within 24 hours.
                   </motion.p>
+
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-tertiary, #7E8088)', margin: '8px 0 16px', lineHeight: 1.5 }}>
+                    {remainingHours > 0 ? (
+                      <span>
+                        Submissions are limited to once every 24 hours. You can submit another message in <strong>~{remainingHours} hour{remainingHours > 1 ? 's' : ''}</strong>.
+                      </span>
+                    ) : (
+                      <span>
+                        To prevent spam, you can submit another request after 24 hours.
+                      </span>
+                    )}
+                  </p>
 
                   <motion.button
                     initial={{ opacity: 0, y: 15 }}
