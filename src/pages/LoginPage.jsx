@@ -43,20 +43,34 @@ export default function LoginPage() {
     email: '',
     password: '',
     rememberMe: true,
-    agreeTerms: true,
+    agreeTerms: false,
   });
 
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setErrorMessage('');
+    if (tab === 'signup') setSuccessMessage('');
+    if (typeof window !== 'undefined') {
+      const targetPath = tab === 'signup' ? '/sign-up' : '/sign-in';
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState(null, '', targetPath);
+      }
+    }
+  };
+
   // Handle URL query parameters and recovery mode
   useEffect(() => {
+    let handlePopState = null;
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
       const emailParam = params.get('email');
       const signupSuccessParam = params.get('signup_success');
       const typeParam = params.get('type');
+      const pathname = window.location.pathname.toLowerCase();
 
       // Check URL hash for recovery token (e.g. #access_token=...&type=recovery)
       const hash = window.location.hash ? window.location.hash.substring(1) : '';
@@ -65,10 +79,16 @@ export default function LoginPage() {
         setIsRecoveryMode(true);
       }
 
-      if (tabParam === 'signup' || tabParam === 'register') {
+      if (pathname.includes('sign-up') || pathname.includes('signup') || tabParam === 'signup' || tabParam === 'register') {
         setActiveTab('signup');
-      } else if (tabParam === 'signin') {
+        if (window.location.pathname !== '/sign-up' && !window.location.search) {
+          window.history.replaceState(null, '', '/sign-up');
+        }
+      } else {
         setActiveTab('signin');
+        if ((window.location.pathname === '/login' || window.location.pathname === '/login.html') && !window.location.search) {
+          window.history.replaceState(null, '', '/sign-in');
+        }
       }
 
       if (emailParam) {
@@ -88,6 +108,16 @@ export default function LoginPage() {
         setActiveTab('signin');
         setErrorMessage('Check your email and confirm your account before logging in.');
       }
+
+      handlePopState = () => {
+        const path = window.location.pathname.toLowerCase();
+        if (path.includes('sign-up') || path.includes('signup')) {
+          setActiveTab('signup');
+        } else {
+          setActiveTab('signin');
+        }
+      };
+      window.addEventListener('popstate', handlePopState);
 
       // If an existing admin session is detected on public login, silently terminate it
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -119,6 +149,9 @@ export default function LoginPage() {
 
     return () => {
       authListener?.subscription?.unsubscribe();
+      if (handlePopState && typeof window !== 'undefined') {
+        window.removeEventListener('popstate', handlePopState);
+      }
     };
   }, []);
 
@@ -257,8 +290,7 @@ export default function LoginPage() {
         setIsLoading(false);
 
         if (typeof window !== 'undefined') {
-          const loginPath = window.location.pathname.includes('.html') ? '/login.html' : '/login';
-          const newUrl = `${loginPath}?tab=signin&email=${encodeURIComponent(signupEmail)}&signup_success=true`;
+          const newUrl = `/sign-in?email=${encodeURIComponent(signupEmail)}&signup_success=true`;
           window.history.replaceState({}, '', newUrl);
         }
         return;
@@ -453,7 +485,7 @@ export default function LoginPage() {
       const baseOrigin = (envSiteUrl && envSiteUrl.startsWith('http'))
         ? envSiteUrl.replace(/\/$/, '')
         : (typeof window !== 'undefined' ? window.location.origin : '');
-      const redirectUrl = `${baseOrigin}/login?type=recovery`;
+      const redirectUrl = `${baseOrigin}/sign-in?type=recovery`;
       const { error } = await supabase.auth.resetPasswordForEmail(emailToReset, {
         redirectTo: redirectUrl,
       });
@@ -534,8 +566,7 @@ export default function LoginPage() {
 
         // Clean up URL parameters and recovery hash
         if (typeof window !== 'undefined') {
-          const loginPath = window.location.pathname.includes('.html') ? '/login.html' : '/login';
-          window.history.replaceState({}, '', `${loginPath}?tab=signin&password_reset=success`);
+          window.history.replaceState({}, '', '/sign-in?password_reset=success');
         }
       }, 1500);
     } catch (err) {
@@ -593,61 +624,14 @@ export default function LoginPage() {
         {/* Centered Glassmorphism Login / Signup Card */}
         <div className="auth-form-card-wrapper">
           <div className="auth-form-card">
-            {/* Header Tabs */}
-            <div className="auth-tabs">
-              <button
-                type="button"
-                className={`auth-tab-btn ${activeTab === 'signin' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('signin'); setErrorMessage(''); }}
-                data-hover-type="link"
-              >
-                <Lock className="h-4 w-4" />
-                <span>Sign In</span>
-              </button>
-
-              <button
-                type="button"
-                className={`auth-tab-btn ${activeTab === 'signup' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('signup'); setErrorMessage(''); setSuccessMessage(''); }}
-                data-hover-type="link"
-              >
-                <span>Sign Up</span>
-              </button>
-            </div>
-
-            {/* Social Authentication */}
-            <div className="auth-social-buttons">
-              <button
-                type="button"
-                className="auth-social-btn"
-                onClick={handleGoogleLogin}
-                data-hover-type="link"
-              >
-                <svg className="h-4 w-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#EA4335"
-                    d="M12 5c1.54 0 2.93.56 4.02 1.48l3.01-3.01C17.21 1.77 14.77 1 12 1 7.42 1 3.49 3.6 1.63 7.37l3.65 2.83C6.16 7.43 8.84 5 12 5z"
-                  />
-                  <path
-                    fill="#4285F4"
-                    d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58l3.71 2.88c2.16-1.99 3.71-4.94 3.71-8.7z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.28 14.2c-.22-.66-.35-1.36-.35-2.2s.13-1.54.35-2.2L1.63 6.97C.59 9.05 0 11.45 0 14s.59 4.95 1.63 7.03l3.65-2.83z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c3.24 0 5.95-1.08 7.93-2.91l-3.71-2.88c-1.07.73-2.45 1.16-4.22 1.16-3.16 0-5.84-2.43-6.72-5.2L1.63 15.97C3.49 19.74 7.42 23 12 23z"
-                  />
-                </svg>
-                <span>Continue with Google</span>
-              </button>
-            </div>
-
-            {/* Divider */}
-            <div className="auth-divider">
-              <span>or continue with email</span>
+            {/* Card Header */}
+            <div className="auth-card-header" style={{ textAlign: 'left', marginBottom: '2px' }}>
+              <h2 style={{ fontSize: '1.45rem', fontWeight: 600, color: '#FFFFFF', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+                {activeTab === 'signin' ? 'Sign In to Workspace' : 'Create an Account'}
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary, #8E8F94)', margin: 0 }}>
+                {activeTab === 'signin' ? 'Enter your details below to access your projects' : 'Create an account to track and manage your video projects'}
+              </p>
             </div>
 
             {/* Success Message display ABOVE the form */}
@@ -818,49 +802,84 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
-
-              {activeTab === 'signin' && (
-                <p className="auth-terms-note">
-                  By continuing, you agree to MotionNodeEdits's{' '}
-                  <a href="/terms" target="_blank" rel="noopener noreferrer" data-hover-type="link">
-                    Terms of Service
-                  </a>{' '}
-                  and{' '}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer" data-hover-type="link">
-                    Privacy Policy
-                  </a>.
-                </p>
-              )}
-
-              {/* Quick Tab Switcher */}
-              <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '0.85rem', color: 'var(--text-secondary, #8E8F94)' }}>
-                {activeTab === 'signin' ? (
-                  <span>
-                    Don't have an account?{' '}
-                    <button
-                      type="button"
-                      onClick={() => { setActiveTab('signup'); setErrorMessage(''); setSuccessMessage(''); }}
-                      style={{ background: 'none', border: 'none', color: '#FF6496', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-                      data-hover-type="link"
-                    >
-                      Sign Up
-                    </button>
-                  </span>
-                ) : (
-                  <span>
-                    Already have an account?{' '}
-                    <button
-                      type="button"
-                      onClick={() => { setActiveTab('signin'); setErrorMessage(''); setSuccessMessage(''); }}
-                      style={{ background: 'none', border: 'none', color: '#FF6496', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-                      data-hover-type="link"
-                    >
-                      Sign In
-                    </button>
-                  </span>
-                )}
-              </div>
             </form>
+
+            {/* Divider */}
+            <div className="auth-divider">
+              <span>or continue with</span>
+            </div>
+
+            {/* Social Authentication (Google) */}
+            <div className="auth-social-buttons">
+              <button
+                type="button"
+                className="auth-social-btn"
+                onClick={handleGoogleLogin}
+                data-hover-type="link"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24">
+                  <path
+                    fill="#EA4335"
+                    d="M12 5c1.54 0 2.93.56 4.02 1.48l3.01-3.01C17.21 1.77 14.77 1 12 1 7.42 1 3.49 3.6 1.63 7.37l3.65 2.83C6.16 7.43 8.84 5 12 5z"
+                  />
+                  <path
+                    fill="#4285F4"
+                    d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58l3.71 2.88c2.16-1.99 3.71-4.94 3.71-8.7z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.28 14.2c-.22-.66-.35-1.36-.35-2.2s.13-1.54.35-2.2L1.63 6.97C.59 9.05 0 11.45 0 14s.59 4.95 1.63 7.03l3.65-2.83z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c3.24 0 5.95-1.08 7.93-2.91l-3.71-2.88c-1.07.73-2.45 1.16-4.22 1.16-3.16 0-5.84-2.43-6.72-5.2L1.63 15.97C3.49 19.74 7.42 23 12 23z"
+                  />
+                </svg>
+                <span>Continue with Google</span>
+              </button>
+            </div>
+
+            {activeTab === 'signin' && (
+              <p className="auth-terms-note" style={{ margin: 0 }}>
+                By continuing, you agree to MotionNodeEdits's{' '}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" data-hover-type="link">
+                  Terms of Service
+                </a>{' '}
+                and{' '}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" data-hover-type="link">
+                  Privacy Policy
+                </a>.
+              </p>
+            )}
+
+            {/* Quick Tab Switcher */}
+            <div style={{ textAlign: 'center', marginTop: '-4px', fontSize: '0.85rem', color: 'var(--text-secondary, #8E8F94)' }}>
+              {activeTab === 'signin' ? (
+                <span>
+                  Don't have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => handleTabChange('signup')}
+                    style={{ background: 'none', border: 'none', color: '#FF6496', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                    data-hover-type="link"
+                  >
+                    Sign Up
+                  </button>
+                </span>
+              ) : (
+                <span>
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => handleTabChange('signin')}
+                    style={{ background: 'none', border: 'none', color: '#FF6496', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+                    data-hover-type="link"
+                  >
+                    Sign In
+                  </button>
+                </span>
+              )}
+            </div>
 
             {/* Error Message display under the form */}
             {errorMessage && (

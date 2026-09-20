@@ -6,7 +6,11 @@
 /dashboard/client     /dashboard/client/index.html  200
 /admin/login/*          /admin/login.html             200
 /admin/login            /admin/login.html             200
-/login                /login.html                   200
+/sign-in               /login.html                   200
+/sign-up               /login.html                   200
+/signin                /login.html                   200
+/signup                /login.html                   200
+/login                 /login.html                   200
 /about                /about.html                   200
 /work                 /work.html                    200
 /our-work             /our-work.html                200
