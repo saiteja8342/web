@@ -22,11 +22,14 @@ export async function getProfile(id) {
     if (session?.user && session.user.id === id) {
       const u = session.user;
       const meta = u.user_metadata || {};
+      const seed = meta.username || (u.email ? u.email.split('@')[0] : 'user');
+      const fallbackAvatar = meta.avatar_url || meta.picture || `https://api.dicebear.com/7.x/adventurer/svg?seed=male-${encodeURIComponent(seed)}&hair=short01,short02,short03,short04,short05,short06,short07,short08,short09,short10,short11,short12,short13,short14,short15,short16&hairColor=0e0e0e,2c1b18,4a312c,6a4e42,85461e&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
       const newProfile = {
         id: u.id,
         full_name: meta.full_name || meta.name || (u.email ? u.email.split('@')[0] : 'User'),
         email: u.email || '',
-        username: meta.username || (u.email ? u.email.split('@')[0] : 'user'),
+        username: seed,
+        avatar_url: fallbackAvatar,
       };
 
       const { data: inserted, error: insErr } = await supabase

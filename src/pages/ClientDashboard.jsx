@@ -23,7 +23,11 @@ import {
   Lock,
   ShieldCheck,
   EyeOff,
-  ChevronDown
+  ChevronDown,
+  ChevronRight,
+  Headphones,
+  Mail,
+  MessageSquare
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
@@ -70,6 +74,115 @@ const safeOpenUrl = (url) => {
   }
 };
 
+// Fallback male cartoon avatar SVG data URI (short dark hair, handsome smile, stylish shirt)
+const DEFAULT_CARTOON_AVATAR = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="%23B6E3F4"/><circle cx="50" cy="48" r="22" fill="%23FFD8B3"/><path d="M28 42 C28 20 72 20 72 42 C68 32 60 26 50 26 C40 26 32 32 28 42 Z" fill="%232C1B18"/><circle cx="43" cy="48" r="2.5" fill="%231E1E28"/><circle cx="57" cy="48" r="2.5" fill="%231E1E28"/><path d="M44 56 Q50 62 56 56" stroke="%231E1E28" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M24 88 C24 72 38 68 50 68 C62 68 76 72 76 88 Z" fill="%232563EB"/><polygon points="46,68 54,68 50,75" fill="%23FFFFFF"/></svg>`;
+
+// Parses markdown-style inline backticks (`tag`) into sleek badge tags
+const renderFaqTextWithTags = (text) => {
+  if (!text || typeof text !== 'string') return text;
+  const parts = text.split(/(`[^`]+`)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <span key={index} className="cp-faq-code-tag">
+          {part.slice(1, -1)}
+        </span>
+      );
+    }
+    return part;
+  });
+};
+
+// Website FAQs knowledge base adapted directly from AboutFAQ and client workflow
+const CLIENT_FAQS = [
+  {
+    q: 'How do I request video edits or new projects?',
+    a: 'You can request video production and creative edits directly through your workspace:',
+    points: [
+      'Open the `Current Projects` section or message your dedicated producer from the sidebar.',
+      'Choose the service category (`AI Commercials`, `Talking Avatars`, `3D Showcase`, or `Social Retainers`) and paste your footage or asset link.',
+      'Submit the brief and track real-time milestone rendering and progress updates directly from the dashboard.'
+    ]
+  },
+  {
+    q: 'How will I receive my video deliverables?',
+    a: 'Finished deliverables are rendered and provided in full 4K master resolution through your preferred channel:',
+    points: [
+      '`Dashboard`: Direct high-speed 4K master downloads available immediately inside your Project History and Current Projects tabs.',
+      '`Cloud Folder`: Full uncompressed project deliverables synced directly to your dedicated Google Drive or Frame.io project folder.',
+      '`WhatsApp & Email`: Instant rendering completion alerts and direct preview links delivered straight to your inbox and phone.'
+    ]
+  },
+  {
+    q: 'What should I include in a video brief or revision ticket?',
+    a: 'Add the exact footage or asset link, target platform (`Meta Ads`, `TikTok`, `YouTube 4K`, `LinkedIn`), aspect ratio (`9:16` or `16:9`), and any extra timestamped instructions that help our editors deliver the correct cut without back-and-forth.'
+  },
+  {
+    q: 'Which package is best for me?',
+    a: 'We offer flexible production tiers customized for your specific brand objectives — including High-Converting AI Commercial Ads, AI Talking Avatar Videos, 3D Product Showcases, and Ongoing Monthly Social Media Retainers. If you are unsure, reach out for a consultation and we will tailor the optimal workflow for your goals.'
+  },
+  {
+    q: 'Why should we choose your service?',
+    a: 'MotionNodeEdits bridges state-of-the-art generative AI technologies with high-end cinema-grade post-production, sound engineering, color grading, and editorial direction. You receive studio-quality commercial video assets delivered 10x faster and at a fraction of traditional production budgets.'
+  },
+  {
+    q: 'How long does the video process take?',
+    a: 'Standard AI commercial ads, short-form reels, and talking avatar videos are typically delivered within 48 to 72 hours. Comprehensive campaigns, custom 3D animations, and cinematic brand films take 5 to 7 business days. Rush delivery is always available upon request.'
+  },
+  {
+    q: 'How can I send big files and footage to you?',
+    a: 'You can easily share your brand assets, logo vectors, product guidelines, and footage through Google Drive, Dropbox, WeTransfer, or Frame.io. Upon project initiation, we set up a dedicated cloud folder for seamless asset management.'
+  },
+  {
+    q: "What if I don't like my video and how do revisions work?",
+    a: 'Every project includes dedicated revision rounds with zero friction. You can leave precise timestamped notes right on your project preview card, and our creative team will refine the visuals, pacing, audio, color grading, and animations until the video perfectly aligns with your creative vision.'
+  },
+  {
+    q: 'Can you create videos completely from just an idea?',
+    a: 'Yes! You only need to share your vision, product link, or campaign goal. We manage the entire end-to-end creative workflow: scriptwriting, storyboard generation, generative AI asset creation, voice synthesis, sound design, and final 4K master delivery.'
+  },
+  {
+    q: 'Can I cancel at any time?',
+    a: 'Yes, absolutely. For our monthly retainer workflows, there are no lock-in contracts or long-term obligations—you can pause or cancel anytime with zero friction. For one-off custom projects, payments are transparently structured on milestone deliverables.'
+  },
+  {
+    q: "I have a big project and it's a bit complex.",
+    a: 'We specialize in complex, high-scale productions. Whether you need multi-lingual AI localization in 30+ languages, custom digital twin avatars, full 3D environment generation, or 50+ ad variations per month, we build a dedicated workflow and assign specialized editors to your brand.'
+  },
+  {
+    q: 'Need more help?',
+    a: 'If the dashboard does not cover your issue, our dedicated client success team is available 24/7 to assist with active projects, revisions, or emergency delivery requests:',
+    points: [
+      '`Email`: hello@motionnodeedits.com (Average response time under 2 hours)',
+      '`WhatsApp`: +91 89853 51756 for direct producer messaging and urgent delivery requests',
+      '`Feedback Portal`: Submit client suggestions, feature requests, or report issues directly'
+    ],
+    actions: [
+      {
+        label: 'WhatsApp Support',
+        href: 'https://wa.me/918985351756?text=Hi%20MotionNodeEdits,%20I%20have%20a%20support%20question%20regarding%20my%20dashboard%20project',
+        external: true,
+        primary: true,
+        type: 'whatsapp'
+      },
+      {
+        label: 'Email Support',
+        href: 'mailto:hello@motionnodeedits.com?subject=Client%20Support%20Request%20-%20MotionNodeEdits',
+        external: false,
+        primary: false,
+        type: 'email'
+      },
+      {
+        label: 'Feedback Channel',
+        href: '/feedback',
+        external: false,
+        primary: false,
+        type: 'feedback'
+      }
+    ]
+  }
+];
+
 export default function ClientDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -80,6 +193,27 @@ export default function ClientDashboard() {
 
   const [activeNav, setActiveNav] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('mne_sidebar_collapsed') === 'true';
+    }
+    return false;
+  });
+
+  const toggleSidebarCollapse = () => {
+    if (window.innerWidth < 900) {
+      setSidebarOpen((prev) => !prev);
+    } else {
+      setSidebarCollapsed((prev) => {
+        const next = !prev;
+        try {
+          localStorage.setItem('mne_sidebar_collapsed', String(next));
+        } catch (_) {}
+        return next;
+      });
+    }
+  };
+
   const [selectedHistoryId, setSelectedHistoryId] = useState(null);
   const [newNote, setNewNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -119,7 +253,9 @@ export default function ClientDashboard() {
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
 
   // Profile Management State
+  const [profileSubTab, setProfileSubTab] = useState('profile'); // 'profile' | 'password'
   const [profileForm, setProfileForm] = useState({
+    username: '',
     full_name: '',
     company_name: '',
     phone: '',
@@ -141,6 +277,7 @@ export default function ClientDashboard() {
   useEffect(() => {
     if (clientProfile) {
       setProfileForm({
+        username: clientProfile.username || (clientProfile.email ? clientProfile.email.split('@')[0] : ''),
         full_name: clientProfile.full_name || '',
         company_name: clientProfile.company_name || '',
         phone: clientProfile.phone || '',
@@ -151,6 +288,7 @@ export default function ClientDashboard() {
   // Check whether user made any edits to their profile details
   const hasProfileChanges = Boolean(
     clientProfile && (
+      (profileForm.username || '').trim() !== (clientProfile.username || '').trim() ||
       (profileForm.full_name || '').trim() !== (clientProfile.full_name || '').trim() ||
       (profileForm.company_name || '').trim() !== (clientProfile.company_name || '').trim() ||
       (profileForm.phone || '').trim() !== (clientProfile.phone || '').trim()
@@ -163,6 +301,42 @@ export default function ClientDashboard() {
     passwordForm.newPassword.trim() &&
     passwordForm.confirmPassword.trim()
   );
+
+  // Helper to retrieve user avatar: Google OAuth photo if available, custom avatar if uploaded, or guaranteed male cartoon avatar for website accounts
+  const getAccountAvatar = useCallback(() => {
+    if (isGoogleUser(currentUser)) {
+      const googlePic = clientProfile?.avatar_url || currentUser?.user_metadata?.avatar_url || currentUser?.user_metadata?.picture;
+      if (googlePic && (googlePic.includes('googleusercontent.com') || googlePic.includes('google.com'))) {
+        return googlePic;
+      }
+    }
+    // If the user uploaded a custom avatar image (not a default dicebear url)
+    if (clientProfile?.avatar_url && clientProfile.avatar_url.startsWith('http') && !clientProfile.avatar_url.includes('dicebear.com')) {
+      return clientProfile.avatar_url;
+    }
+    // If user already has an updated male dicebear avatar with short hair
+    if (clientProfile?.avatar_url && clientProfile.avatar_url.includes('dicebear.com') && clientProfile.avatar_url.includes('hair=short')) {
+      return clientProfile.avatar_url;
+    }
+    // By default, generate a handsome male cartoon avatar with short hair and natural masculine tones
+    const rawSeed = (clientProfile?.username || clientProfile?.email || currentUser?.email || 'Alex').trim();
+    const cleanSeed = rawSeed.replace(/[^a-zA-Z0-9]/g, '') || 'Alex';
+    return `https://api.dicebear.com/7.x/adventurer/svg?seed=male-${encodeURIComponent(cleanSeed)}&hair=short01,short02,short03,short04,short05,short06,short07,short08,short09,short10,short11,short12,short13,short14,short15,short16&hairColor=0e0e0e,2c1b18,4a312c,6a4e42,85461e&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+  }, [clientProfile, currentUser]);
+
+  // Auto-upgrade any old default dicebear avatar to the male avatar in the database
+  useEffect(() => {
+    if (clientProfile?.id && clientProfile.avatar_url && clientProfile.avatar_url.includes('dicebear.com') && !clientProfile.avatar_url.includes('hair=short')) {
+      const maleAvatar = getAccountAvatar();
+      supabase
+        .from('profiles')
+        .update({ avatar_url: maleAvatar })
+        .eq('id', clientProfile.id)
+        .then(() => {
+          setClientProfile(prev => prev ? { ...prev, avatar_url: maleAvatar } : prev);
+        });
+    }
+  }, [clientProfile?.id, clientProfile?.avatar_url, getAccountAvatar]);
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
@@ -191,6 +365,7 @@ export default function ClientDashboard() {
     if (e) e.preventDefault();
     if (!currentUser?.id) return;
 
+    const trimmedUsername = (profileForm.username || '').trim();
     const trimmedName = (profileForm.full_name || '').trim();
     const trimmedCompany = (profileForm.company_name || '').trim();
     const trimmedPhone = (profileForm.phone || '').trim();
@@ -200,24 +375,25 @@ export default function ClientDashboard() {
       return;
     }
 
-    if (!trimmedName || trimmedName.length < 2) {
-      showToast('Please enter a valid full name (at least 2 characters).');
-      return;
-    }
-    if (trimmedName.length > 80) {
-      showToast('Full name cannot exceed 80 characters.');
+    if (trimmedUsername && trimmedUsername.length < 2) {
+      showToast('Username must be at least 2 characters.');
       return;
     }
 
     setIsSavingProfile(true);
     try {
       // 1. Update public.profiles table (protected by RLS & privilege escalation trigger)
-      const isNameChanged = trimmedName !== (clientProfile?.full_name || '').trim();
+      const isNameChanged = trimmedName && trimmedName !== (clientProfile?.full_name || '').trim();
       const payload = {
-        full_name: trimmedName,
         company_name: trimmedCompany,
         phone: trimmedPhone,
       };
+      if (trimmedUsername) {
+        payload.username = trimmedUsername;
+      }
+      if (trimmedName) {
+        payload.full_name = trimmedName;
+      }
       if (isNameChanged && clientProfile?.full_name) {
         payload.previous_name = clientProfile.full_name;
       }
@@ -235,7 +411,8 @@ export default function ClientDashboard() {
       try {
         await supabase.auth.updateUser({
           data: {
-            full_name: trimmedName,
+            username: trimmedUsername || clientProfile?.username,
+            full_name: trimmedName || clientProfile?.full_name,
             company_name: trimmedCompany,
             phone: trimmedPhone,
             previous_name: payload.previous_name || clientProfile?.previous_name || null,
@@ -249,7 +426,8 @@ export default function ClientDashboard() {
       setClientProfile(prev => ({
         ...prev,
         ...(updatedProfile || {}),
-        full_name: trimmedName,
+        username: trimmedUsername || prev?.username,
+        full_name: trimmedName || prev?.full_name,
         company_name: trimmedCompany,
         phone: trimmedPhone,
         previous_name: payload.previous_name || prev?.previous_name || null,
@@ -876,69 +1054,139 @@ export default function ClientDashboard() {
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* SIDEBAR NAVIGATION                                                 */}
+      {/* SIDEBAR NAVIGATION (Redesigned matching reference)                 */}
       {/* ------------------------------------------------------------------ */}
-      <aside className={`cp-sidebar ${sidebarOpen ? 'open' : ''}`}>
+      <aside className={`cp-sidebar ${sidebarOpen ? 'open' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div>
           {/* Brand Header */}
-          <div
-            className="cp-brand-header"
-            style={{ cursor: 'pointer' }}
-            onClick={() => handleNavClick('home')}
-          >
-            <img
-              src="/image/mne_logo.png"
-              alt="MotionNodeEdits"
-              className="cp-brand-logo-img"
-            />
-            <div>
-              <div className="cp-brand-title">MotionNodeEdits</div>
-              <div className="cp-brand-sub">Client Portal</div>
+          <div className="cp-brand-header-wrapper">
+            <div
+              className="cp-brand-header"
+              style={{ cursor: 'pointer' }}
+              onClick={() => handleNavClick('home')}
+            >
+              <div className="cp-brand-badge">
+                <img
+                  src="/image/mne_logo.png"
+                  alt="MotionNodeEdits"
+                  className="cp-brand-logo-img"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    if (e.currentTarget.nextSibling) {
+                      e.currentTarget.nextSibling.style.display = 'block';
+                    }
+                  }}
+                />
+                <span className="cp-brand-badge-letter" style={{ display: 'none' }}>M</span>
+              </div>
+              <div className="cp-brand-info">
+                <div className="cp-brand-title">MotionNodeEdits</div>
+                <div className="cp-brand-sub">CLIENT HUB</div>
+              </div>
             </div>
+
+            <button
+              type="button"
+              className="cp-sidebar-toggle-btn"
+              onClick={toggleSidebarCollapse}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Minimize sidebar'}
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Minimize sidebar'}
+            >
+              <Menu className="h-4 w-4" />
+            </button>
           </div>
+
+          {/* Section Header */}
+          <div className="cp-sidebar-section-title">MEMBER</div>
 
           {/* Primary Nav Links */}
           <nav className="cp-nav-list">
             <button
+              type="button"
               className={`cp-nav-item ${activeNav === 'home' ? 'active' : ''}`}
               onClick={() => handleNavClick('home')}
+              title="Home"
             >
               <Home className="h-4 w-4 shrink-0" />
               <span>Home</span>
             </button>
 
             <button
+              type="button"
               className={`cp-nav-item ${activeNav === 'current' ? 'active' : ''}`}
               onClick={() => handleNavClick('current')}
+              title="Current Projects"
             >
               <Film className="h-4 w-4 shrink-0" />
               <span>{runningOrders.length > 1 ? `Current Projects (${runningOrders.length})` : 'Current Project'}</span>
             </button>
 
             <button
+              type="button"
               className={`cp-nav-item ${activeNav === 'history' ? 'active' : ''}`}
               onClick={() => handleNavClick('history')}
+              title="Project History"
             >
               <History className="h-4 w-4 shrink-0" />
               <span>Project History</span>
             </button>
 
             <button
+              type="button"
               className={`cp-nav-item ${activeNav === 'profile' ? 'active' : ''}`}
               onClick={() => handleNavClick('profile')}
+              title="Profile"
             >
               <User className="h-4 w-4 shrink-0" />
               <span>Profile</span>
             </button>
+
+            <button
+              type="button"
+              className={`cp-nav-item ${activeNav === 'faq' ? 'active' : ''}`}
+              onClick={() => handleNavClick('faq')}
+              title="Support / FAQ"
+            >
+              <Headphones className="h-4 w-4 shrink-0" />
+              <span>Support / FAQ</span>
+            </button>
           </nav>
         </div>
 
-        {/* Footer Links */}
+        {/* Footer: User Profile Card & Log Out Button */}
         <div className="cp-sidebar-footer">
-          <a href="/login" onClick={handleLogout} className="cp-nav-item" style={{ padding: '8px 0', textDecoration: 'none' }}>
+          <div
+            className="cp-sidebar-user-card"
+            onClick={() => handleNavClick('profile')}
+            title="Manage Profile Settings"
+          >
+            <div className="cp-sidebar-user-avatar">
+              <img
+                src={getAccountAvatar()}
+                alt=""
+                onError={(e) => { e.currentTarget.src = DEFAULT_CARTOON_AVATAR; }}
+              />
+            </div>
+            <div className="cp-sidebar-user-info">
+              <span className="cp-sidebar-user-name">
+                {clientProfile?.username || clientProfile?.full_name || currentUser?.email?.split('@')[0] || 'Client'}
+              </span>
+              <span className="cp-sidebar-user-email">
+                {clientProfile?.email || currentUser?.email || ''}
+              </span>
+            </div>
+            <ChevronRight className="cp-sidebar-user-arrow h-4 w-4" />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="cp-sidebar-logout-btn"
+            title="Log Out"
+          >
             <LogOut className="h-4 w-4 shrink-0" />
-            <span>Logout</span>
-          </a>
+            <span>Log Out</span>
+          </button>
         </div>
       </aside>
 
@@ -951,8 +1199,9 @@ export default function ClientDashboard() {
           <div className="cp-topbar-left">
             <button
               className="cp-hamburger-btn"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={toggleSidebarCollapse}
               aria-label="Toggle navigation"
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Minimize sidebar'}
             >
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -960,6 +1209,20 @@ export default function ClientDashboard() {
           </div>
 
           <div className="cp-topbar-actions">
+            {/* WhatsApp Contact Us Button */}
+            <a
+              href="https://wa.me/918985351756?text=Hi%20MotionNodeEdits,%20I%20have%20a%20question%20regarding%20my%20dashboard%20project"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cp-topbar-wp-btn"
+              title="Contact us on WhatsApp"
+            >
+              <svg className="cp-topbar-wp-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.06-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+              </svg>
+              <span>Contact us WP</span>
+            </a>
+
             <div className="notif-wrapper" ref={notifRef}>
               <button
                 className={`cp-icon-btn ${notifOpen ? 'active' : ''}`}
@@ -1051,7 +1314,7 @@ export default function ClientDashboard() {
                   justifyContent: 'center',
                   cursor: 'pointer',
                   overflow: 'hidden',
-                  border: profileMenuOpen ? '2px solid #3B82F6' : '1px solid rgba(255, 255, 255, 0.15)',
+                  border: profileMenuOpen ? '2px solid #FFFFFF' : '1px solid rgba(255, 255, 255, 0.15)',
                   padding: 0,
                   transition: 'all 0.15s ease'
                 }}
@@ -1061,11 +1324,12 @@ export default function ClientDashboard() {
                 }}
                 aria-label="User profile menu"
               >
-                {clientProfile?.avatar_url ? (
-                  <img src={clientProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <User className="h-4 w-4 text-white/80" />
-                )}
+                <img
+                  src={getAccountAvatar()}
+                  alt=""
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(e) => { e.currentTarget.src = DEFAULT_CARTOON_AVATAR; }}
+                />
               </button>
 
               {profileMenuOpen && (
@@ -1073,18 +1337,19 @@ export default function ClientDashboard() {
                   {/* Top card with user details */}
                   <div className="cp-dropdown-header">
                     <div className="cp-dropdown-avatar">
-                      {clientProfile?.avatar_url ? (
-                        <img src={clientProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      ) : (
-                        <User className="h-5 w-5 text-white/80" />
-                      )}
+                      <img
+                        src={getAccountAvatar()}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => { e.currentTarget.src = DEFAULT_CARTOON_AVATAR; }}
+                      />
                     </div>
                     <div className="cp-dropdown-info">
                       <div className="cp-dropdown-name-row">
                         <span className="cp-dropdown-name">
                           {clientProfile?.full_name || currentUser?.user_metadata?.full_name || 'Client User'}
                         </span>
-                        <CheckCircle2 className="h-3.5 w-3.5 text-blue-400 flex-shrink-0" title="Verified Client" />
+                        <CheckCircle2 className="h-3.5 w-3.5 text-white/70 flex-shrink-0" title="Verified Client" />
                       </div>
                       <span className="cp-dropdown-email">
                         {clientProfile?.company_name || currentUser?.email || 'MotionNode Client'}
@@ -1157,6 +1422,20 @@ export default function ClientDashboard() {
                       <div className="cp-dropdown-btn-left">
                         <User className="h-4 w-4 text-white/70" />
                         <span>Profile & Security</span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`cp-dropdown-btn ${activeNav === 'faq' ? 'active' : ''}`}
+                      onClick={() => {
+                        handleNavClick('faq');
+                        setProfileMenuOpen(false);
+                      }}
+                    >
+                      <div className="cp-dropdown-btn-left">
+                        <Headphones className="h-4 w-4 text-white/70" />
+                        <span>Support / FAQ</span>
                       </div>
                     </button>
 
@@ -2087,244 +2366,328 @@ export default function ClientDashboard() {
                   </div>
 
                   <div className="cp-profile-layout">
-                    {/* Left: Original Profile Card (Preserved 100%) */}
-                    <div className="cp-profile-card">
-                      <div className="cp-avatar-wrap" style={{ background: '#181824', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {clientProfile?.avatar_url ? (
+                    {/* Left Column: Summary Card & Navigation Tabs */}
+                    <div className="cp-profile-left-col">
+                      {/* Top Card: Account Profile Settings Summary */}
+                      <div className="cp-profile-summary-card">
+                        <div className="cp-avatar-wrap">
                           <img
-                            src={clientProfile.avatar_url}
+                            src={getAccountAvatar()}
                             alt={clientProfile?.full_name || 'Client'}
                             className="cp-avatar-img"
+                            onError={(e) => { e.currentTarget.src = DEFAULT_CARTOON_AVATAR; }}
                           />
-                        ) : (
-                          <div style={{
-                            width: '100%',
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'linear-gradient(135deg, #1A1A24 0%, #252536 100%)',
-                          }}>
-                            <User className="h-8 w-8 text-white/70" />
-                          </div>
-                        )}
-                        <span className="cp-status-dot-avatar" />
-                      </div>
+                        </div>
 
-                      <div>
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#FFFFFF' }}>
-                          {clientProfile?.full_name || currentUser?.email}
-                        </h3>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--cp-text-secondary)', marginTop: '2px' }}>
-                          {clientProfile?.email || currentUser?.email}
-                        </p>
-                        {clientProfile?.company_name && (
-                          <p style={{ fontSize: '0.78rem', color: '#60A5FA', marginTop: '2px', fontWeight: 600 }}>
-                            Company: {clientProfile.company_name}
+                        <div>
+                          <span className="cp-profile-card-label">ACCOUNT</span>
+                          <h2 className="cp-profile-card-title">Profile Settings</h2>
+                          <p className="cp-profile-card-desc">
+                            Update your account details, change your password, and manage account security.
                           </p>
-                        )}
+                        </div>
                       </div>
 
-                      <span className="cp-badge-pill" style={{ fontSize: '0.65rem', letterSpacing: '0.06em', fontWeight: 700 }}>
-                        ● CLIENT ACCOUNT
-                      </span>
+                      {/* Bottom Card: Navigation Menu */}
+                      <div className="cp-profile-subnav-card">
+                        <button
+                          type="button"
+                          className={`cp-profile-subnav-btn ${profileSubTab === 'profile' ? 'active' : ''}`}
+                          onClick={() => setProfileSubTab('profile')}
+                        >
+                          <User className="h-4 w-4" />
+                          <span>Profile</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`cp-profile-subnav-btn ${profileSubTab === 'password' ? 'active' : ''}`}
+                          onClick={() => setProfileSubTab('password')}
+                        >
+                          <Eye className="h-4 w-4" />
+                          <span>Change Password</span>
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Right: Profile Details & Password Management Forms */}
-                    <div className="cp-profile-forms-col">
-                      {/* CARD 1: Personal / Profile Details */}
-                      <form onSubmit={handleUpdateProfile} className="cp-card" style={{ gap: '16px', minHeight: 'auto' }}>
-                        <div>
-                          <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>Personal Information</h2>
-                          <p className="cp-subtext" style={{ fontSize: '0.78rem', marginTop: '4px' }}>
-                            Update your display name and contact details.
-                          </p>
-                        </div>
-
-                        <div className="cp-form-group">
-                          <label className="cp-form-label">Full Name</label>
-                          <input
-                            type="text"
-                            value={profileForm.full_name}
-                            onChange={(e) => setProfileForm(p => ({ ...p, full_name: e.target.value }))}
-                            placeholder="Your full name"
-                            className="cp-form-input"
-                            required
-                          />
-                        </div>
-
-                        <div className="cp-form-group">
-                          <label className="cp-form-label">Email Address</label>
-                          <div className="cp-form-input-wrap">
-                            <input
-                              type="email"
-                              value={clientProfile?.email || currentUser?.email || ''}
-                              disabled
-                              className="cp-form-input"
-                              style={{ paddingRight: '36px' }}
-                            />
-                            <Lock className="h-4 w-4" style={{ position: 'absolute', right: '12px', color: 'var(--cp-text-tertiary)' }} />
-                          </div>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--cp-text-tertiary)' }}>
-                            Email is linked to your login and cannot be modified directly.
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-                          <div className="cp-form-group">
-                            <label className="cp-form-label">Company / Brand</label>
-                            <input
-                              type="text"
-                              value={profileForm.company_name}
-                              onChange={(e) => setProfileForm(p => ({ ...p, company_name: e.target.value }))}
-                              placeholder="e.g. Acme Media"
-                              className="cp-form-input"
-                            />
-                          </div>
-
-                          <div className="cp-form-group">
-                            <label className="cp-form-label">Phone Number</label>
-                            <input
-                              type="tel"
-                              value={profileForm.phone}
-                              onChange={(e) => setProfileForm(p => ({ ...p, phone: e.target.value }))}
-                              placeholder="e.g. +1 (555) 019-2834"
-                              className="cp-form-input"
-                            />
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
-                          <button
-                            type="submit"
-                            disabled={isSavingProfile || !hasProfileChanges}
-                            className="cp-btn-solid"
-                            style={{
-                              opacity: (isSavingProfile || !hasProfileChanges) ? 0.45 : 1,
-                              cursor: (isSavingProfile || !hasProfileChanges) ? 'not-allowed' : 'pointer',
-                            }}
-                          >
-                            {isSavingProfile ? 'Saving...' : 'Save Profile Changes'}
-                          </button>
-                        </div>
-                      </form>
-
-                      {/* CARD 2: Password & Security */}
-                      <div className="cp-card" style={{ gap: '16px', minHeight: 'auto' }}>
-                        <div>
-                          <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>Security & Password</h2>
-                          <p className="cp-subtext" style={{ fontSize: '0.78rem', marginTop: '4px' }}>
-                            Keep your account safe by setting a strong password.
-                          </p>
-                        </div>
-
-                        {isGoogleUser(currentUser) ? (
-                          <div style={{ background: '#15151C', border: '1px solid var(--cp-border)', borderRadius: '10px', padding: '16px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                            <ShieldCheck className="h-5 w-5 shrink-0" style={{ color: '#60A5FA', marginTop: '2px' }} />
-                            <div>
-                              <p style={{ fontSize: '0.84rem', fontWeight: 600, color: '#FFFFFF', margin: 0 }}>
-                                Signed in with Google
-                              </p>
-                              <p style={{ fontSize: '0.78rem', color: 'var(--cp-text-secondary)', marginTop: '4px', lineHeight: 1.4 }}>
-                                Your account is authenticated securely via Google OAuth. To update your password or login security, manage your settings directly in your Google Account.
+                    {/* Right Column: Active Tab Content */}
+                    <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                      <div className="cp-profile-main-card">
+                        {profileSubTab === 'profile' ? (
+                          /* TAB 1: Personal Information */
+                          <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                            <div className="cp-profile-main-header">
+                              <span className="cp-profile-tag">PROFILE</span>
+                              <h2 className="cp-profile-main-title">Personal Information</h2>
+                              <p className="cp-profile-main-subtext">
+                                Keep your account details up to date so support and service access stay aligned.
                               </p>
                             </div>
-                          </div>
-                        ) : (
-                          <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
                             <div className="cp-form-group">
-                              <label className="cp-form-label">Current Password</label>
+                              <label className="cp-form-label">
+                                <span className="cp-form-required">*</span> Username
+                              </label>
+                              <input
+                                type="text"
+                                value={profileForm.username}
+                                onChange={(e) => setProfileForm(p => ({ ...p, username: e.target.value }))}
+                                placeholder="Username"
+                                className="cp-form-input"
+                                required
+                              />
+                            </div>
+
+                            <div className="cp-form-group">
+                              <label className="cp-form-label">
+                                <span className="cp-form-required">*</span> Email
+                              </label>
                               <div className="cp-form-input-wrap">
                                 <input
-                                  type={showCurrentPassword ? 'text' : 'password'}
-                                  value={passwordForm.currentPassword}
-                                  onChange={(e) => setPasswordForm(p => ({ ...p, currentPassword: e.target.value }))}
-                                  placeholder="Enter your current password"
+                                  type="email"
+                                  value={clientProfile?.email || currentUser?.email || ''}
+                                  disabled
                                   className="cp-form-input"
-                                  style={{ paddingRight: '40px' }}
-                                  required
+                                  style={{ paddingRight: '36px' }}
                                 />
-                                <button
-                                  type="button"
-                                  className="cp-input-eye-btn"
-                                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                                  tabIndex={-1}
-                                  aria-label="Toggle current password visibility"
-                                >
-                                  {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                </button>
+                                <Lock className="h-4 w-4" style={{ position: 'absolute', right: '12px', color: 'var(--cp-text-tertiary)' }} />
                               </div>
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
                               <div className="cp-form-group">
-                                <label className="cp-form-label">New Password</label>
-                                <div className="cp-form-input-wrap">
-                                  <input
-                                    type={showNewPassword ? 'text' : 'password'}
-                                    value={passwordForm.newPassword}
-                                    onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
-                                    placeholder="At least 6 characters"
-                                    className="cp-form-input"
-                                    style={{ paddingRight: '40px' }}
-                                    required
-                                  />
-                                  <button
-                                    type="button"
-                                    className="cp-input-eye-btn"
-                                    onClick={() => setShowNewPassword(!showNewPassword)}
-                                    tabIndex={-1}
-                                    aria-label="Toggle new password visibility"
-                                  >
-                                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                  </button>
-                                </div>
+                                <label className="cp-form-label">Full Name</label>
+                                <input
+                                  type="text"
+                                  value={profileForm.full_name}
+                                  onChange={(e) => setProfileForm(p => ({ ...p, full_name: e.target.value }))}
+                                  placeholder="Your full name"
+                                  className="cp-form-input"
+                                />
                               </div>
 
                               <div className="cp-form-group">
-                                <label className="cp-form-label">Confirm New Password</label>
-                                <div className="cp-form-input-wrap">
-                                  <input
-                                    type={showConfirmPassword ? 'text' : 'password'}
-                                    value={passwordForm.confirmPassword}
-                                    onChange={(e) => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
-                                    placeholder="Re-enter new password"
-                                    className="cp-form-input"
-                                    style={{ paddingRight: '40px' }}
-                                    required
-                                  />
-                                  <button
-                                    type="button"
-                                    className="cp-input-eye-btn"
-                                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                    tabIndex={-1}
-                                    aria-label="Toggle confirm password visibility"
-                                  >
-                                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                  </button>
-                                </div>
+                                <label className="cp-form-label">Company / Brand</label>
+                                <input
+                                  type="text"
+                                  value={profileForm.company_name}
+                                  onChange={(e) => setProfileForm(p => ({ ...p, company_name: e.target.value }))}
+                                  placeholder="e.g. Acme Media"
+                                  className="cp-form-input"
+                                />
                               </div>
                             </div>
 
-                            <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
-                              <button
-                                type="submit"
-                                disabled={isChangingPassword || !hasPasswordChanges}
-                                className="cp-btn-solid"
-                                style={{
-                                  opacity: (isChangingPassword || !hasPasswordChanges) ? 0.45 : 1,
-                                  cursor: (isChangingPassword || !hasPasswordChanges) ? 'not-allowed' : 'pointer',
-                                }}
-                              >
-                                {isChangingPassword ? 'Updating Password...' : 'Update Password'}
-                              </button>
+                            <div className="cp-form-group">
+                              <label className="cp-form-label">Phone Number</label>
+                              <input
+                                type="tel"
+                                value={profileForm.phone}
+                                onChange={(e) => setProfileForm(p => ({ ...p, phone: e.target.value }))}
+                                placeholder="e.g. +1 (555) 019-2834"
+                                className="cp-form-input"
+                              />
                             </div>
+
+                            <div className="cp-profile-helper-box">
+                              Your email is used for account recovery, service updates, and support communication.
+                            </div>
+
+                            <button
+                              type="submit"
+                              disabled={isSavingProfile || !hasProfileChanges}
+                              className="cp-btn-primary-action"
+                            >
+                              {isSavingProfile ? 'Saving...' : 'Save Changes'}
+                            </button>
                           </form>
+                        ) : (
+                          /* TAB 2: Change Password */
+                          <div>
+                            <div className="cp-profile-main-header" style={{ marginBottom: '18px' }}>
+                              <span className="cp-profile-tag">SECURITY</span>
+                              <h2 className="cp-profile-main-title">Change Password</h2>
+                              <p className="cp-profile-main-subtext">
+                                Choose a strong password you do not reuse on other services.
+                              </p>
+                            </div>
+
+                            {isGoogleUser(currentUser) ? (
+                              <div style={{ background: 'var(--cp-bg-card-inner)', border: '1px solid var(--cp-border)', borderRadius: '10px', padding: '16px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                <ShieldCheck className="h-5 w-5 shrink-0" style={{ color: '#FFFFFF', marginTop: '2px' }} />
+                                <div>
+                                  <p style={{ fontSize: '0.86rem', fontWeight: 600, color: '#FFFFFF', margin: 0 }}>
+                                    Signed in with Google
+                                  </p>
+                                  <p style={{ fontSize: '0.8rem', color: 'var(--cp-text-secondary)', marginTop: '4px', lineHeight: 1.45 }}>
+                                    Your account is authenticated securely via Google OAuth. To update your password or login security, manage your settings directly in your Google Account.
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                                <div className="cp-form-group">
+                                  <label className="cp-form-label">
+                                    <span className="cp-form-required">*</span> Current Password
+                                  </label>
+                                  <div className="cp-form-input-wrap">
+                                    <input
+                                      type={showCurrentPassword ? 'text' : 'password'}
+                                      value={passwordForm.currentPassword}
+                                      onChange={(e) => setPasswordForm(p => ({ ...p, currentPassword: e.target.value }))}
+                                      placeholder="Current password"
+                                      className="cp-form-input"
+                                      style={{ paddingRight: '40px' }}
+                                      required
+                                    />
+                                    <button
+                                      type="button"
+                                      className="cp-input-eye-btn"
+                                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                                      tabIndex={-1}
+                                      aria-label="Toggle current password visibility"
+                                    >
+                                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="cp-form-group">
+                                  <label className="cp-form-label">
+                                    <span className="cp-form-required">*</span> New Password
+                                  </label>
+                                  <div className="cp-form-input-wrap">
+                                    <input
+                                      type={showNewPassword ? 'text' : 'password'}
+                                      value={passwordForm.newPassword}
+                                      onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
+                                      placeholder="New password"
+                                      className="cp-form-input"
+                                      style={{ paddingRight: '40px' }}
+                                      required
+                                    />
+                                    <button
+                                      type="button"
+                                      className="cp-input-eye-btn"
+                                      onClick={() => setShowNewPassword(!showNewPassword)}
+                                      tabIndex={-1}
+                                      aria-label="Toggle new password visibility"
+                                    >
+                                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="cp-form-group">
+                                  <label className="cp-form-label">
+                                    <span className="cp-form-required">*</span> Confirm Password
+                                  </label>
+                                  <div className="cp-form-input-wrap">
+                                    <input
+                                      type={showConfirmPassword ? 'text' : 'password'}
+                                      value={passwordForm.confirmPassword}
+                                      onChange={(e) => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                                      placeholder="Confirm password"
+                                      className="cp-form-input"
+                                      style={{ paddingRight: '40px' }}
+                                      required
+                                    />
+                                    <button
+                                      type="button"
+                                      className="cp-input-eye-btn"
+                                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                      tabIndex={-1}
+                                      aria-label="Toggle confirm password visibility"
+                                    >
+                                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="cp-profile-helper-box">
+                                  Use at least one unique password for MotionNodeEdits and rotate it if you share device access.
+                                </div>
+
+                                <button
+                                  type="submit"
+                                  disabled={isChangingPassword || !hasPasswordChanges}
+                                  className="cp-btn-primary-action"
+                                >
+                                  {isChangingPassword ? 'Updating Password...' : 'Update Password'}
+                                </button>
+                              </form>
+                            )}
+                          </div>
                         )}
+                      </div>
+
+                      {/* Centered Brand Copyright Footer */}
+                      <div className="cp-profile-footer">
+                        MotionNodeEdits 2026
                       </div>
                     </div>
                   </div>
                 </>
+              )}
+
+              {/* ============================================================== */}
+              {/* VIEW 5: SUPPORT & FREQUENTLY ASKED QUESTIONS                   */}
+              {/* ============================================================== */}
+              {activeNav === 'faq' && (
+                <div className="cp-faq-view">
+                  <div className="cp-faq-header">
+                    <span className="cp-faq-category">HELP</span>
+                    <h1 className="cp-faq-title">Frequently Asked Questions</h1>
+                    <p className="cp-faq-subtitle">
+                      Quick answers for video requests, support flow, and delivery expectations.
+                    </p>
+                  </div>
+
+                  <div className="cp-faq-list">
+                    {CLIENT_FAQS.map((faq, idx) => (
+                      <div key={idx} className="cp-faq-card">
+                        <h3 className="cp-faq-card-title">{faq.q}</h3>
+                        {faq.a && (
+                          <p className="cp-faq-card-body">
+                            {renderFaqTextWithTags(faq.a)}
+                          </p>
+                        )}
+                        {faq.points && faq.points.length > 0 && (
+                          <ul className="cp-faq-bullet-list">
+                            {faq.points.map((pt, pIdx) => (
+                              <li key={pIdx} className="cp-faq-bullet-item">
+                                <span className="cp-faq-bullet-dot" />
+                                <div>{renderFaqTextWithTags(pt)}</div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {faq.actions && faq.actions.length > 0 && (
+                          <div className="cp-faq-actions-row">
+                            {faq.actions.map((act, aIdx) => (
+                              <a
+                                key={aIdx}
+                                href={act.href}
+                                target={act.external ? '_blank' : '_self'}
+                                rel={act.external ? 'noopener noreferrer' : undefined}
+                                className={`cp-faq-action-btn ${act.primary ? 'primary' : ''}`}
+                              >
+                                {act.type === 'whatsapp' && <MessageSquare className="h-3.5 w-3.5" />}
+                                {act.type === 'email' && <Mail className="h-3.5 w-3.5" />}
+                                {act.type === 'feedback' && <Send className="h-3.5 w-3.5" />}
+                                <span>{act.label}</span>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Centered Brand Copyright Footer */}
+                  <div className="cp-profile-footer">
+                    MotionNodeEdits 2026
+                  </div>
+                </div>
               )}
             </>
           )}

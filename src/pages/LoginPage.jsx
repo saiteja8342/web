@@ -204,6 +204,9 @@ export default function LoginPage() {
           console.warn('[Signup] Admin validation check:', err);
         }
 
+        const signupUsername = formData.fullName.toLowerCase().replace(/\s+/g, '') || signupEmail.split('@')[0];
+        const randomAvatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=male-${encodeURIComponent(signupUsername)}&hair=short01,short02,short03,short04,short05,short06,short07,short08,short09,short10,short11,short12,short13,short14,short15,short16&hairColor=0e0e0e,2c1b18,4a312c,6a4e42,85461e&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -211,6 +214,8 @@ export default function LoginPage() {
             data: {
               full_name: formData.fullName,
               role: 'client',
+              username: signupUsername,
+              avatar_url: randomAvatar,
             },
           },
         });
@@ -257,11 +262,14 @@ export default function LoginPage() {
         // Direct profile provisioning with approved status so user can enter client dashboard directly
         if (data?.user?.id) {
           try {
+            const signupUsername = formData.fullName.toLowerCase().replace(/\s+/g, '') || signupEmail.split('@')[0];
+            const randomAvatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=male-${encodeURIComponent(signupUsername)}&hair=short01,short02,short03,short04,short05,short06,short07,short08,short09,short10,short11,short12,short13,short14,short15,short16&hairColor=0e0e0e,2c1b18,4a312c,6a4e42,85461e&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
             await supabase.from('profiles').upsert({
               id: data.user.id,
               full_name: formData.fullName,
               email: formData.email,
-              username: formData.fullName.toLowerCase().replace(/\s+/g, '') || signupEmail.split('@')[0],
+              username: signupUsername,
+              avatar_url: randomAvatar,
             });
           } catch (pErr) {
             console.warn('Profile direct provision:', pErr);

@@ -41,13 +41,17 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
       } else {
         // Auto-provision client profile for authenticated user so they can enter immediately
         const meta = session.user.user_metadata || {};
+        const fallbackUsername = meta.username || (session.user.email ? session.user.email.split('@')[0] : 'user');
+        const defaultMaleAvatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=male-${encodeURIComponent(fallbackUsername)}&hair=short01,short02,short03,short04,short05,short06,short07,short08,short09,short10,short11,short12,short13,short14,short15,short16&hairColor=0e0e0e,2c1b18,4a312c,6a4e42,85461e&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+        const fallbackAvatar = (meta.avatar_url && (!meta.avatar_url.includes('dicebear.com') || meta.avatar_url.includes('hair=short'))) ? meta.avatar_url : (meta.picture || defaultMaleAvatar);
         profile = {
           id: session.user.id,
           email: session.user.email,
           full_name: meta.full_name || meta.name || (session.user.email ? session.user.email.split('@')[0] : 'User'),
           role: 'client',
           status: 'approved',
-          username: meta.username || (session.user.email ? session.user.email.split('@')[0] : 'user'),
+          username: fallbackUsername,
+          avatar_url: fallbackAvatar,
         };
         // Persist to profiles table in background
         try {
@@ -81,6 +85,9 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
 
         // Synchronize basic profile info to database in the background
         try {
+          const fallbackUsername = profile.username || session.user.user_metadata?.username || (session.user.email ? session.user.email.split('@')[0] : 'user');
+          const defaultMaleAvatar = `https://api.dicebear.com/7.x/adventurer/svg?seed=male-${encodeURIComponent(fallbackUsername)}&hair=short01,short02,short03,short04,short05,short06,short07,short08,short09,short10,short11,short12,short13,short14,short15,short16&hairColor=0e0e0e,2c1b18,4a312c,6a4e42,85461e&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+          const fallbackAvatar = (profile.avatar_url && (!profile.avatar_url.includes('dicebear.com') || profile.avatar_url.includes('hair=short'))) ? profile.avatar_url : defaultMaleAvatar;
           // SECURITY FIX: Prevent client code from setting role or status directly in database
           supabase
             .from('profiles')
@@ -88,7 +95,8 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
               id: session.user.id,
               full_name: profile.full_name || session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'Client',
               email: session.user.email,
-              avatar_url: profile.avatar_url || session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || null,
+              username: fallbackUsername,
+              avatar_url: fallbackAvatar,
             })
             .then(() => {})
             .catch((uErr) => console.warn('[AuthGuard] Client profile sync notice:', uErr));
