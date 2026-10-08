@@ -36,7 +36,7 @@ export function parseYouTubeInput(input, preferredAspectRatio = null) {
   }
 
   // 2. YouTube Shorts (https://www.youtube.com/shorts/VIDEO_ID)
-  const shortsMatch = trimmed.match(/(?:youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/i);
+  const shortsMatch = trimmed.match(/(?:(?:www\.|m\.)?youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/i);
   if (shortsMatch) {
     videoId = shortsMatch[1];
     if (!detectedAspectRatio) detectedAspectRatio = '9/16';
@@ -44,7 +44,7 @@ export function parseYouTubeInput(input, preferredAspectRatio = null) {
 
   // 3. YouTube Embed URL (https://www.youtube.com/embed/VIDEO_ID)
   if (!videoId) {
-    const embedMatch = trimmed.match(/(?:youtube(?:-nocookie)?\.com\/embed\/)([a-zA-Z0-9_-]{11})/i);
+    const embedMatch = trimmed.match(/(?:(?:www\.|m\.)?youtube(?:-nocookie)?\.com\/embed\/)([a-zA-Z0-9_-]{11})/i);
     if (embedMatch) {
       videoId = embedMatch[1];
     }
@@ -52,7 +52,7 @@ export function parseYouTubeInput(input, preferredAspectRatio = null) {
 
   // 4. Standard watch URL (https://www.youtube.com/watch?v=VIDEO_ID)
   if (!videoId) {
-    const watchMatch = trimmed.match(/(?:youtube\.com\/watch\?.*v=)([a-zA-Z0-9_-]{11})/i);
+    const watchMatch = trimmed.match(/(?:(?:www\.|m\.)?youtube\.com\/watch\?.*?v=)([a-zA-Z0-9_-]{11})/i);
     if (watchMatch) {
       videoId = watchMatch[1];
     }

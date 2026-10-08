@@ -573,7 +573,7 @@ export default function PrivacyPolicyPage() {
       <CustomCursor />
       <Navbar />
 
-      <main className="privacy-page-wrapper">
+      <main id="main" className="privacy-page-wrapper">
         <div className="about-container privacy-container">
           
           {/* HEADER HERO */}

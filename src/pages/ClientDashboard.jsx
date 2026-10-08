@@ -30,15 +30,21 @@ import {
   MessageSquare
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
+
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { isGoogleUser } from '../lib/auth/authUtils';
 import { getClientOrders, formatOrderCode, STATUS_MAP, VIDEO_TYPE_MAP } from '../lib/db/orders';
 import { getProfile, updateProfile } from '../lib/db/profiles';
-import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
+import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, notifyAdmins, formatNotificationTime } from '../lib/db/notifications';
 import { submitRevisionRequest, getOrderRevisions } from '../lib/db/revisions';
 import { submitOrderRating, stripTestimonialTag, parseIsTestimonial } from '../lib/db/ratings';
 import { subscribeToOrders, subscribeToUserNotifications, unsubscribeChannel } from '../lib/supabase/realtime';
+import ClientOverview from '../components/Client/ClientOverview';
+import ClientActiveProjects from '../components/Client/ClientActiveProjects';
+import ClientProjectHistory from '../components/Client/ClientProjectHistory';
+import ClientProfileSettings from '../components/Client/ClientProfileSettings';
+import ClientFAQ from '../components/Client/ClientFAQ';
 import './client.css';
 
 const getStatusColor = (status) => {
@@ -77,111 +83,8 @@ const safeOpenUrl = (url) => {
 // Fallback male cartoon avatar SVG data URI (short dark hair, handsome smile, stylish shirt)
 const DEFAULT_CARTOON_AVATAR = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="%23B6E3F4"/><circle cx="50" cy="48" r="22" fill="%23FFD8B3"/><path d="M28 42 C28 20 72 20 72 42 C68 32 60 26 50 26 C40 26 32 32 28 42 Z" fill="%232C1B18"/><circle cx="43" cy="48" r="2.5" fill="%231E1E28"/><circle cx="57" cy="48" r="2.5" fill="%231E1E28"/><path d="M44 56 Q50 62 56 56" stroke="%231E1E28" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M24 88 C24 72 38 68 50 68 C62 68 76 72 76 88 Z" fill="%232563EB"/><polygon points="46,68 54,68 50,75" fill="%23FFFFFF"/></svg>`;
 
-// Parses markdown-style inline backticks (`tag`) into sleek badge tags
-const renderFaqTextWithTags = (text) => {
-  if (!text || typeof text !== 'string') return text;
-  const parts = text.split(/(`[^`]+`)/g);
-  return parts.map((part, index) => {
-    if (part.startsWith('`') && part.endsWith('`')) {
-      return (
-        <span key={index} className="cp-faq-code-tag">
-          {part.slice(1, -1)}
-        </span>
-      );
-    }
-    return part;
-  });
-};
 
-// Website FAQs knowledge base adapted directly from AboutFAQ and client workflow
-const CLIENT_FAQS = [
-  {
-    q: 'How do I request video edits or new projects?',
-    a: 'You can request video production and creative edits directly through your workspace:',
-    points: [
-      'Open the `Current Projects` section or message your dedicated producer from the sidebar.',
-      'Choose the service category (`AI Commercials`, `Talking Avatars`, `3D Showcase`, or `Social Retainers`) and paste your footage or asset link.',
-      'Submit the brief and track real-time milestone rendering and progress updates directly from the dashboard.'
-    ]
-  },
-  {
-    q: 'How will I receive my video deliverables?',
-    a: 'Finished deliverables are rendered and provided in full 4K master resolution through your preferred channel:',
-    points: [
-      '`Dashboard`: Direct high-speed 4K master downloads available immediately inside your Project History and Current Projects tabs.',
-      '`Cloud Folder`: Full uncompressed project deliverables synced directly to your dedicated Google Drive or Frame.io project folder.',
-      '`WhatsApp & Email`: Instant rendering completion alerts and direct preview links delivered straight to your inbox and phone.'
-    ]
-  },
-  {
-    q: 'What should I include in a video brief or revision ticket?',
-    a: 'Add the exact footage or asset link, target platform (`Meta Ads`, `TikTok`, `YouTube 4K`, `LinkedIn`), aspect ratio (`9:16` or `16:9`), and any extra timestamped instructions that help our editors deliver the correct cut without back-and-forth.'
-  },
-  {
-    q: 'Which package is best for me?',
-    a: 'We offer flexible production tiers customized for your specific brand objectives — including High-Converting AI Commercial Ads, AI Talking Avatar Videos, 3D Product Showcases, and Ongoing Monthly Social Media Retainers. If you are unsure, reach out for a consultation and we will tailor the optimal workflow for your goals.'
-  },
-  {
-    q: 'Why should we choose your service?',
-    a: 'MotionNodeEdits bridges state-of-the-art generative AI technologies with high-end cinema-grade post-production, sound engineering, color grading, and editorial direction. You receive studio-quality commercial video assets delivered 10x faster and at a fraction of traditional production budgets.'
-  },
-  {
-    q: 'How long does the video process take?',
-    a: 'Standard AI commercial ads, short-form reels, and talking avatar videos are typically delivered within 48 to 72 hours. Comprehensive campaigns, custom 3D animations, and cinematic brand films take 5 to 7 business days. Rush delivery is always available upon request.'
-  },
-  {
-    q: 'How can I send big files and footage to you?',
-    a: 'You can easily share your brand assets, logo vectors, product guidelines, and footage through Google Drive, Dropbox, WeTransfer, or Frame.io. Upon project initiation, we set up a dedicated cloud folder for seamless asset management.'
-  },
-  {
-    q: "What if I don't like my video and how do revisions work?",
-    a: 'Every project includes dedicated revision rounds with zero friction. You can leave precise timestamped notes right on your project preview card, and our creative team will refine the visuals, pacing, audio, color grading, and animations until the video perfectly aligns with your creative vision.'
-  },
-  {
-    q: 'Can you create videos completely from just an idea?',
-    a: 'Yes! You only need to share your vision, product link, or campaign goal. We manage the entire end-to-end creative workflow: scriptwriting, storyboard generation, generative AI asset creation, voice synthesis, sound design, and final 4K master delivery.'
-  },
-  {
-    q: 'Can I cancel at any time?',
-    a: 'Yes, absolutely. For our monthly retainer workflows, there are no lock-in contracts or long-term obligations—you can pause or cancel anytime with zero friction. For one-off custom projects, payments are transparently structured on milestone deliverables.'
-  },
-  {
-    q: "I have a big project and it's a bit complex.",
-    a: 'We specialize in complex, high-scale productions. Whether you need multi-lingual AI localization in 30+ languages, custom digital twin avatars, full 3D environment generation, or 50+ ad variations per month, we build a dedicated workflow and assign specialized editors to your brand.'
-  },
-  {
-    q: 'Need more help?',
-    a: 'If the dashboard does not cover your issue, our dedicated client success team is available 24/7 to assist with active projects, revisions, or emergency delivery requests:',
-    points: [
-      '`Email`: hello@motionnodeedits.com (Average response time under 2 hours)',
-      '`WhatsApp`: +91 89853 51756 for direct producer messaging and urgent delivery requests',
-      '`Feedback Portal`: Submit client suggestions, feature requests, or report issues directly'
-    ],
-    actions: [
-      {
-        label: 'WhatsApp Support',
-        href: 'https://wa.me/918985351756?text=Hi%20MotionNodeEdits,%20I%20have%20a%20support%20question%20regarding%20my%20dashboard%20project',
-        external: true,
-        primary: true,
-        type: 'whatsapp'
-      },
-      {
-        label: 'Email Support',
-        href: 'mailto:hello@motionnodeedits.com?subject=Client%20Support%20Request%20-%20MotionNodeEdits',
-        external: false,
-        primary: false,
-        type: 'email'
-      },
-      {
-        label: 'Feedback Channel',
-        href: '/feedback',
-        external: false,
-        primary: false,
-        type: 'feedback'
-      }
-    ]
-  }
-];
+
 
 export default function ClientDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -356,6 +259,8 @@ export default function ClientDashboard() {
 
   const handleLogout = async (e) => {
     if (e) e.preventDefault();
+    const confirmed = window.confirm('Are you sure you want to sign out of this account?');
+    if (!confirmed) return;
     await supabase.auth.signOut();
     window.location.href = '/login';
   };
@@ -425,7 +330,7 @@ export default function ClientDashboard() {
       // 3. Update local state
       setClientProfile(prev => ({
         ...prev,
-        ...(updatedProfile || {}),
+        ...updatedProfile,
         username: trimmedUsername || prev?.username,
         full_name: trimmedName || prev?.full_name,
         company_name: trimmedCompany,
@@ -678,27 +583,41 @@ export default function ClientDashboard() {
     showToast('All notifications marked as read.');
   };
 
-  const handleAddNote = async (e) => {
-    e.preventDefault();
-    if (!newNote.trim()) return;
+  const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
+
+  const handleRequestRevisionWithTimestamp = async (noteContent) => {
+    const textToSubmit = (typeof noteContent === 'string' ? noteContent : newNote) || '';
+    if (!textToSubmit.trim()) return;
     if (!activeOrder) {
       showToast('No active project to send note for.');
       return;
     }
 
-    const { error } = await submitRevisionRequest(activeOrder.id, currentUser.id, newNote);
+    setIsSubmittingRevision(true);
+    const { error } = await submitRevisionRequest(activeOrder.id, currentUser.id, textToSubmit);
+    setIsSubmittingRevision(false);
     if (error) {
       showToast('Error sending revision note: ' + error.message);
       return;
     }
 
     // Notify admin
-    if (activeOrder.admin_id) {
-      await sendNotification(
-        activeOrder.admin_id,
+    try {
+      await notifyAdmins(
         `Revision Requested: ${activeOrder.order_name}`,
-        `${clientProfile?.full_name || 'Client'} requested revision on "${activeOrder.order_name}": "${newNote.slice(0, 60)}..."`
+        `${clientProfile?.full_name || 'Client'} requested revision on "${activeOrder.order_name}": "${textToSubmit.slice(0, 80)}..."`
       );
+    } catch (_) {}
+
+    // Notify assigned editor
+    if (activeOrder.editor_id) {
+      try {
+        await sendNotification(
+          activeOrder.editor_id,
+          `Revision Note: ${activeOrder.order_name}`,
+          `Client requested revision on "${activeOrder.order_name}": "${textToSubmit.slice(0, 80)}..."`
+        );
+      } catch (_) {}
     }
 
     setEditorNotes(prev => [
@@ -707,13 +626,18 @@ export default function ClientDashboard() {
         badge: 'REVISION REQUEST',
         time: 'Just now',
         highlight: true,
-        text: newNote,
+        text: textToSubmit,
       },
       ...prev,
     ]);
 
     showToast('Revision request sent to studio admin & editor.');
     setNewNote('');
+  };
+
+  const handleAddNote = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    await handleRequestRevisionWithTimestamp(newNote);
   };
 
   // Reset rating form inputs ONLY when switching to a different project (NOT on polling intervals)
@@ -786,6 +710,24 @@ export default function ClientDashboard() {
         showToast('Thank you! Your review has been sent to our studio admin team.');
       } else {
         showToast('Thank you for rating your project experience!');
+      }
+
+      // Notify Admin and assigned Editor
+      try {
+        await notifyAdmins(
+          `Client Rating: ${ratingStars}★ on ${targetProject.order_name || targetProject.title}`,
+          `${clientProfile?.full_name || 'Client'} gave a ${ratingStars}-star rating${cleanFeedback ? ': "' + cleanFeedback.slice(0, 80) + '..."' : '.'}`
+        );
+      } catch (_) {}
+
+      if (targetProject.editorId && targetProject.editorId !== currentUser.id) {
+        try {
+          await sendNotification(
+            targetProject.editorId,
+            `Client Rated Your Work: ${ratingStars}★!`,
+            `The client rated "${targetProject.order_name || targetProject.title}" with ${ratingStars} stars${cleanFeedback ? ': "' + cleanFeedback.slice(0, 80) + '..."' : '!'}`
+          );
+        } catch (_) {}
       }
 
       // Broadcast cross-tab update for admin panel
@@ -1209,6 +1151,7 @@ export default function ClientDashboard() {
           </div>
 
           <div className="cp-topbar-actions">
+
             {/* WhatsApp Contact Us Button */}
             <a
               href="https://wa.me/918985351756?text=Hi%20MotionNodeEdits,%20I%20have%20a%20question%20regarding%20my%20dashboard%20project"
@@ -1223,81 +1166,6 @@ export default function ClientDashboard() {
               <span>Contact us WP</span>
             </a>
 
-            <div className="notif-wrapper" ref={notifRef}>
-              <button
-                className={`cp-icon-btn ${notifOpen ? 'active' : ''}`}
-                aria-label="Notifications"
-                onClick={() => {
-                  setNotifOpen(!notifOpen);
-                  setProfileMenuOpen(false);
-                }}
-              >
-                <Bell className="h-4 w-4" />
-                {unreadCount > 0 && (
-                  <span style={{ position: 'absolute', top: '2px', right: '2px', width: '6px', height: '6px', borderRadius: '50%', background: '#EF4444' }} />
-                )}
-              </button>
-
-              {notifOpen && (
-                <div className="notif-dropdown">
-                  <div className="notif-header">
-                    <div className="notif-title-wrap">
-                      <span className="notif-title">Notifications</span>
-                      {unreadCount > 0 && (
-                        <span className="notif-count-badge">{unreadCount} New</span>
-                      )}
-                    </div>
-                    {unreadCount > 0 && (
-                      <button className="notif-mark-read-btn" onClick={markAllRead}>
-                        Mark all as read
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="notif-list">
-                    {notifications.length === 0 ? (
-                      <div style={{ padding: '20px', textAlign: 'center', color: 'var(--cp-text-secondary)', fontSize: '0.8rem' }}>
-                        No notifications yet
-                      </div>
-                    ) : (
-                      notifications.map((item) => (
-                        <div
-                          key={item.id}
-                          className={`notif-item ${!item.is_read ? 'unread' : ''}`}
-                          onClick={async () => {
-                            setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, is_read: true } : n));
-                            await markNotificationAsRead(item.id);
-                            setNotifOpen(false);
-                            handleNavClick('current');
-                          }}
-                        >
-                          <div className="notif-icon-circle">
-                            <Bell className="h-3.5 w-3.5 text-blue-400" />
-                          </div>
-                          <div className="notif-content-wrap">
-                            <span className="notif-item-title">{item.title}</span>
-                            <span className="notif-item-time">{formatNotificationTime(item.created_at)}</span>
-                          </div>
-                          {!item.is_read && <span className="notif-unread-dot" />}
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  <div className="notif-footer">
-                    <button
-                      className="notif-footer-btn"
-                      onClick={() => {
-                        setNotifOpen(false);
-                        handleNavClick('current');
-                      }}
-                    >
-                      View Current Production Status →
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
 
             {/* Profile Shortcuts Dropdown */}
             <div className="cp-user-menu-wrapper" ref={profileMenuRef}>
@@ -1478,1216 +1346,104 @@ export default function ClientDashboard() {
               {/* VIEW 1: HOME (Reference Image 1)                               */}
               {/* ============================================================== */}
               {activeNav === 'home' && (
-                <>
-                  <div className="cp-header-block">
-                    <h1 className="cp-title-h1">
-                      Welcome Back{clientProfile?.full_name ? `, ${clientProfile.full_name}` : ''}
-                    </h1>
-                    <p className="cp-subtext">Here is the latest overview of your video productions & orders.</p>
-                  </div>
-
-                  {/* Supabase Orders Section */}
-                  <div style={{ marginBottom: '28px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h2 style={{ fontSize: '1.12rem', fontWeight: 700, color: '#FFFFFF', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Film className="h-4 w-4 text-pink-400" />
-                        <span>Your Orders</span>
-                      </h2>
-                      {!ordersLoading && orders.length > 0 && (
-                        <span className="cp-badge-pill" style={{ fontSize: '0.75rem' }}>
-                          {orders.length} {orders.length === 1 ? 'Order' : 'Orders'}
-                        </span>
-                      )}
-                    </div>
-
-                    {ordersLoading ? (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                        <div className="cp-skeleton" style={{ height: '140px', borderRadius: '12px' }} />
-                        <div className="cp-skeleton" style={{ height: '140px', borderRadius: '12px' }} />
-                      </div>
-                    ) : orders.length === 0 ? (
-                      <div
-                        className="cp-card"
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          textAlign: 'center',
-                          padding: '48px 24px',
-                          border: '1px dashed var(--cp-border)',
-                          background: 'rgba(255, 255, 255, 0.02)',
-                          borderRadius: '12px'
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: '48px',
-                            height: '48px',
-                            borderRadius: '50%',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            marginBottom: '14px'
-                          }}
-                        >
-                          <Film className="h-6 w-6 text-white/40" />
-                        </div>
-                        <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#FFFFFF', marginBottom: '6px' }}>
-                          Welcome! You have no orders yet.
-                        </h3>
-                        <p style={{ fontSize: '0.84rem', color: 'var(--cp-text-secondary)', maxWidth: '420px', lineHeight: 1.5, margin: 0 }}>
-                          When a video production or editing brief is placed, your project milestones and status will appear here in real-time.
-                        </p>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                        {orders.map((order) => (
-                          <div
-                            key={order.id}
-                            className="cp-card"
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              justifyContent: 'space-between',
-                              padding: '20px',
-                              borderRadius: '12px',
-                              border: '1px solid var(--cp-border)',
-                              background: 'var(--cp-bg-card)',
-                              cursor: 'pointer'
-                            }}
-                            onClick={() => {
-                              if (order.status === 'delivered') {
-                                setSelectedHistoryId(order.id);
-                                handleNavClick('history');
-                              } else {
-                                handleNavClick('current');
-                              }
-                            }}
-                          >
-                            <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
-                                <div>
-                                  <span style={{ fontSize: '0.68rem', color: '#93C5FD', fontFamily: 'monospace', letterSpacing: '0.03em', display: 'block', marginBottom: '4px' }}>
-                                    {formatOrderCode(order)}
-                                  </span>
-                                  <h3 style={{ fontSize: '1.02rem', fontWeight: 700, color: '#FFFFFF', margin: 0, lineHeight: 1.3 }}>
-                                    {order.order_name || order.title || 'Untitled Project'}
-                                  </h3>
-                                </div>
-                                <span
-                                  className="cp-badge-pill"
-                                  style={{
-                                    padding: '3px 10px',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 600,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.04em',
-                                    borderRadius: '20px',
-                                    background: getStatusBadgeBg(order.status),
-                                    color: getStatusColor(order.status),
-                                    border: `1px solid ${getStatusBorder(order.status)}`,
-                                    flexShrink: 0
-                                  }}
-                                >
-                                  {STATUS_MAP[order.status]?.label || order.status}
-                                </span>
-                              </div>
-
-                              {order.brief && (
-                                <p style={{ fontSize: '0.82rem', color: 'var(--cp-text-secondary)', lineHeight: 1.5, marginBottom: '16px' }}>
-                                  {order.brief.slice(0, 90)}{order.brief.length > 90 ? '...' : ''}
-                                </p>
-                              )}
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', marginTop: '8px' }}>
-                              <span style={{ fontSize: '0.76rem', color: 'var(--cp-text-secondary)' }}>Delivery Deadline</span>
-                              <span style={{ fontSize: '0.8rem', color: '#FFFFFF', fontWeight: 500 }}>
-                                {order.client_deadline ? new Date(order.client_deadline).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Flexible'}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="cp-home-grid">
-                    {/* 1. Current Project Status Card */}
-                    <div className="cp-card" style={{ cursor: 'pointer' }} onClick={() => handleNavClick('current')}>
-                      <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF' }}>Current Project Status</h3>
-                              {runningOrders.length > 1 && (
-                                <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.2)', color: '#60A5FA', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-                                  {runningOrders.length} Running
-                                </span>
-                              )}
-                            </div>
-                            <p style={{ fontSize: '0.8rem', color: 'var(--cp-text-secondary)', marginTop: '2px' }}>
-                              {activeOrder ? activeOrder.order_name : 'No active project in editing'}
-                            </p>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <span className="cp-badge-pill">
-                              {activeOrder?.client_deadline ? `Due ${new Date(activeOrder.client_deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : 'In Queue'}
-                            </span>
-                            {activeOrder?.editor && (
-                              <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--cp-text-secondary)', marginTop: '4px' }}>
-                                Editor: <strong style={{ color: '#FFFFFF' }}>{activeOrder.editor.full_name}</strong>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Project Switcher Pills when multiple projects are running */}
-                        {runningOrders.length > 1 && (
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '14px', flexWrap: 'wrap' }}>
-                            {runningOrders.map((ord) => {
-                              const isSelected = ord.id === activeOrder?.id;
-                              const ordCode = formatOrderCode(ord);
-                              return (
-                                <button
-                                  key={ord.id}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedActiveOrderId(ord.id);
-                                  }}
-                                  style={{
-                                    padding: '5px 10px',
-                                    borderRadius: '6px',
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    background: isSelected ? '#3B82F6' : 'rgba(255, 255, 255, 0.05)',
-                                    color: isSelected ? '#FFFFFF' : 'var(--cp-text-secondary)',
-                                    border: isSelected ? '1px solid #60A5FA' : '1px solid rgba(255, 255, 255, 0.1)',
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                  }}
-                                >
-                                  <span>{ord.order_name}</span>
-                                  <span style={{ opacity: 0.75, fontFamily: 'monospace', fontSize: '0.65rem' }}>({ordCode})</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* Milestone Stepper */}
-                        <div className="cp-stepper-wrap" style={{ marginTop: '20px' }}>
-                          <div className="cp-stepper-line" />
-                          {[
-                            { key: 'received', label: 'RECEIVED', step: 0 },
-                            { key: 'accepted', label: 'ACCEPTED', step: 1 },
-                            { key: 'in_editing', label: 'IN EDITING', step: 2 },
-                            { key: 'in_review', label: 'IN REVIEW', step: 3 },
-                            { key: 'delivered', label: 'DELIVERED', step: 4 },
-                          ].map((s, idx) => {
-                            const isDone = activeStepIdx > s.step;
-                            const isActive = activeStepIdx === s.step;
-                            const stageDate = getStageDate(s.key, s.step);
-                            return (
-                              <div key={idx} className={`cp-step-item ${isActive ? 'active' : ''}`}>
-                                <div className={`cp-step-circle ${isDone ? 'done' : isActive ? 'active' : ''}`}>
-                                  {isDone ? <Check className="h-2.5 w-2.5" /> : isActive ? '◉' : ''}
-                                </div>
-                                <span className="cp-step-name">{s.label}</span>
-                                <span style={{ fontSize: '0.62rem', color: isDone || isActive ? '#9CA3AF' : 'var(--cp-text-tertiary)', marginTop: '2px' }}>
-                                  {stageDate}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 2. Projects Done With Us Card */}
-                    <div className="cp-card" style={{ alignItems: 'center', textAlign: 'center', cursor: 'pointer' }} onClick={() => handleNavClick('history')}>
-                      <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF', alignSelf: 'flex-start' }}>
-                        Projects Done With Us
-                      </h3>
-
-                      <div className="cp-ring-container">
-                        <div className="cp-ring-outer">
-                          <span className="cp-ring-inner-num">{completedOrders.length}</span>
-                        </div>
-                      </div>
-
-                      <span className="cp-badge-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-                        <span>🏆</span>
-                        <span>{completedOrders.length >= 5 ? 'VIP Client' : 'Valued Client'}</span>
-                      </span>
-                    </div>
-                  </div>
-                </>
+                <ClientOverview
+                  clientProfile={clientProfile}
+                  orders={orders}
+                  ordersLoading={ordersLoading}
+                  formatOrderCode={formatOrderCode}
+                  getStatusBadgeBg={getStatusBadgeBg}
+                  getStatusColor={getStatusColor}
+                  getStatusBorder={getStatusBorder}
+                  STATUS_MAP={STATUS_MAP}
+                  runningOrders={runningOrders}
+                  completedOrders={completedOrders}
+                  activeOrder={activeOrder}
+                  setSelectedActiveOrderId={setSelectedActiveOrderId}
+                  setSelectedHistoryId={setSelectedHistoryId}
+                  handleNavClick={handleNavClick}
+                  activeStepIdx={activeStepIdx}
+                  getStageDate={getStageDate}
+                />
               )}
 
               {/* ============================================================== */}
               {/* VIEW 2: CURRENT PROJECT / ACTIVE PIPELINE                      */}
               {/* ============================================================== */}
               {activeNav === 'current' && (
-                <>
-                  {/* Top Bar when multiple orders are running */}
-                  {runningOrders.length > 1 && (
-                    <div style={{
-                      marginBottom: '24px',
-                      padding: '16px 20px',
-                      background: 'linear-gradient(180deg, rgba(22, 22, 28, 0.9) 0%, rgba(15, 15, 20, 0.98) 100%)',
-                      borderRadius: '12px',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
-                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Film className="h-4 w-4 text-blue-400" />
-                          <span style={{ fontSize: '0.8rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#FFFFFF' }}>
-                            Your Active Projects in Production ({runningOrders.length})
-                          </span>
-                        </div>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--cp-text-secondary)' }}>
-                          Click a project below to switch its milestone view & files
-                        </span>
-                      </div>
-
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                        gap: '12px'
-                      }}>
-                        {runningOrders.map((ord) => {
-                          const isSelected = ord.id === activeOrder?.id;
-                          const sm = STATUS_MAP[ord.status] || STATUS_MAP.received;
-                          const ordCode = formatOrderCode(ord);
-
-                          return (
-                            <div
-                              key={ord.id}
-                              onClick={() => setSelectedActiveOrderId(ord.id)}
-                              style={{
-                                padding: '12px 14px',
-                                borderRadius: '8px',
-                                background: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                                border: isSelected ? '1.5px solid #3B82F6' : '1px solid rgba(255, 255, 255, 0.07)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px',
-                                boxShadow: isSelected ? '0 0 16px rgba(59, 130, 246, 0.2)' : 'none'
-                              }}
-                            >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isSelected ? '#93C5FD' : 'var(--cp-text-secondary)', fontFamily: 'monospace' }}>
-                                  {ordCode}
-                                </span>
-                                <span className="cp-badge-pill" style={{
-                                  fontSize: '0.62rem',
-                                  padding: '2px 8px',
-                                  background: isSelected ? 'rgba(59, 130, 246, 0.25)' : 'rgba(255, 255, 255, 0.06)',
-                                  color: isSelected ? '#93C5FD' : '#9CA3AF'
-                                }}>
-                                  {sm.label}
-                                </span>
-                              </div>
-
-                              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {ord.order_name}
-                              </div>
-
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'var(--cp-text-secondary)', marginTop: '2px' }}>
-                                <span>{VIDEO_TYPE_MAP[ord.video_type] || ord.video_type}</span>
-                                <span style={{ color: isSelected ? '#FCD34D' : 'inherit', fontWeight: isSelected ? 600 : 400 }}>
-                                  {ord.client_deadline ? `Due ${new Date(ord.client_deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : 'In Queue'}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {activeOrder ? (
-                    <>
-                      {/* Header Badges & Project Title */}
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#93C5FD', fontFamily: 'monospace', letterSpacing: '0.04em', background: 'rgba(59, 130, 246, 0.12)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.25)' }}>
-                            {formatOrderCode(activeOrder)}
-                          </span>
-                          <span className="cp-badge-pill" style={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.68rem', fontWeight: 700 }}>
-                            {VIDEO_TYPE_MAP[activeOrder.video_type] || activeOrder.video_type}
-                          </span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--cp-text-secondary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span style={{ color: '#FFFFFF' }}>•</span>
-                            <span>{STATUS_MAP[activeOrder.status]?.label || activeOrder.status}</span>
-                          </span>
-                          <span style={{ fontSize: '0.74rem', color: '#FCD34D', display: 'flex', alignItems: 'center', gap: '5px', marginLeft: '6px', background: 'rgba(245, 158, 11, 0.12)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.25)', fontWeight: 600 }}>
-                            <Calendar className="h-3 w-3" />
-                            <span>Expected Delivery: {getExpectedDeliveryDate(activeOrder)}</span>
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px' }}>
-                          <div>
-                            <h1 className="cp-project-serif-title">{activeOrder.order_name}</h1>
-                            <p style={{ fontSize: '0.86rem', color: 'var(--cp-text-secondary)', maxWidth: '640px', lineHeight: 1.5 }}>
-                              {activeOrder.brief || 'No description provided.'}
-                            </p>
-                          </div>
-
-                          {isDeliverablePermitted && activeOrder.additional_link && (
-                            activeOrderExp.isExpired ? (
-                              <span style={{ fontSize: '0.74rem', color: '#EF4444', background: 'rgba(239, 68, 68, 0.1)', padding: '6px 12px', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                                <Clock className="h-3.5 w-3.5" />
-                                <span>Link Expired</span>
-                              </span>
-                            ) : (
-                              <button
-                                className="cp-btn-outline"
-                                onClick={() => safeOpenUrl(activeOrder.additional_link)}
-                              >
-                                <Download className="h-4 w-4" />
-                                <span>Preview Export ({activeOrderExp.daysRemaining}d left)</span>
-                              </button>
-                            )
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Milestone Stepper Card */}
-                      <div className="cp-card" style={{ padding: '24px 30px' }}>
-                        <div className="cp-stepper-wrap" style={{ padding: '10px 0' }}>
-                          <div className="cp-stepper-line" style={{ top: '22px' }} />
-                          {[
-                            { key: 'received', label: 'RECEIVED', step: 0 },
-                            { key: 'accepted', label: 'ACCEPTED', step: 1 },
-                            { key: 'in_editing', label: 'IN EDITING', step: 2 },
-                            { key: 'in_review', label: 'IN REVIEW', step: 3, icon: Eye },
-                            { key: 'delivered', label: 'DELIVERED', step: 4, icon: Send },
-                          ].map((s, idx) => {
-                            const isDone = activeStepIdx > s.step;
-                            const isActive = activeStepIdx === s.step;
-                            const stageDate = getStageDate(s.key, s.step);
-                            return (
-                              <div key={idx} className={`cp-step-item ${isActive ? 'active' : ''}`}>
-                                <div className={`cp-step-circle ${isDone ? 'done' : isActive ? 'active' : ''}`}>
-                                  {isDone ? (
-                                    <Check className="h-2.5 w-2.5" />
-                                  ) : isActive ? (
-                                    '◉'
-                                  ) : s.icon ? (
-                                    <s.icon className="h-2.5 w-2.5 text-white/40" />
-                                  ) : (
-                                    ''
-                                  )}
-                                </div>
-                                <span className="cp-step-name">{s.label}</span>
-                                <span style={{
-                                  fontSize: '0.65rem',
-                                  color: isDone || isActive ? '#9CA3AF' : 'var(--cp-text-tertiary)',
-                                  letterSpacing: '0.02em',
-                                  marginTop: '3px',
-                                  fontWeight: isDone || isActive ? 500 : 400
-                                }}>
-                                  {stageDate}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* 2-Column Split: Links & Editor Notes */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                        {/* Left: Source Assets & Final Link */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                          {activeOrder.drive_link && (
-                            <div className="cp-link-card" onClick={() => safeOpenUrl(activeOrder.drive_link)}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#181822', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <Film className="h-4 w-4 text-white/80" />
-                                </div>
-                                <div>
-                                  <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#FFFFFF' }}>Raw Footage Source</div>
-                                  <div style={{ fontSize: '0.74rem', color: 'var(--cp-text-secondary)' }}>Google Drive Cloud Assets</div>
-                                </div>
-                              </div>
-                              <ArrowRight className="h-4 w-4 text-white/40" />
-                            </div>
-                          )}
-
-                          {isDeliverablePermitted && activeOrder.additional_link ? (
-                            activeOrderExp.isExpired ? (
-                              <div style={{ padding: '16px 18px', background: '#111118', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Clock className="h-4 w-4 text-red-400" />
-                                  </div>
-                                  <div>
-                                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>Deliverable Link Expired</div>
-                                    <div style={{ fontSize: '0.74rem', color: 'var(--cp-text-secondary)', marginTop: '2px' }}>
-                                      This link expired after 10 days of delivery ({activeOrderExp.expiryDate}). Contact admin if you need files re-uploaded.
-                                    </div>
-                                  </div>
-                                </div>
-                                <span style={{ fontSize: '0.68rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.15)', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 600 }}>
-                                  EXPIRED (10 DAYS)
-                                </span>
-                              </div>
-                            ) : (
-                              <div className="cp-link-card" onClick={() => safeOpenUrl(activeOrder.additional_link)}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#181822', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <ExternalLink className="h-4 w-4 text-white/80" />
-                                  </div>
-                                  <div>
-                                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#FFFFFF' }}>Final Master Export</div>
-                                    <div style={{ fontSize: '0.74rem', color: '#4ADE80' }}>
-                                      Delivered • {activeOrderExp.daysRemaining} days remaining (Expires {activeOrderExp.expiryDate})
-                                    </div>
-                                  </div>
-                                </div>
-                                <ExternalLink className="h-4 w-4 text-white/40" />
-                              </div>
-                            )
-                          ) : activeOrder.additional_link ? (
-                            <div style={{ padding: '14px 16px', background: '#111118', borderRadius: '10px', border: '1px dashed rgba(245, 158, 11, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <Clock className="h-4 w-4 text-amber-400" />
-                                </div>
-                                <div>
-                                  <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>Deliverable in Production Review</div>
-                                  <div style={{ fontSize: '0.74rem', color: 'var(--cp-text-secondary)', marginTop: '2px' }}>
-                                    Your access link will be available after final review
-                                  </div>
-                                </div>
-                              </div>
-                              <span style={{ fontSize: '0.68rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#FCD34D', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
-                                ADMIN REVIEW
-                              </span>
-                            </div>
-                          ) : (
-                            <div style={{ padding: '14px 16px', background: '#111118', borderRadius: '10px', border: '1px dashed var(--cp-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#181824', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                  <Calendar className="h-4 w-4 text-amber-400" />
-                                </div>
-                                <div>
-                                  <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>Final Deliverable</div>
-                                  <div style={{ fontSize: '0.74rem', color: 'var(--cp-text-secondary)', marginTop: '2px' }}>
-                                    Expected Delivery: <strong style={{ color: '#FCD34D' }}>{getExpectedDeliveryDate(activeOrder)}</strong>
-                                  </div>
-                                </div>
-                              </div>
-                              <span style={{ fontSize: '0.68rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#FCD34D', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
-                                IN PROGRESS
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Right: Editor Notes & Revision Feedback */}
-                        <div className="cp-card" style={{ gap: '14px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <StickyNote className="h-4 w-4 text-white/60" />
-                            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#FFFFFF' }}>Revisions & Project Notes</h3>
-                          </div>
-
-                          <div className="cp-notes-feed">
-                            {editorNotes.length === 0 ? (
-                              <div style={{ padding: '16px', textAlign: 'center', color: 'var(--cp-text-secondary)', fontSize: '0.8rem' }}>
-                                No revision notes yet. Use the form below to request a change.
-                              </div>
-                            ) : (
-                              editorNotes.map((note) => (
-                                <div key={note.id} className={`cp-note-bubble ${note.highlight ? 'highlight' : ''}`}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#FFFFFF', letterSpacing: '0.06em' }}>{note.badge}</span>
-                                    <span style={{ fontSize: '0.7rem', color: 'var(--cp-text-tertiary)' }}>{note.time}</span>
-                                  </div>
-                                  <p style={{ fontSize: '0.8rem', color: 'var(--cp-text-secondary)', lineHeight: 1.5, margin: 0 }}>
-                                    {note.text}
-                                  </p>
-                                </div>
-                              ))
-                            )}
-                          </div>
-
-                          <form onSubmit={handleAddNote} className="cp-note-input-row" style={{ marginTop: 'auto' }}>
-                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#262633', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <User className="h-3 w-3 text-white/80" />
-                            </div>
-                            <input
-                              type="text"
-                              placeholder="Request a revision or add notes..."
-                              className="cp-note-input"
-                              value={newNote}
-                              onChange={(e) => setNewNote(e.target.value)}
-                            />
-                            <button type="submit" style={{ background: 'transparent', border: 'none', color: '#60A5FA', cursor: 'pointer' }}>
-                              <Send className="h-3.5 w-3.5" />
-                            </button>
-                          </form>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    completedOrders.length > 0 ? (
-                      <div className="cp-card" style={{ padding: '40px 24px', textAlign: 'center', alignItems: 'center', gap: '16px', background: 'rgba(34, 197, 94, 0.04)', border: '1px solid rgba(34, 197, 94, 0.25)' }}>
-                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(34, 197, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <CheckCircle2 className="h-6 w-6 text-emerald-400" />
-                        </div>
-                        <div>
-                          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
-                            {completedOrders[0].order_name || 'Project'} Delivered!
-                          </h2>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--cp-text-secondary)', maxWidth: '440px', margin: '6px auto 0 auto', lineHeight: 1.5 }}>
-                            Your video project has been completed and delivered. You can access your deliverable links and leave your rating & feedback in Project History.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          className="cp-btn-solid"
-                          style={{ padding: '10px 20px', fontSize: '0.82rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}
-                          onClick={() => {
-                            setSelectedHistoryId(completedOrders[0].id);
-                            handleNavClick('history');
-                          }}
-                        >
-                          <Star className="h-4 w-4 text-amber-400" fill="#F59E0B" />
-                          <span>Leave Feedback & View Deliverable →</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="cp-card" style={{ padding: '60px 20px', textAlign: 'center', alignItems: 'center', gap: '14px' }}>
-                        <Film className="h-10 w-10 text-white/30" />
-                        <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>No Active Project</h2>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--cp-text-secondary)', maxWidth: '420px' }}>
-                          You currently have no project in active production. Contact the admin team to commission your next video.
-                        </p>
-                      </div>
-                    )
-                  )}
-                </>
+                <ClientActiveProjects
+                  runningOrders={runningOrders}
+                  activeOrder={activeOrder}
+                  setSelectedActiveOrderId={setSelectedActiveOrderId}
+                  isDeliverablePermitted={isDeliverablePermitted}
+                  activeOrderExp={activeOrderExp}
+                  editorNotes={editorNotes}
+                  onSendRevisionNote={handleRequestRevisionWithTimestamp}
+                  isSubmittingNote={isSubmittingRevision}
+                  safeOpenUrl={safeOpenUrl}
+                  getExpectedDeliveryDate={getExpectedDeliveryDate}
+                  STATUS_MAP={STATUS_MAP}
+                  formatOrderCode={formatOrderCode}
+                />
               )}
 
               {/* ============================================================== */}
               {/* VIEW 3: PROJECT HISTORY (Reference Image 4)                    */}
               {/* ============================================================== */}
               {activeNav === 'history' && (
-                <>
-                  <div className="cp-header-block">
-                    <h1 className="cp-title-h1">Project History</h1>
-                  </div>
-
-                  {historyProjects.length === 0 ? (
-                    <div className="cp-card" style={{ padding: '60px 20px', textAlign: 'center', alignItems: 'center', gap: '14px' }}>
-                      <History className="h-10 w-10 text-white/30" />
-                      <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>No Delivered Projects Yet</h2>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--cp-text-secondary)', maxWidth: '420px' }}>
-                        Your completed video deliverables will be archived here with direct download access.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="cp-history-split">
-                      {/* Left: Previous Projects List */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                          <h3 style={{ fontSize: '0.95rem', fontWeight: 700 }}>Previous Projects ({historyProjects.length})</h3>
-                        </div>
-
-                        {historyProjects.map((proj) => (
-                          <div
-                            key={proj.id}
-                            className={`cp-history-item ${selectedProject?.id === proj.id ? 'selected' : ''}`}
-                            onClick={() => setSelectedHistoryId(proj.id)}
-                          >
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ fontSize: '0.92rem', fontWeight: 700 }}>{proj.title}</span>
-                                <span className="cp-badge-pill" style={{ fontSize: '0.65rem', padding: '2px 7px' }}>{proj.type}</span>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                                <span style={{ fontSize: '0.68rem', color: '#60A5FA', fontFamily: 'monospace' }}>
-                                  {proj.orderCode}
-                                </span>
-                                <span style={{ fontSize: '0.68rem', color: 'var(--cp-text-tertiary)' }}>•</span>
-                                <span style={{ fontSize: '0.74rem', color: 'var(--cp-text-secondary)' }}>
-                                  Delivered: {proj.deliveredDate}
-                                </span>
-                              </div>
-                            </div>
-                            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Right: Selected Project Status & Notes */}
-                      {selectedProject && (
-                        <div className="cp-card" style={{ gap: '22px' }}>
-                          <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Delivery Status</h3>
-                              <span style={{ fontSize: '0.74rem', color: '#93C5FD', fontFamily: 'monospace', fontWeight: 700, background: 'rgba(59, 130, 246, 0.12)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.25)' }}>
-                                {selectedProject.orderCode}
-                              </span>
-                            </div>
-
-                            {/* All 5 Steps Completed */}
-                            <div className="cp-stepper-wrap" style={{ padding: '0 0 10px' }}>
-                              <div className="cp-stepper-line" style={{ top: '10px' }} />
-                              {['Received', 'Accepted', 'In Editing', 'In Review', 'Delivered'].map((label, idx) => (
-                                <div key={idx} className="cp-step-item">
-                                  <div className="cp-step-circle done">
-                                    <Check className="h-2.5 w-2.5" />
-                                  </div>
-                                  <span className="cp-step-name" style={{ fontSize: '0.65rem' }}>{label}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* 4 Metadata Boxes */}
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-                            <div style={{ background: '#101015', padding: '14px', borderRadius: '8px', border: '1px solid var(--cp-border)' }}>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--cp-text-secondary)', display: 'block' }}>Project Type</span>
-                              <strong style={{ fontSize: '0.88rem', color: '#FFFFFF' }}>{selectedProject.type}</strong>
-                            </div>
-
-                            <div style={{ background: '#101015', padding: '14px', borderRadius: '8px', border: '1px solid var(--cp-border)' }}>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--cp-text-secondary)', display: 'block' }}>Project Created</span>
-                              <strong style={{ fontSize: '0.88rem', color: '#FFFFFF' }}>{selectedProject.submissionDate}</strong>
-                            </div>
-
-                            <div style={{ background: '#101015', padding: '14px', borderRadius: '8px', border: '1px solid var(--cp-border)' }}>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--cp-text-secondary)', display: 'block' }}>Delivery Date</span>
-                              <strong style={{ fontSize: '0.88rem', color: '#FFFFFF' }}>{selectedProject.deliveredDate}</strong>
-                            </div>
-
-                            <div style={{ background: '#101015', padding: '14px', borderRadius: '8px', border: selectedProject.isExpired ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--cp-border)' }}>
-                              <span style={{ fontSize: '0.68rem', color: selectedProject.isExpired ? '#EF4444' : 'var(--cp-text-secondary)', display: 'block' }}>Link Validity</span>
-                              <strong style={{ fontSize: '0.82rem', color: selectedProject.isExpired ? '#EF4444' : '#4ADE80' }}>
-                                {selectedProject.isExpired ? 'Expired (10 days)' : `${selectedProject.daysRemaining} days left`}
-                              </strong>
-                            </div>
-                          </div>
-
-                          {/* Notes Box */}
-                          <div>
-                            <h4 style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: '8px' }}>Project Notes</h4>
-                            <div style={{ padding: '16px', background: '#101015', borderRadius: '8px', border: '1px solid var(--cp-border)', fontSize: '0.82rem', color: 'var(--cp-text-secondary)', lineHeight: 1.55 }}>
-                              {selectedProject.notes}
-                            </div>
-                          </div>
-
-                          {/* Client Rating & Feedback Section */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <h4 style={{ fontSize: '0.88rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Star className="h-4 w-4 text-amber-400" fill="#F59E0B" />
-                                <span>Order Rating & Feedback</span>
-                              </h4>
-                              {ratingsMap[selectedProject.id]?.isTestimonial && (
-                                <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: 'rgba(234, 179, 8, 0.15)', color: '#FCD34D', border: '1px solid rgba(234, 179, 8, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                  <Award className="h-3 w-3" />
-                                  <span>Featured Testimonial</span>
-                                </span>
-                              )}
-                            </div>
-
-                            {ratingsMap[selectedProject.id] ? (
-                              /* Already Rated Card */
-                              <div style={{ padding: '16px 18px', background: '#101015', borderRadius: '8px', border: '1px solid var(--cp-border)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  {[1, 2, 3, 4, 5].map((star) => (
-                                    <Star
-                                      key={star}
-                                      className="h-4 w-4"
-                                      fill={star <= ratingsMap[selectedProject.id].rating ? '#F59E0B' : 'transparent'}
-                                      color={star <= ratingsMap[selectedProject.id].rating ? '#F59E0B' : '#4B5563'}
-                                    />
-                                  ))}
-                                  <span style={{ fontSize: '0.78rem', color: '#9CA3AF', marginLeft: '6px', fontWeight: 600 }}>
-                                    {ratingsMap[selectedProject.id].rating} / 5 Stars
-                                  </span>
-                                </div>
-
-                                {ratingsMap[selectedProject.id].cleanFeedback ? (
-                                  <p style={{ fontSize: '0.82rem', color: '#E5E7EB', margin: 0, lineHeight: 1.55, fontStyle: 'italic', background: 'rgba(255, 255, 255, 0.02)', padding: '10px 12px', borderRadius: '6px' }}>
-                                    "{ratingsMap[selectedProject.id].cleanFeedback}"
-                                  </p>
-                                ) : (
-                                  <span style={{ fontSize: '0.74rem', color: 'var(--cp-text-tertiary)' }}>No written feedback provided.</span>
-                                )}
-                              </div>
-                            ) : (
-                              /* Unrated Form */
-                              <form onSubmit={handleSubmitRating} style={{ padding: '16px', background: '#101015', borderRadius: '8px', border: '1px solid var(--cp-border)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                <div>
-                                  <span style={{ fontSize: '0.72rem', color: 'var(--cp-text-secondary)', display: 'block', marginBottom: '6px' }}>
-                                    Rate the final delivery quality:
-                                  </span>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    {[1, 2, 3, 4, 5].map((star) => {
-                                      const activeStar = hoverStars ? star <= hoverStars : star <= ratingStars;
-                                      return (
-                                        <button
-                                          key={star}
-                                          type="button"
-                                          onClick={() => setRatingStars(star)}
-                                          onMouseEnter={() => setHoverStars(star)}
-                                          onMouseLeave={() => setHoverStars(0)}
-                                          style={{ background: 'transparent', border: 'none', padding: '2px', cursor: 'pointer' }}
-                                        >
-                                          <Star
-                                            className="h-5 w-5 transition-colors"
-                                            fill={activeStar ? '#F59E0B' : 'transparent'}
-                                            color={activeStar ? '#F59E0B' : '#6B7280'}
-                                          />
-                                        </button>
-                                      );
-                                    })}
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#FCD34D', marginLeft: '6px' }}>
-                                      {ratingStars} / 5
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <textarea
-                                    className="cp-input"
-                                    rows={3}
-                                    placeholder="Write your review or feedback about the editing quality, pacing, and communication..."
-                                    value={feedbackText}
-                                    onChange={(e) => setFeedbackText(e.target.value)}
-                                    style={{ width: '100%', resize: 'vertical', fontSize: '0.8rem', padding: '10px 12px', background: '#181822', borderRadius: '6px', border: '1px solid var(--cp-border)', color: '#FFFFFF' }}
-                                  />
-                                </div>
-
-                                {/* Testimonial Checkbox: STRICTLY VISIBLE ONLY when rating === 5 AND feedbackText is entered */}
-                                {ratingStars === 5 && feedbackText.trim().length > 0 && (
-                                  <div style={{
-                                    padding: '12px 14px',
-                                    background: 'rgba(234, 179, 8, 0.08)',
-                                    border: '1px solid rgba(234, 179, 8, 0.3)',
-                                    borderRadius: '8px',
-                                    display: 'flex',
-                                    alignItems: 'flex-start',
-                                    gap: '10px'
-                                  }}>
-                                    <input
-                                      type="checkbox"
-                                      id="testimonialConsentCheckbox"
-                                      checked={isTestimonialConsent}
-                                      onChange={(e) => setIsTestimonialConsent(e.target.checked)}
-                                      style={{ marginTop: '3px', cursor: 'pointer', accentColor: '#F59E0B', width: '16px', height: '16px' }}
-                                    />
-                                    <label htmlFor="testimonialConsentCheckbox" style={{ fontSize: '0.78rem', color: '#E5E7EB', cursor: 'pointer', lineHeight: 1.45 }}>
-                                      <strong style={{ color: '#FCD34D', display: 'block' }}>Send review to Studio Admin Team</strong>
-                                      Allow the MotionNodeEdits admin to review and consider featuring this feedback on the public website.
-                                    </label>
-                                  </div>
-                                )}
-
-                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                  <button
-                                    type="submit"
-                                    disabled={isSubmittingRating}
-                                    className="cp-btn-solid"
-                                    style={{ padding: '8px 16px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                                  >
-                                    <Star className="h-3.5 w-3.5" fill="#000000" color="#000000" />
-                                    <span>{isSubmittingRating ? 'Submitting...' : 'Submit Rating & Feedback'}</span>
-                                  </button>
-                                </div>
-                              </form>
-                            )}
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--cp-border)', flexWrap: 'wrap', gap: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              {selectedProject.isExpired ? (
-                                <span style={{ fontSize: '0.74rem', color: '#EF4444', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}>
-                                  <Clock className="h-3.5 w-3.5" />
-                                  <span>Download link expired on {selectedProject.expiryDate} (10-day retention).</span>
-                                </span>
-                              ) : (
-                                <span style={{ fontSize: '0.74rem', color: '#9CA3AF', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                  <Clock className="h-3.5 w-3.5 text-amber-400" />
-                                  <span>Link expires on {selectedProject.expiryDate} ({selectedProject.daysRemaining} days remaining)</span>
-                                </span>
-                              )}
-                            </div>
-
-                            {selectedProject.isExpired ? (
-                              <button
-                                className="cp-btn-outline"
-                                disabled
-                                style={{ opacity: 0.5, cursor: 'not-allowed', color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                              >
-                                <Clock className="h-4 w-4" />
-                                <span>Link Expired</span>
-                              </button>
-                            ) : selectedProject.downloadLink !== '#' ? (
-                              <button
-                                className="cp-btn-solid"
-                                onClick={() => safeOpenUrl(selectedProject.downloadLink)}
-                              >
-                                <Download className="h-4 w-4" />
-                                <span>Download Final Cut</span>
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
+                <ClientProjectHistory
+                  historyProjects={historyProjects}
+                  selectedProject={selectedProject}
+                  setSelectedHistoryId={setSelectedHistoryId}
+                  ratingsMap={ratingsMap}
+                  handleSubmitRating={handleSubmitRating}
+                  ratingStars={ratingStars}
+                  setRatingStars={setRatingStars}
+                  hoverStars={hoverStars}
+                  setHoverStars={setHoverStars}
+                  feedbackText={feedbackText}
+                  setFeedbackText={setFeedbackText}
+                  isTestimonialConsent={isTestimonialConsent}
+                  setIsTestimonialConsent={setIsTestimonialConsent}
+                  isSubmittingRating={isSubmittingRating}
+                  safeOpenUrl={safeOpenUrl}
+                />
               )}
 
               {/* ============================================================== */}
               {/* VIEW 4: PROFILE & SECURITY                                     */}
               {/* ============================================================== */}
               {activeNav === 'profile' && (
-                <>
-                  <div className="cp-header-block">
-                    <h1 className="cp-title-h1">Profile & Security</h1>
-                    <p className="cp-subtext">Manage your profile, personal details, and account security.</p>
-                  </div>
-
-                  <div className="cp-profile-layout">
-                    {/* Left Column: Summary Card & Navigation Tabs */}
-                    <div className="cp-profile-left-col">
-                      {/* Top Card: Account Profile Settings Summary */}
-                      <div className="cp-profile-summary-card">
-                        <div className="cp-avatar-wrap">
-                          <img
-                            src={getAccountAvatar()}
-                            alt={clientProfile?.full_name || 'Client'}
-                            className="cp-avatar-img"
-                            onError={(e) => { e.currentTarget.src = DEFAULT_CARTOON_AVATAR; }}
-                          />
-                        </div>
-
-                        <div>
-                          <span className="cp-profile-card-label">ACCOUNT</span>
-                          <h2 className="cp-profile-card-title">Profile Settings</h2>
-                          <p className="cp-profile-card-desc">
-                            Update your account details, change your password, and manage account security.
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Bottom Card: Navigation Menu */}
-                      <div className="cp-profile-subnav-card">
-                        <button
-                          type="button"
-                          className={`cp-profile-subnav-btn ${profileSubTab === 'profile' ? 'active' : ''}`}
-                          onClick={() => setProfileSubTab('profile')}
-                        >
-                          <User className="h-4 w-4" />
-                          <span>Profile</span>
-                        </button>
-                        <button
-                          type="button"
-                          className={`cp-profile-subnav-btn ${profileSubTab === 'password' ? 'active' : ''}`}
-                          onClick={() => setProfileSubTab('password')}
-                        >
-                          <Eye className="h-4 w-4" />
-                          <span>Change Password</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Right Column: Active Tab Content */}
-                    <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
-                      <div className="cp-profile-main-card">
-                        {profileSubTab === 'profile' ? (
-                          /* TAB 1: Personal Information */
-                          <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                            <div className="cp-profile-main-header">
-                              <span className="cp-profile-tag">PROFILE</span>
-                              <h2 className="cp-profile-main-title">Personal Information</h2>
-                              <p className="cp-profile-main-subtext">
-                                Keep your account details up to date so support and service access stay aligned.
-                              </p>
-                            </div>
-
-                            <div className="cp-form-group">
-                              <label className="cp-form-label">
-                                <span className="cp-form-required">*</span> Username
-                              </label>
-                              <input
-                                type="text"
-                                value={profileForm.username}
-                                onChange={(e) => setProfileForm(p => ({ ...p, username: e.target.value }))}
-                                placeholder="Username"
-                                className="cp-form-input"
-                                required
-                              />
-                            </div>
-
-                            <div className="cp-form-group">
-                              <label className="cp-form-label">
-                                <span className="cp-form-required">*</span> Email
-                              </label>
-                              <div className="cp-form-input-wrap">
-                                <input
-                                  type="email"
-                                  value={clientProfile?.email || currentUser?.email || ''}
-                                  disabled
-                                  className="cp-form-input"
-                                  style={{ paddingRight: '36px' }}
-                                />
-                                <Lock className="h-4 w-4" style={{ position: 'absolute', right: '12px', color: 'var(--cp-text-tertiary)' }} />
-                              </div>
-                            </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-                              <div className="cp-form-group">
-                                <label className="cp-form-label">Full Name</label>
-                                <input
-                                  type="text"
-                                  value={profileForm.full_name}
-                                  onChange={(e) => setProfileForm(p => ({ ...p, full_name: e.target.value }))}
-                                  placeholder="Your full name"
-                                  className="cp-form-input"
-                                />
-                              </div>
-
-                              <div className="cp-form-group">
-                                <label className="cp-form-label">Company / Brand</label>
-                                <input
-                                  type="text"
-                                  value={profileForm.company_name}
-                                  onChange={(e) => setProfileForm(p => ({ ...p, company_name: e.target.value }))}
-                                  placeholder="e.g. Acme Media"
-                                  className="cp-form-input"
-                                />
-                              </div>
-                            </div>
-
-                            <div className="cp-form-group">
-                              <label className="cp-form-label">Phone Number</label>
-                              <input
-                                type="tel"
-                                value={profileForm.phone}
-                                onChange={(e) => setProfileForm(p => ({ ...p, phone: e.target.value }))}
-                                placeholder="e.g. +1 (555) 019-2834"
-                                className="cp-form-input"
-                              />
-                            </div>
-
-                            <div className="cp-profile-helper-box">
-                              Your email is used for account recovery, service updates, and support communication.
-                            </div>
-
-                            <button
-                              type="submit"
-                              disabled={isSavingProfile || !hasProfileChanges}
-                              className="cp-btn-primary-action"
-                            >
-                              {isSavingProfile ? 'Saving...' : 'Save Changes'}
-                            </button>
-                          </form>
-                        ) : (
-                          /* TAB 2: Change Password */
-                          <div>
-                            <div className="cp-profile-main-header" style={{ marginBottom: '18px' }}>
-                              <span className="cp-profile-tag">SECURITY</span>
-                              <h2 className="cp-profile-main-title">Change Password</h2>
-                              <p className="cp-profile-main-subtext">
-                                Choose a strong password you do not reuse on other services.
-                              </p>
-                            </div>
-
-                            {isGoogleUser(currentUser) ? (
-                              <div style={{ background: 'var(--cp-bg-card-inner)', border: '1px solid var(--cp-border)', borderRadius: '10px', padding: '16px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                                <ShieldCheck className="h-5 w-5 shrink-0" style={{ color: '#FFFFFF', marginTop: '2px' }} />
-                                <div>
-                                  <p style={{ fontSize: '0.86rem', fontWeight: 600, color: '#FFFFFF', margin: 0 }}>
-                                    Signed in with Google
-                                  </p>
-                                  <p style={{ fontSize: '0.8rem', color: 'var(--cp-text-secondary)', marginTop: '4px', lineHeight: 1.45 }}>
-                                    Your account is authenticated securely via Google OAuth. To update your password or login security, manage your settings directly in your Google Account.
-                                  </p>
-                                </div>
-                              </div>
-                            ) : (
-                              <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                                <div className="cp-form-group">
-                                  <label className="cp-form-label">
-                                    <span className="cp-form-required">*</span> Current Password
-                                  </label>
-                                  <div className="cp-form-input-wrap">
-                                    <input
-                                      type={showCurrentPassword ? 'text' : 'password'}
-                                      value={passwordForm.currentPassword}
-                                      onChange={(e) => setPasswordForm(p => ({ ...p, currentPassword: e.target.value }))}
-                                      placeholder="Current password"
-                                      className="cp-form-input"
-                                      style={{ paddingRight: '40px' }}
-                                      required
-                                    />
-                                    <button
-                                      type="button"
-                                      className="cp-input-eye-btn"
-                                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                                      tabIndex={-1}
-                                      aria-label="Toggle current password visibility"
-                                    >
-                                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                  </div>
-                                </div>
-
-                                <div className="cp-form-group">
-                                  <label className="cp-form-label">
-                                    <span className="cp-form-required">*</span> New Password
-                                  </label>
-                                  <div className="cp-form-input-wrap">
-                                    <input
-                                      type={showNewPassword ? 'text' : 'password'}
-                                      value={passwordForm.newPassword}
-                                      onChange={(e) => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))}
-                                      placeholder="New password"
-                                      className="cp-form-input"
-                                      style={{ paddingRight: '40px' }}
-                                      required
-                                    />
-                                    <button
-                                      type="button"
-                                      className="cp-input-eye-btn"
-                                      onClick={() => setShowNewPassword(!showNewPassword)}
-                                      tabIndex={-1}
-                                      aria-label="Toggle new password visibility"
-                                    >
-                                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                  </div>
-                                </div>
-
-                                <div className="cp-form-group">
-                                  <label className="cp-form-label">
-                                    <span className="cp-form-required">*</span> Confirm Password
-                                  </label>
-                                  <div className="cp-form-input-wrap">
-                                    <input
-                                      type={showConfirmPassword ? 'text' : 'password'}
-                                      value={passwordForm.confirmPassword}
-                                      onChange={(e) => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))}
-                                      placeholder="Confirm password"
-                                      className="cp-form-input"
-                                      style={{ paddingRight: '40px' }}
-                                      required
-                                    />
-                                    <button
-                                      type="button"
-                                      className="cp-input-eye-btn"
-                                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                      tabIndex={-1}
-                                      aria-label="Toggle confirm password visibility"
-                                    >
-                                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                  </div>
-                                </div>
-
-                                <div className="cp-profile-helper-box">
-                                  Use at least one unique password for MotionNodeEdits and rotate it if you share device access.
-                                </div>
-
-                                <button
-                                  type="submit"
-                                  disabled={isChangingPassword || !hasPasswordChanges}
-                                  className="cp-btn-primary-action"
-                                >
-                                  {isChangingPassword ? 'Updating Password...' : 'Update Password'}
-                                </button>
-                              </form>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Centered Brand Copyright Footer */}
-                      <div className="cp-profile-footer">
-                        MotionNodeEdits 2026
-                      </div>
-                    </div>
-                  </div>
-                </>
+                <ClientProfileSettings
+                  clientProfile={clientProfile}
+                  currentUser={currentUser}
+                  getAccountAvatar={getAccountAvatar}
+                  defaultAvatar={DEFAULT_CARTOON_AVATAR}
+                  profileSubTab={profileSubTab}
+                  setProfileSubTab={setProfileSubTab}
+                  profileForm={profileForm}
+                  setProfileForm={setProfileForm}
+                  handleUpdateProfile={handleUpdateProfile}
+                  isSavingProfile={isSavingProfile}
+                  hasProfileChanges={hasProfileChanges}
+                  handleChangePassword={handleChangePassword}
+                  passwordForm={passwordForm}
+                  setPasswordForm={setPasswordForm}
+                  showCurrentPassword={showCurrentPassword}
+                  setShowCurrentPassword={setShowCurrentPassword}
+                  showNewPassword={showNewPassword}
+                  setShowNewPassword={setShowNewPassword}
+                  showConfirmPassword={showConfirmPassword}
+                  setShowConfirmPassword={setShowConfirmPassword}
+                  isChangingPassword={isChangingPassword}
+                  hasPasswordChanges={hasPasswordChanges}
+                />
               )}
 
               {/* ============================================================== */}
               {/* VIEW 5: SUPPORT & FREQUENTLY ASKED QUESTIONS                   */}
               {/* ============================================================== */}
               {activeNav === 'faq' && (
-                <div className="cp-faq-view">
-                  <div className="cp-faq-header">
-                    <span className="cp-faq-category">HELP</span>
-                    <h1 className="cp-faq-title">Frequently Asked Questions</h1>
-                    <p className="cp-faq-subtitle">
-                      Quick answers for video requests, support flow, and delivery expectations.
-                    </p>
-                  </div>
-
-                  <div className="cp-faq-list">
-                    {CLIENT_FAQS.map((faq, idx) => (
-                      <div key={idx} className="cp-faq-card">
-                        <h3 className="cp-faq-card-title">{faq.q}</h3>
-                        {faq.a && (
-                          <p className="cp-faq-card-body">
-                            {renderFaqTextWithTags(faq.a)}
-                          </p>
-                        )}
-                        {faq.points && faq.points.length > 0 && (
-                          <ul className="cp-faq-bullet-list">
-                            {faq.points.map((pt, pIdx) => (
-                              <li key={pIdx} className="cp-faq-bullet-item">
-                                <span className="cp-faq-bullet-dot" />
-                                <div>{renderFaqTextWithTags(pt)}</div>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                        {faq.actions && faq.actions.length > 0 && (
-                          <div className="cp-faq-actions-row">
-                            {faq.actions.map((act, aIdx) => (
-                              <a
-                                key={aIdx}
-                                href={act.href}
-                                target={act.external ? '_blank' : '_self'}
-                                rel={act.external ? 'noopener noreferrer' : undefined}
-                                className={`cp-faq-action-btn ${act.primary ? 'primary' : ''}`}
-                              >
-                                {act.type === 'whatsapp' && <MessageSquare className="h-3.5 w-3.5" />}
-                                {act.type === 'email' && <Mail className="h-3.5 w-3.5" />}
-                                {act.type === 'feedback' && <Send className="h-3.5 w-3.5" />}
-                                <span>{act.label}</span>
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Centered Brand Copyright Footer */}
-                  <div className="cp-profile-footer">
-                    MotionNodeEdits 2026
-                  </div>
-                </div>
+                <ClientFAQ />
               )}
             </>
           )}

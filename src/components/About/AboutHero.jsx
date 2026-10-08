@@ -41,6 +41,7 @@ export default function AboutHero() {
         <div className="about-hero-left-col">
           <h1 ref={titleRef} className="about-hero-main-title">
             About Us
+            <span className="sr-only"> — Global AI Video Production Agency & Video Editing Studio</span>
           </h1>
           
           <p ref={subtitleRef} className="about-hero-subtitle">

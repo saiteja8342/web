@@ -10,7 +10,7 @@ export const PROJECT_TYPE_LABELS = {
 };
 
 export const STATUS_CONFIG = {
-  new: { label: 'New', badgeClass: 'vel-badge-review', color: '#3B82F6' },
+  new: { label: 'New', badgeClass: 'vel-badge-review', color: '#F59E0B' },
   contacted: { label: 'Contacted', badgeClass: 'vel-badge-editing', color: '#10B981' },
   in_discussion: { label: 'In Discussion', badgeClass: 'vel-badge-progress', color: '#8B5CF6' },
   closed: { label: 'Closed', badgeClass: 'vel-badge-delivered', color: '#6B7280' },

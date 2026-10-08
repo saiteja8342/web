@@ -5,6 +5,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import MagneticParticleButton from './MagneticParticleButton';
 import { createContactRequest } from '../lib/db/contactRequests';
+import { notifyAdmins } from '../lib/db/notifications';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -185,6 +186,17 @@ export default function Contact() {
           localStorage.setItem('mne_contact_submitted_time', now);
           localStorage.setItem('mne_contact_email', formData.email.trim().toLowerCase());
         } catch {}
+
+        // Send real-time notification to Studio Admins
+        try {
+          notifyAdmins(
+            `New Client Inquiry: ${formData.name}`,
+            `${formData.name} (${formData.email}) submitted a project inquiry for "${formData.project_type || 'Video Production'}": "${(formData.message || '').slice(0, 80)}..."`
+          );
+        } catch (notifErr) {
+          console.warn('[Contact] Admin notification error:', notifErr);
+        }
+
         setRemainingHours(24);
         setHasSubmitted(true);
         setStatus({ submitting: false, success: true, error: false });

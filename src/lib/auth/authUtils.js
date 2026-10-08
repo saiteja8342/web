@@ -1,4 +1,4 @@
-import { supabase } from '../supabase/client';
+import { supabase } from '../supabase/client.js';
 
 /**
  * Authentication Utilities
@@ -103,15 +103,11 @@ export async function getUserProfile(userId) {
       const meta = u.user_metadata || {};
       const appMeta = u.app_metadata || {};
 
-      // SECURITY: Only trust app_metadata (set by server) or configured admin emails.
+      // SECURITY: Only trust app_metadata (set by server).
       // NEVER trust user_metadata for admin privileges, as users can modify it via devtools!
       let resolvedRole = (appMeta.role || '').toLowerCase().trim();
-      if (!resolvedRole) {
-        if (isConfiguredAdminEmail(u.email)) {
-          resolvedRole = 'admin';
-        } else {
-          resolvedRole = 'client';
-        }
+      if (!resolvedRole || resolvedRole === 'admin') {
+        resolvedRole = 'client';
       }
 
       let resolvedStatus = 'approved';
@@ -186,9 +182,11 @@ export function isAdmin(profileOrRoleOrUser) {
     return true;
   }
 
-  // 3. Check configured admin email whitelist
-  const email = profileOrRoleOrUser.email || '';
-  if (isConfiguredAdminEmail(email)) return true;
+  // 3. Check configured admin email list (e.g. VITE_ADMIN_EMAILS or admin@motionnodeedits.com)
+  const email = profileOrRoleOrUser.email;
+  if (email && isConfiguredAdminEmail(email)) {
+    return true;
+  }
 
   return false;
 }

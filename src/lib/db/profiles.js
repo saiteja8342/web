@@ -84,15 +84,21 @@ export async function getAllClientsForAdmin() {
 }
 
 /**
- * Fetch all approved editors (Admin view).
+ * Fetch all editors (Admin view: approved, active, or pending).
  */
 export async function getApprovedEditors() {
-  return await supabase
-    .from('profiles')
-    .select('*')
-    .eq('role', 'editor')
-    .neq('status', 'pending')
-    .order('created_at', { ascending: false });
+  try {
+    const res = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'editor')
+      .order('created_at', { ascending: false });
+
+    return res;
+  } catch (err) {
+    console.error('[profiles.js] getApprovedEditors failed:', err);
+    return { data: [], error: err };
+  }
 }
 
 /**

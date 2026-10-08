@@ -372,7 +372,7 @@ export async function createOrder(orderPayload) {
 
   // Fallback if order_code column doesn't exist yet in Supabase table
   if (res.error && res.error.message && res.error.message.toLowerCase().includes('order_code')) {
-    const { order_code, ...payloadWithoutCol } = payloadWithCode;
+    const { order_code: _order_code, ...payloadWithoutCol } = payloadWithCode;
     res = await supabase
       .from('orders')
       .insert([payloadWithoutCol])

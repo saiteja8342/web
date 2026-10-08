@@ -83,7 +83,7 @@ const CMS_COLOR_PRESETS = [
   '#D1D1D6',
   '#8E8F94',
   '#A2A2A7',
-  '#38BDF8',
+  '#D4D4D8',
   '#818CF8',
   '#A78BFA',
   '#F472B6',
@@ -560,6 +560,10 @@ export default function WebsiteCMS() {
       {/* Header Bar */}
       <div className="cms-header-row">
         <div>
+          <div className="cms-eyebrow-tag">
+            <span className="cms-eyebrow-pip" />
+            <span>STUDIO CMS SUITE • LIVE DEPLOYMENT</span>
+          </div>
           <h1 className="cms-page-title">Website Content Management (CMS)</h1>
           <p className="cms-page-subtitle">
             Update your public client testimonials, Our Work YouTube video showcase, and footer settings in real time.
@@ -634,7 +638,7 @@ export default function WebsiteCMS() {
           </div>
 
           {/* Sub-tab Filter Switcher */}
-          <div className="cms-filter-row" style={{ marginBottom: '20px' }}>
+          <div className="cms-filter-row" style={{ marginBottom: '22px' }}>
             <button
               type="button"
               className={`cms-filter-chip ${testimonialSubTab === 'live' ? 'active' : ''}`}
@@ -655,12 +659,12 @@ export default function WebsiteCMS() {
           {testimonialSubTab === 'live' && (
             loadingTestimonials ? (
               <div className="cms-loading-box">
-                <RefreshCw className="h-6 w-6 animate-spin text-blue-400" />
+                <RefreshCw className="h-6 w-6 animate-spin text-white/70" />
                 <span>Loading testimonials...</span>
               </div>
             ) : testimonials.length === 0 ? (
               <div className="cms-empty-state">
-                <MessageSquare className="h-12 w-12 text-zinc-600 mb-3" />
+                <MessageSquare className="h-12 w-12 text-zinc-500 mb-3" />
                 <h3>No Testimonials in Database</h3>
                 <p>Run <code>cms_features.sql</code> in Supabase to seed initial data, or click "Add Testimonial" above.</p>
                 <button
@@ -691,10 +695,19 @@ export default function WebsiteCMS() {
                           <Star
                             key={i}
                             className="h-3.5 w-3.5"
-                            fill={i < (item.rating || 5) ? '#FBBF24' : 'transparent'}
-                            stroke={i < (item.rating || 5) ? '#FBBF24' : '#4B5563'}
+                            fill={i < (item.rating || 5) ? '#F59E0B' : 'transparent'}
+                            stroke={i < (item.rating || 5) ? '#F59E0B' : '#4B5563'}
                           />
                         ))}
+                        <span style={{
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          color: '#FBBF24',
+                          marginLeft: '4px'
+                        }}>
+                          {(item.rating || 5).toFixed(1)}
+                        </span>
                       </div>
                     </div>
 
@@ -709,10 +722,10 @@ export default function WebsiteCMS() {
                         onClick={() => handleToggleTestimonialActive(item)}
                         title="Click to toggle visibility on website"
                       >
-                        {item.is_active ? '● Live on Site' : '○ Hidden'}
+                        {item.is_active ? 'Live on Site' : 'Hidden'}
                       </button>
 
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <button
                           type="button"
                           className="cms-action-btn-secondary"
@@ -742,7 +755,7 @@ export default function WebsiteCMS() {
           {testimonialSubTab === 'client_reviews' && (
             loadingReviews ? (
               <div className="cms-loading-box">
-                <RefreshCw className="h-6 w-6 animate-spin text-blue-400" />
+                <RefreshCw className="h-6 w-6 animate-spin text-white/70" />
                 <span>Loading client reviews...</span>
               </div>
             ) : clientReviews.length === 0 ? (
@@ -1188,7 +1201,7 @@ export default function WebsiteCMS() {
 
           {loadingVideos ? (
             <div className="cms-loading-box">
-              <RefreshCw className="h-6 w-6 animate-spin text-blue-400" />
+              <RefreshCw className="h-6 w-6 animate-spin text-white/70" />
               <span>Loading video portfolio...</span>
             </div>
           ) : filteredVideos.length === 0 ? (
@@ -1496,10 +1509,10 @@ export default function WebsiteCMS() {
               className="vel-btn-primary"
               style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
               onClick={handleSaveFooter}
-              disabled={savingFooter}
+              disabled={savingFooter || loadingFooter}
             >
               <Save className="h-4 w-4" />
-              <span>{savingFooter ? 'Saving...' : 'Save Settings'}</span>
+              <span>{savingFooter ? 'Saving...' : loadingFooter ? 'Loading...' : 'Save Settings'}</span>
             </button>
           </div>
 
@@ -1508,7 +1521,7 @@ export default function WebsiteCMS() {
             <div className="cms-form-card">
               <div className="cms-form-card-header">
                 <div className="cms-form-card-icon">
-                  <Phone className="h-5 w-5 text-blue-400" />
+                  <Phone className="h-5 w-5 text-white/80" />
                 </div>
                 <div>
                   <h3 className="cms-form-card-title">Studio & Contact Details</h3>
@@ -1619,7 +1632,7 @@ export default function WebsiteCMS() {
                 <div className="vel-form-group">
                   <label className="vel-label">LinkedIn Page URL</label>
                   <div className="cms-input-icon-wrap">
-                    <Linkedin className="h-4 w-4 cms-input-icon text-blue-400" />
+                    <Linkedin className="h-4 w-4 cms-input-icon text-white/70" />
                     <input
                       type="url"
                       className="vel-input cms-input-with-icon"
@@ -1736,7 +1749,7 @@ export default function WebsiteCMS() {
           <form onSubmit={handleSaveServicesHeader} className="cms-section-card" style={{ marginBottom: '24px' }}>
             <div className="cms-section-card-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Sparkles className="h-5 w-5 text-blue-400" />
+                <Sparkles className="h-5 w-5 text-amber-400" />
                 <div>
                   <h3 className="cms-card-heading">Section Header & Description</h3>
                   <p className="cms-card-subheading">Control the eyebrow text, title, and descriptive intro.</p>

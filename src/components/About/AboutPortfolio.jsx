@@ -22,7 +22,7 @@ export default function AboutPortfolio() {
         {/* Featured Project */}
         <div className="about-fade-up saas-card" style={{ marginBottom: '40px', position: 'relative', borderRadius: '20px', height: '460px', padding: 0 }}>
            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, rgba(255,255,255,0.06) 0%, #08080C 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-             <img src="/image/mne_logo.png" alt="Logo" style={{ width: '64px', height: '64px', opacity: 0.25 }} />
+             <img src="/image/mne_logo.png" alt="MotionNodeEdits Creative Studio Logo" style={{ width: '64px', height: '64px', opacity: 0.25 }} />
            </div>
            
            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(5,5,7,0.95) 0%, rgba(5,5,7,0.2) 60%, transparent 100%)', pointerEvents: 'none' }}></div>

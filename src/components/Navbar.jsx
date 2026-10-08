@@ -1,11 +1,106 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import NoiseBackground from './NoiseBackground';
 import MobileSidebar from './MobileSidebar';
+import { supabase } from '../supabaseClient';
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
+
+  // Authentication state
+  const [sessionUser, setSessionUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadAuth() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user && isMounted) {
+          setSessionUser(session.user);
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          if (isMounted && profile?.role) {
+            setUserRole(profile.role.toLowerCase().trim());
+          }
+        } else if (isMounted) {
+          setSessionUser(null);
+          setUserRole(null);
+        }
+      } catch (err) {
+        console.warn('[Navbar] Session lookup error:', err);
+      }
+    }
+
+    loadAuth();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user && isMounted) {
+        setSessionUser(session.user);
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        if (isMounted && profile?.role) {
+          setUserRole(profile.role.toLowerCase().trim());
+        }
+      } else if (isMounted) {
+        setSessionUser(null);
+        setUserRole(null);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      authListener?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  const getDashboardUrl = useCallback((role) => {
+    const r = (role || userRole || '').toLowerCase().trim();
+    if (r === 'admin') return '/dashboard/admin';
+    if (r === 'editor') return '/dashboard/editor';
+    return '/dashboard/client';
+  }, [userRole]);
+
+  const handleStartProjectClick = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (e && e.stopPropagation) e.stopPropagation();
+
+    // 1. Instant navigation if user session is already verified in state
+    if (sessionUser) {
+      window.location.href = getDashboardUrl(userRole);
+      return;
+    }
+
+    // 2. Fresh session check from Supabase storage
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        let role = userRole;
+        if (!role) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          role = (profile?.role || '').toLowerCase().trim();
+        }
+        window.location.href = getDashboardUrl(role);
+      } else {
+        window.location.href = '/login';
+      }
+    } catch (err) {
+      console.warn('[Navbar] Start project auth check failed:', err);
+      window.location.href = '/login';
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -45,7 +140,8 @@ export default function Navbar() {
                 className="logo-img-circular"
                 width="40"
                 height="40"
-                loading="lazy"
+                loading="eager"
+                fetchPriority="high"
                 onLoad={() => setLogoLoaded(true)}
                 style={{ 
                   width: '40px', 
@@ -75,18 +171,46 @@ export default function Navbar() {
             <a href={isSecondaryPage ? "/#contact" : "#contact"} data-hover-type="link">Contact</a>
           </div>
 
-          <NoiseBackground
-            containerClassName="nav-cta-custom-wrapper"
-            gradientColors={[
-              "rgb(255, 100, 150)",
-              "rgb(100, 150, 255)",
-              "rgb(255, 200, 100)",
-            ]}
-          >
-            <a href={isSecondaryPage ? "/#contact" : "#contact"} className="nav-cta-custom-noise" data-hover-type="link">
-              Start a project
-            </a>
-          </NoiseBackground>
+          <div className="nav-right-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+
+
+            {/* DASHBOARD TAB (Only visible when user is logged in) */}
+            {sessionUser && (
+              <a
+                href={getDashboardUrl(userRole)}
+                className="nav-login-btn logged-in"
+                data-hover-type="link"
+                title="Go to your dashboard"
+              >
+                <span className="nav-login-status-dot" aria-hidden="true"></span>
+                <span>Dashboard</span>
+              </a>
+            )}
+
+            {/* START A PROJECT CTA BUTTON */}
+            <div
+              onClick={handleStartProjectClick}
+              style={{ display: 'inline-flex', cursor: 'pointer' }}
+            >
+              <NoiseBackground
+                containerClassName="nav-cta-custom-wrapper"
+                gradientColors={[
+                  "rgb(255, 100, 150)",
+                  "rgb(100, 150, 255)",
+                  "rgb(255, 200, 100)",
+                ]}
+              >
+                <a
+                  href={sessionUser ? getDashboardUrl(userRole) : "/login"}
+                  onClick={handleStartProjectClick}
+                  className="nav-cta-custom-noise"
+                  data-hover-type="link"
+                >
+                  Start a project
+                </a>
+              </NoiseBackground>
+            </div>
+          </div>
 
           <button 
             className="hamburger" 
@@ -103,7 +227,13 @@ export default function Navbar() {
       </nav>
 
       {/* ANIMATED MOBILE SIDEBAR DRAWER */}
-      <MobileSidebar isOpen={mobileMenuOpen} onClose={closeMobileMenu} />
+      <MobileSidebar
+        isOpen={mobileMenuOpen}
+        onClose={closeMobileMenu}
+        sessionUser={sessionUser}
+        userRole={userRole}
+        onStartProject={handleStartProjectClick}
+      />
     </>
   );
 }

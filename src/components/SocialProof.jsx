@@ -170,8 +170,8 @@ export default function SocialProof() {
               {visibleTestimonials.map((item, idx) => (
                 <div key={`${item.author}-${idx}`} className="trust-editorial-card">
                   {/* Top Stars Row */}
-                  <div className="trust-editorial-stars" aria-label={`${item.stars} stars`}>
-                    {"★".repeat(item.stars)}
+                  <div className="trust-editorial-stars" aria-label={`${item.stars || 5} stars`}>
+                    {"★".repeat(Math.max(1, Math.min(5, Math.round(Number(item.stars) || 5))))}
                   </div>
 
                   {/* Review Quote Text (Italic Serif) */}

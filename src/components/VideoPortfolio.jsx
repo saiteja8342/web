@@ -88,7 +88,7 @@ export default function VideoPortfolio({ isHeadingH1 = false }) {
             {headerSettings.eyebrow || 'OUR WORK'}
           </span>
           <ShimmerText
-            text={headerSettings.title || 'Featured Projects'}
+            text={headerSettings.title || (isHeadingH1 ? 'Featured AI Video & Editing Work' : 'Featured Projects')}
             className="h2 portfolio-main-headline"
             as={isHeadingH1 ? 'h1' : 'h2'}
           />

@@ -30,15 +30,17 @@ import {
   Headphones,
   Mail,
   MessageSquare,
-  Award
+  Smartphone
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
+import InstallPwaButton from '../components/InstallPwaButton';
+
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { isGoogleUser } from '../lib/auth/authUtils';
 import { updateProfile } from '../lib/db/profiles';
 import { getEditorActiveProject, getEditorProjectHistory, getEditorStats, updateOrderStatus, updateOrder, formatOrderCode } from '../lib/db/orders';
-import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
+import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, notifyAdmins, formatNotificationTime } from '../lib/db/notifications';
 import { getEditorRatingStats } from '../lib/db/ratings';
 import { subscribeToOrders, subscribeToUserNotifications, unsubscribeChannel } from '../lib/supabase/realtime';
 import './client.css';
@@ -190,6 +192,8 @@ export default function EditorDashboard() {
 
   const handleLogout = async (e) => {
     if (e) e.preventDefault();
+    const confirmed = window.confirm('Are you sure you want to sign out of this account?');
+    if (!confirmed) return;
     await supabase.auth.signOut();
     window.location.href = '/login';
   };
@@ -218,7 +222,6 @@ export default function EditorDashboard() {
   };
 
   const [historyFilter, setHistoryFilter] = useState('all');
-  const [projectStatus, setProjectStatus] = useState('Editing in Process');
   const [deliverableLink, setDeliverableLink] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -383,7 +386,7 @@ export default function EditorDashboard() {
 
       setEditorProfile(prev => ({
         ...prev,
-        ...(updatedProfile || {}),
+        ...updatedProfile,
         username: trimmedUsername || prev?.username,
         full_name: trimmedName || prev?.full_name,
         editor_title: trimmedTitle || prev?.editor_title,
@@ -646,16 +649,13 @@ export default function EditorDashboard() {
     }
 
     // Notify admin
-    if (activeProject.admin_id) {
-      try {
-        await sendNotification(
-          activeProject.admin_id,
-          `Deliverables submitted: ${activeProject.order_name || activeProject.title}`,
-          `${editorProfile?.full_name || 'Editor'} submitted deliverables for "${activeProject.order_name || activeProject.title}". Ready for review.`
-        );
-      } catch (notifErr) {
-        console.warn('[Editor] Could not notify admin:', notifErr);
-      }
+    try {
+      await notifyAdmins(
+        `Deliverables submitted: ${activeProject.order_name || activeProject.title}`,
+        `${editorProfile?.full_name || 'Editor'} submitted deliverables for "${activeProject.order_name || activeProject.title}". Ready for QC review.`
+      );
+    } catch (notifErr) {
+      console.warn('[Editor] Could not notify admin:', notifErr);
     }
 
     showToast('Deliverables submitted successfully! Admin notified for review.');
@@ -694,6 +694,21 @@ export default function EditorDashboard() {
       showToast('Error updating status: ' + (error.message || 'Permission denied'));
       return;
     }
+
+    // Notify Client & Admins that editing is underway
+    try {
+      if (activeProject.client_id) {
+        await sendNotification(
+          activeProject.client_id,
+          `Editing in Progress: ${activeProject.order_name || activeProject.title}`,
+          `Editor ${editorProfile?.full_name || ''} has initiated active video production for your project.`
+        );
+      }
+      await notifyAdmins(
+        `Editing in Progress: ${activeProject.order_name || activeProject.title}`,
+        `Editor ${editorProfile?.full_name || 'Editor'} marked "${activeProject.order_name || activeProject.title}" as Editing in Process.`
+      );
+    } catch (_) {}
 
     showToast('Project status updated to "Editing in Process". Status is now locked.');
     await fetchEditorData();
@@ -892,6 +907,8 @@ export default function EditorDashboard() {
           </div>
 
           <div className="cp-topbar-actions">
+
+
             {/* WhatsApp Contact Us Button */}
             <a
               href="https://wa.me/918985351756?text=Hi%20MotionNodeEdits,%20I%20am%20an%20editor%20working%20on%20a%20project%20and%20need%20producer%20assistance"
@@ -906,93 +923,7 @@ export default function EditorDashboard() {
               <span>Contact us WP</span>
             </a>
 
-            {/* Notification Bell */}
-            <div className="notif-wrapper" ref={notifRef}>
-              <button
-                className={`cp-icon-btn ${notifOpen ? 'active' : ''}`}
-                aria-label="Notifications"
-                onClick={() => {
-                  setNotifOpen(!notifOpen);
-                  setProfileMenuOpen(false);
-                }}
-              >
-                <Bell className="h-4 w-4" />
-                {unreadCount > 0 && (
-                  <span style={{ position: 'absolute', top: '2px', right: '2px', width: '6px', height: '6px', borderRadius: '50%', background: '#EF4444' }} />
-                )}
-              </button>
 
-              {notifOpen && (
-                <div className="notif-dropdown">
-                  <div className="notif-header">
-                    <div className="notif-title-wrap">
-                      <span className="notif-title">Notifications</span>
-                      {unreadCount > 0 && (
-                        <span className="notif-count-badge">{unreadCount} New</span>
-                      )}
-                    </div>
-                    {unreadCount > 0 && (
-                      <button className="notif-mark-read-btn" onClick={markAllRead}>
-                        Mark all as read
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="notif-list">
-                    {notifications.length === 0 ? (
-                      <div style={{ padding: '20px', textAlign: 'center', color: 'var(--cp-text-secondary)', fontSize: '0.8rem' }}>
-                        No notifications yet
-                      </div>
-                    ) : (
-                      notifications.map((item) => (
-                        <div
-                          key={item.id}
-                          className={`notif-item ${!item.is_read ? 'unread' : ''}`}
-                          onClick={async (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, is_read: true } : n));
-                            try {
-                              await markNotificationAsRead(item.id);
-                            } catch (err) {
-                              console.warn('Could not mark notification as read:', err);
-                            }
-                            setNotifOpen(false);
-                            await fetchEditorData();
-                            handleNavClick('present');
-                          }}
-                        >
-                          <div className="notif-icon-circle">
-                            <Bell className="h-3.5 w-3.5 text-blue-400" />
-                          </div>
-                          <div className="notif-content-wrap">
-                            <span className="notif-item-title">{item.title}</span>
-                            <span className="notif-item-time">{formatNotificationTime(item.created_at)}</span>
-                          </div>
-                          {!item.is_read && <span className="notif-unread-dot" />}
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  <div className="notif-footer">
-                    <button
-                      type="button"
-                      className="notif-footer-btn"
-                      onClick={async (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setNotifOpen(false);
-                        await fetchEditorData();
-                        handleNavClick('present');
-                      }}
-                    >
-                      View Active Project Brief →
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
 
             {/* Profile Shortcuts Dropdown */}
             <div className="cp-user-menu-wrapper" ref={profileMenuRef}>
@@ -1701,13 +1632,38 @@ export default function EditorDashboard() {
                           <Eye className="h-4 w-4" />
                           <span>Change Password</span>
                         </button>
+                        <button
+                          type="button"
+                          className={`cp-profile-subnav-btn ${profileSubTab === 'app' ? 'active' : ''}`}
+                          onClick={() => setProfileSubTab('app')}
+                        >
+                          <Smartphone className="h-4 w-4" />
+                          <span>Mobile & Web App</span>
+                        </button>
                       </div>
                     </div>
 
                     {/* Right Column: Active Tab Content */}
                     <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
                       <div className="cp-profile-main-card">
-                        {profileSubTab === 'profile' ? (
+                        {profileSubTab === 'app' ? (
+                          /* TAB: Install Web App */
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div className="cp-profile-main-header">
+                              <span className="cp-profile-tag">APPLICATION</span>
+                              <h2 className="cp-profile-main-title">Mobile & Desktop App</h2>
+                              <p className="cp-profile-main-subtext">
+                                Install MotionNode Editor Studio on your mobile phone or computer. Runs full-screen for high-focus editing workflows.
+                              </p>
+                            </div>
+
+                            <div className="cp-profile-helper-box" style={{ lineHeight: 1.6 }}>
+                              Manage incoming video assignments, download source footage, and submit render cuts in a dedicated, distraction-free windowed environment.
+                            </div>
+
+                            <InstallPwaButton variant="cp-btn" />
+                          </div>
+                        ) : profileSubTab === 'profile' ? (
                           /* TAB 1: Personal Information */
                           <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                             <div className="cp-profile-main-header">

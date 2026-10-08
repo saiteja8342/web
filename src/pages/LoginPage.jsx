@@ -15,6 +15,7 @@ import {
 import CustomCursor from '../components/CustomCursor';
 import { supabase, signInWithGoogle } from '../supabaseClient';
 import { isGoogleUser, isAdmin } from '../lib/auth/authUtils';
+import { notifyAdmins, sendNotification } from '../lib/db/notifications';
 import './login.css';
 
 export default function LoginPage() {
@@ -104,9 +105,16 @@ export default function LoginPage() {
       }
 
       const statusParam = params.get('status');
+      const noticeParam = params.get('notice');
       if (statusParam === 'unconfirmed') {
         setActiveTab('signin');
         setErrorMessage('Check your email and confirm your account before logging in.');
+      } else if (statusParam === 'rejected') {
+        setActiveTab('signin');
+        setErrorMessage('Your account has been deactivated or rejected by an administrator.');
+      } else if (noticeParam === 'editor_pending') {
+        setActiveTab('signin');
+        setErrorMessage('Your editor account is currently pending administrator review.');
       }
 
       handlePopState = () => {
@@ -119,25 +127,44 @@ export default function LoginPage() {
       };
       window.addEventListener('popstate', handlePopState);
 
-      // If an existing admin session is detected on public login, silently terminate it
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .maybeSingle()
-            .then(({ data: p }) => {
-              if ((p?.role || '').toLowerCase().trim() === 'admin') {
-                supabase.auth.signOut();
+      // If an existing active session is detected and user is not in password recovery, auto-redirect to dashboard
+      const hasRecoveryParam = typeParam === 'recovery' || hashParams.get('type') === 'recovery';
+      if (!hasRecoveryParam) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user) {
+            supabase
+              .from('profiles')
+              .select('role, status')
+              .eq('id', session.user.id)
+              .maybeSingle()
+              .then(({ data: p }) => {
+                const role = (p?.role || '').toLowerCase().trim();
+                const status = (p?.status || '').toLowerCase().trim();
+                const userIsAdmin = role === 'admin' || isAdmin(p) || isAdmin(session.user);
                 if (typeof window !== 'undefined') {
-                  sessionStorage.removeItem('mne_admin_auth_origin');
-                  localStorage.removeItem('mne_admin_auth_origin');
+                  if (status === 'rejected') {
+                    supabase.auth.signOut();
+                    setErrorMessage('Your account has been deactivated by an administrator.');
+                    return;
+                  }
+                  if (userIsAdmin) {
+                    const authOrigin = sessionStorage.getItem('mne_admin_auth_origin') || localStorage.getItem('mne_admin_auth_origin');
+                    window.location.href = authOrigin === 'admin/login' ? '/dashboard/admin' : '/admin/login';
+                  } else if (role === 'editor') {
+                    if (status !== 'approved') {
+                      supabase.auth.signOut();
+                      setErrorMessage('Your editor account is currently pending administrator review.');
+                      return;
+                    }
+                    window.location.href = '/dashboard/editor';
+                  } else {
+                    window.location.href = '/dashboard/client';
+                  }
                 }
-              }
-            });
-        }
-      });
+              });
+          }
+        });
+      }
     }
 
     // Listen for Supabase auth state change (e.g. PASSWORD_RECOVERY event when user opens email reset link)
@@ -271,8 +298,21 @@ export default function LoginPage() {
               username: signupUsername,
               avatar_url: randomAvatar,
             });
+
+            // Send welcome notification to client
+            await sendNotification(
+              data.user.id,
+              'Welcome to MotionNodeEdits!',
+              'Your workspace is ready. You can track projects, submit briefs, and review deliverables anytime.'
+            );
+
+            // Notify studio administrators
+            await notifyAdmins(
+              `New Client Registered: ${formData.fullName}`,
+              `${formData.fullName} (${formData.email}) registered an account on MotionNodeEdits.`
+            );
           } catch (pErr) {
-            console.warn('Profile direct provision:', pErr);
+            console.warn('Profile direct provision / notification error:', pErr);
           }
         }
 
@@ -381,9 +421,11 @@ export default function LoginPage() {
             }
 
 
+            const userIsAdmin = role === 'admin' || isAdmin(profile) || isAdmin(data.user);
+
             // STRICT RULE: Admins CANNOT log in from normal /login.
             // Pretend the account does not exist on this client login panel for security!
-            if (role === 'admin') {
+            if (userIsAdmin) {
               await supabase.auth.signOut();
               if (typeof window !== 'undefined') {
                 sessionStorage.removeItem('mne_admin_auth_origin');

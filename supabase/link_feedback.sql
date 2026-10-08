@@ -41,12 +41,24 @@ CREATE POLICY "Allow public insert to link_feedback"
   TO anon, authenticated
   WITH CHECK (true);
 
--- Allow anyone with the row ID to update testimonial consent immediately post-submit
-CREATE POLICY "Allow public update consent on link_feedback"
-  ON public.link_feedback FOR UPDATE
-  TO anon, authenticated
-  USING (true)
-  WITH CHECK (true);
+-- STRICT SECURITY: Do NOT allow direct table updates from the public.
+-- Consent updates are handled via the hardened update_feedback_consent RPC below.
+CREATE OR REPLACE FUNCTION public.update_feedback_consent(p_feedback_id UUID, p_consent BOOLEAN)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  UPDATE public.link_feedback
+  SET testimonial_consent = p_consent
+  WHERE id = p_feedback_id;
+
+  RETURN FOUND;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.update_feedback_consent(UUID, BOOLEAN) TO anon, authenticated, service_role;
 
 -- STRICT SECURITY: Only authenticated Administrators can view client feedback submissions
 CREATE POLICY "Admin full read on link_feedback"

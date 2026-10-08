@@ -57,20 +57,23 @@ export default function App() {
       {/* NAVBAR */}
       <Navbar />
 
-      {/* HERO SECTION */}
-      <Hero isLoaded={isLoaded} />
+      {/* MAIN CONTENT LANDMARK */}
+      <main id="main">
+        {/* HERO SECTION */}
+        <Hero isLoaded={isLoaded} />
 
-      {/* SOCIAL PROOF */}
-      <SocialProof />
+        {/* SOCIAL PROOF */}
+        <SocialProof />
 
-      {/* CINEMATIC VIDEO PORTFOLIO CAROUSEL */}
-      <VideoPortfolio />
+        {/* CINEMATIC VIDEO PORTFOLIO CAROUSEL */}
+        <VideoPortfolio />
 
-      {/* SPOTLIGHT SERVICES */}
-      <Services />
+        {/* SPOTLIGHT SERVICES */}
+        <Services />
 
-      {/* CONTACT */}
-      <Contact />
+        {/* CONTACT */}
+        <Contact />
+      </main>
 
       {/* FLOATING WHATSAPP DRAWERS */}
       <WhatsAppWidget />

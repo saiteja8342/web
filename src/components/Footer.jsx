@@ -62,17 +62,28 @@ export default function Footer() {
     }
   };
 
+  const getCtaHref = () => {
+    const link = settings.cta_link || '#contact';
+    if (/^https?:\/\//i.test(link)) return link;
+    if (isSecondaryPage) {
+      if (link.startsWith('#')) return `/${link}`;
+      if (link.startsWith('/')) return link;
+      return `/${link}`;
+    }
+    return link;
+  };
+
   return (
     <footer className="footer-premium footer-ref-style" ref={footerRef}>
       <div className="container">
 
         {/* TOP CALLOUT HEADLINE */}
         <div className="footer-top reveal-element">
-          <h2 className="footer-headline" style={{ whiteSpace: 'pre-line' }}>
+          <h3 className="footer-headline" style={{ whiteSpace: 'pre-line' }}>
             {settings.headline || "Let's Create Something\nExceptional."}
-          </h2>
+          </h3>
           <a
-            href={isSecondaryPage ? `/${settings.cta_link || '#contact'}` : (settings.cta_link || '#contact')}
+            href={getCtaHref()}
             className="btn btn-primary footer-cta"
             data-hover-type="link"
           >

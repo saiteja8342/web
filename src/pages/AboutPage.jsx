@@ -15,6 +15,7 @@ import AboutWhoWeAre from '../components/About/AboutWhoWeAre';
 import AboutWhyUs from '../components/About/AboutWhyUs';
 import AboutQualityStandard from '../components/About/AboutQualityStandard';
 import AboutTeam from '../components/About/AboutTeam';
+import AboutTestimonials from '../components/About/AboutTestimonials';
 import AboutFAQ from '../components/About/AboutFAQ';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -76,12 +77,13 @@ export default function AboutPage() {
       {/* Official Site Navigation */}
       <Navbar />
 
-      <main className="about-page-wrapper">
+      <main id="main" className="about-page-wrapper">
         <AboutHero />
         <AboutWhoWeAre />
         <AboutWhyUs />
         <AboutQualityStandard />
         <AboutTeam />
+        <AboutTestimonials />
         <AboutFAQ />
       </main>
 

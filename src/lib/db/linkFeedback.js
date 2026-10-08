@@ -63,21 +63,23 @@ export async function submitLinkFeedback({
 
   try {
     // Pure INSERT without .select() to respect anon RLS
+    const insertPayload = {
+      name: newFeedback.name,
+      email: newFeedback.email || null,
+      company: newFeedback.company || null,
+      project_type: newFeedback.project_type || null,
+      rating: newFeedback.rating,
+      feedback: newFeedback.feedback,
+      improvements: newFeedback.improvements || null,
+      testimonial_consent: newFeedback.testimonial_consent,
+    };
+    if (newFeedback.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(newFeedback.id)) {
+      insertPayload.id = newFeedback.id;
+    }
+
     const { error } = await supabase
       .from('link_feedback')
-      .insert([
-        {
-          id: newFeedback.id,
-          name: newFeedback.name,
-          email: newFeedback.email || null,
-          company: newFeedback.company || null,
-          project_type: newFeedback.project_type || null,
-          rating: newFeedback.rating,
-          feedback: newFeedback.feedback,
-          improvements: newFeedback.improvements || null,
-          testimonial_consent: newFeedback.testimonial_consent,
-        }
-      ]);
+      .insert([insertPayload]);
 
     if (error) {
       console.warn('[LinkFeedback] Supabase insert warning (local copy preserved):', error);
@@ -166,6 +168,17 @@ export async function updateLinkFeedbackConsent(id, consent) {
   }
 
   try {
+    // 1. Preferred secure approach: Call security-definer RPC
+    const { error: rpcError } = await supabase.rpc('update_feedback_consent', {
+      p_feedback_id: id,
+      p_consent: Boolean(consent)
+    });
+
+    if (!rpcError) {
+      return { error: null };
+    }
+
+    // 2. Fallback to direct update if RPC is not yet migrated in Supabase
     const { error } = await supabase
       .from('link_feedback')
       .update({ testimonial_consent: Boolean(consent) })

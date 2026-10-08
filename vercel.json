@@ -30,6 +30,18 @@
       ]
     }
   ],
+  "redirects": [
+    { "source": "/index.html", "destination": "/", "permanent": true },
+    { "source": "/about.html", "destination": "/about", "permanent": true },
+    { "source": "/work.html", "destination": "/work", "permanent": true },
+    { "source": "/our-work.html", "destination": "/work", "permanent": true },
+    { "source": "/our-work", "destination": "/work", "permanent": true },
+    { "source": "/terms.html", "destination": "/terms", "permanent": true },
+    { "source": "/privacy.html", "destination": "/privacy", "permanent": true },
+    { "source": "/privacy-policy.html", "destination": "/privacy", "permanent": true },
+    { "source": "/privacy-policy", "destination": "/privacy", "permanent": true },
+    { "source": "/contact", "destination": "/#contact", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/dashboard/admin", "destination": "/dashboard/admin/index.html" },
     { "source": "/dashboard/admin/:path*", "destination": "/dashboard/admin/index.html" },

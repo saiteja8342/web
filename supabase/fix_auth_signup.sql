@@ -120,24 +120,19 @@ DECLARE
   v_meta_role TEXT;
   v_provider TEXT;
 BEGIN
-  -- Determine role safely from user metadata
-  v_meta_role := LOWER(COALESCE(NEW.raw_user_meta_data->>'role', NEW.raw_app_meta_data->>'role', ''));
+  -- Determine role safely: ONLY trust server-assigned app_metadata for admin!
+  v_meta_role := LOWER(COALESCE(NEW.raw_app_meta_data->>'role', ''));
   v_provider := LOWER(COALESCE(NEW.raw_app_meta_data->>'provider', ''));
 
-  IF v_meta_role = 'admin' OR LOWER(NEW.email) = 'admin@motionnodeedits.com' THEN
+  IF v_meta_role = 'admin' THEN
     v_role := 'admin';
     v_status := 'approved';
-  ELSIF v_meta_role = 'editor' THEN
+  ELSIF LOWER(COALESCE(NEW.raw_user_meta_data->>'role', '')) = 'editor' OR v_meta_role = 'editor' THEN
     v_role := 'editor';
     v_status := 'pending';
   ELSE
     v_role := 'client';
-    -- Google OAuth registrations get instant dashboard access without admin approval
-    IF v_provider = 'google' OR NEW.raw_user_meta_data->>'iss' LIKE '%google%' THEN
-      v_status := 'approved';
-    ELSE
-      v_status := 'pending';
-    END IF;
+    v_status := 'approved';
   END IF;
 
   -- Determine display name safely

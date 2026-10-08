@@ -643,7 +643,7 @@ export default function TermsPage() {
       <CustomCursor />
       <Navbar />
 
-      <main className="terms-page-wrapper">
+      <main id="main" className="terms-page-wrapper">
         <div className="about-container terms-container">
           
           {/* HEADER HERO */}

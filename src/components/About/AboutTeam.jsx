@@ -47,7 +47,7 @@ export default function AboutTeam() {
                 }}>
                   <img 
                     src="/image/mne_logo.png" 
-                    alt="MotionNodeEdits Emblem" 
+                    alt="Vutukuri Sai Teja — Founder and Creative Lead at MotionNodeEdits" 
                     style={{ width: '70px', height: '70px', borderRadius: '50%' }} 
                   />
                 </div>

@@ -44,7 +44,8 @@ export default function AboutTestimonials() {
     return () => { isMounted = false; };
   }, []);
 
-  const safeIndex = activeIndex >= testimonials.length ? 0 : activeIndex;
+  const safeIndex = testimonials.length > 0 ? (activeIndex >= testimonials.length ? 0 : activeIndex) : 0;
+  const currentQuote = (testimonials[safeIndex]?.quote || '').replace(/^["“”\s]+|["“”\s]+$/g, '');
 
   return (
     <section 
@@ -91,7 +92,7 @@ export default function AboutTestimonials() {
               letterSpacing: '-0.01em',
               fontStyle: 'italic'
             }}>
-              "{testimonials[safeIndex]?.quote}"
+              "{currentQuote}"
             </p>
             
             <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginBottom: '16px', color: '#FFFFFF' }}>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Star, CheckCircle2, Send, Sparkles, Check, ArrowRight, ShieldCheck } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { submitLinkFeedback, updateLinkFeedbackConsent } from '../lib/db/linkFeedback';
+import { notifyAdmins } from '../lib/db/notifications';
 import './feedback.css';
 
 const PROJECT_TYPE_OPTIONS = [
@@ -96,6 +97,14 @@ export default function FeedbackPage() {
       if (res?.data?.id) {
         setSubmittedFeedbackId(res.data.id);
       }
+
+      // Notify studio admin
+      try {
+        notifyAdmins(
+          `New Feedback: ${rating}★ from ${formData.name || 'Client'}`,
+          `${formData.name || 'A client'} submitted a ${rating}-star review for "${formData.project_type}": "${(formData.feedback || '').slice(0, 80)}..."`
+        );
+      } catch (_) {}
 
       // Only show consent checkbox step if client gave 4 or 5 stars!
       if (isHighRating) {

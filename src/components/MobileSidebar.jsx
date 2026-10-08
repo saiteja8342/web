@@ -8,15 +8,24 @@ import {
   Mail, 
   X, 
   MessageSquare,
-  ArrowRight
+  ArrowRight,
+  User,
+  LogIn
 } from 'lucide-react';
+import InstallPwaButton from './InstallPwaButton';
 
-export default function MobileSidebar({ isOpen, onClose }) {
+export default function MobileSidebar({ isOpen, onClose, sessionUser, userRole, onStartProject }) {
   const isAboutPage = typeof window !== 'undefined' && window.location.pathname.includes('about');
   const isWorkPage = typeof window !== 'undefined' && window.location.pathname.includes('work');
   const isTermsPage = typeof window !== 'undefined' && window.location.pathname.includes('terms');
   const isPrivacyPage = typeof window !== 'undefined' && window.location.pathname.includes('privacy');
   const isSecondaryPage = isAboutPage || isWorkPage || isTermsPage || isPrivacyPage;
+
+  const dashboardUrl = (userRole === 'admin') 
+    ? '/dashboard/admin' 
+    : (userRole === 'editor') 
+      ? '/dashboard/editor' 
+      : '/dashboard/client';
 
   const links = [
     { label: 'Home', href: isSecondaryPage ? '/' : '#', icon: <Home className="h-5 w-5 shrink-0 text-white/80" /> },
@@ -25,6 +34,11 @@ export default function MobileSidebar({ isOpen, onClose }) {
     { label: 'About Us', href: '/about', icon: <Sparkles className="h-5 w-5 shrink-0 text-white/80" /> },
     { label: 'Client Reviews', href: isSecondaryPage ? '/#testimonials' : '#testimonials', icon: <Star className="h-5 w-5 shrink-0 text-white/80" /> },
     { label: 'Contact', href: isSecondaryPage ? '/#contact' : '#contact', icon: <Mail className="h-5 w-5 shrink-0 text-white/80" /> },
+    { 
+      label: sessionUser ? 'Dashboard' : 'Login / Sign In', 
+      href: sessionUser ? dashboardUrl : '/login', 
+      icon: sessionUser ? <User className="h-5 w-5 shrink-0 text-emerald-400" /> : <LogIn className="h-5 w-5 shrink-0 text-white/80" /> 
+    },
   ];
 
   const sidebarVariants = {
@@ -139,10 +153,20 @@ export default function MobileSidebar({ isOpen, onClose }) {
             </nav>
 
             {/* Bottom Actions */}
-            <div className="mobile-sidebar-footer">
+            <div className="mobile-sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* Chrome App / PWA Install Button */}
+              <InstallPwaButton variant="mobile" />
+
               <a
-                href={isSecondaryPage ? "/#contact" : "#contact"}
-                onClick={(e) => handleLinkClick(e, isSecondaryPage ? "/#contact" : "#contact")}
+                href={sessionUser ? dashboardUrl : "/login"}
+                onClick={(e) => {
+                  onClose();
+                  if (onStartProject) {
+                    onStartProject(e);
+                  } else {
+                    window.location.href = sessionUser ? dashboardUrl : '/login';
+                  }
+                }}
                 className="mobile-sidebar-cta-btn"
               >
                 <span>Start a Project</span>

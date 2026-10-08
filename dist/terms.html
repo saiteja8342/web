@@ -27,19 +27,64 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <script type="module" crossorigin src="/assets/terms-B6QTdG22.js"></script>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#050507" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="MotionNode" />
+
+    <!-- JSON-LD Structured Data: BreadcrumbList Schema -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "BreadcrumbList",
+          "@id": "https://motionnodeedits.com/terms#breadcrumb",
+          "itemListElement": [
+            {
+              "@type": "ListItem",
+              "position": 1,
+              "name": "Home",
+              "item": "https://motionnodeedits.com/"
+            },
+            {
+              "@type": "ListItem",
+              "position": 2,
+              "name": "Terms of Service",
+              "item": "https://motionnodeedits.com/terms"
+            }
+          ]
+        }
+      ]
+    }
+    </script>
+
+    <!-- Google Analytics 4 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-Y6RTH7XM5F"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-Y6RTH7XM5F');
+    </script>
+    <script type="module" crossorigin src="/assets/terms-DAXGlWsk.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-CbXtAM7H.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-animation-CsS1Jrxx.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-core-B892fJjM.js">
-    <link rel="modulepreload" crossorigin href="/assets/client-D33a8LVq.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-VEK7jobv.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-scroll-C9A3lpHu.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-D3ZKpS87.js">
-    <link rel="modulepreload" crossorigin href="/assets/cms-Buy2dlGS.js">
-    <link rel="modulepreload" crossorigin href="/assets/Footer-QgmCmyKW.js">
-    <link rel="stylesheet" crossorigin href="/assets/client-WzcqVwWX.css">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-Bo1TP8_g.js">
+    <link rel="modulepreload" crossorigin href="/assets/InstallPwaButton-B7Eu2uYC.js">
+    <link rel="modulepreload" crossorigin href="/assets/supabaseClient-Cs8IxbMO.js">
+    <link rel="modulepreload" crossorigin href="/assets/cms-1YqcBdRH.js">
+    <link rel="modulepreload" crossorigin href="/assets/Footer-BsM5oXSV.js">
+    <link rel="stylesheet" crossorigin href="/assets/client-Dm0WJNoX.css">
     <link rel="stylesheet" crossorigin href="/assets/about-UfH6Xzvn.css">
   </head>
   <body>
+    <a href="#main" class="skip-link">Skip to main content</a>
     <div id="root"></div>
   </body>
 </html>

@@ -65,9 +65,6 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
     let userRole = userIsAdmin ? 'admin' : (profile.role || '').toLowerCase().trim();
     let userStatus = (profile.status || '').toLowerCase().trim();
 
-    // ─── INSTANT ACCESS WITHOUT ADMIN APPROVAL ──────────────────────
-    // All newly registered clients can enter the Client Dashboard immediately.
-    // Only accounts that were explicitly suspended/declined by an administrator are blocked.
     if (!userIsAdmin) {
       if (userStatus === 'rejected') {
         // Suspended or blocked by administrator: deny access!
@@ -78,8 +75,18 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
         return { authorized: false, session: null, profile };
       }
 
-      // If pending or unset, auto-approve client user
-      if (userStatus !== 'approved') {
+      // Editors MUST be approved by an administrator before accessing the platform
+      if (userRole === 'editor' && userStatus !== 'approved') {
+        console.warn('[AuthGuard] Access blocked: Editor account is pending administrator approval');
+        await signOutUser();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login?notice=editor_pending';
+        }
+        return { authorized: false, session: null, profile };
+      }
+
+      // If pending or unset, auto-approve client user so legitimate clients can order immediately
+      if (userRole === 'client' && userStatus !== 'approved') {
         userStatus = 'approved';
         profile.status = 'approved';
 

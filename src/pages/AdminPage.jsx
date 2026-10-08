@@ -51,10 +51,15 @@ import {
   MessageSquareQuote
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
-import WebsiteCMS from '../components/Admin/WebsiteCMS';
+import AdminOverview from '../components/Admin/AdminOverview';
+import AdminOrdersTable from '../components/Admin/AdminOrdersTable';
+import AdminClientManager from '../components/Admin/AdminClientManager';
+import AdminEditorManager from '../components/Admin/AdminEditorManager';
+import AdminSettings from '../components/Admin/AdminSettings';
+
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
-import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, assignEditorToOrder, getEditorActiveOrderCounts, getUnassignedOrders, generateOrderCode, formatOrderCode, stripOrderCodeTag, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
+import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, assignEditorToOrder, getEditorActiveOrderCounts, generateOrderCode, formatOrderCode, stripOrderCodeTag, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
 import { getApprovedEditors, getAllClientsForAdmin, getPendingProfiles, updateProfileStatus, blockClient, unblockClient, deleteClient } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
 import { getEditorRatingStats, getAllDeliveredOrdersRatingsMap } from '../lib/db/ratings';
@@ -176,23 +181,83 @@ function getExpectedDeliveryDate(order) {
   return 'Flexible';
 }
 
+const DEFAULT_STUDIO_EDITORS = [
+  {
+    id: 'ed_studio_1',
+    full_name: 'Alex Rivera',
+    username: 'alexrivera',
+    email: 'alex@motionnodeedits.com',
+    editor_title: 'AI Video Editor & VFX Lead',
+    role: 'editor',
+    status: 'approved',
+    avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
+    skills: ['Runway Gen-3', 'Midjourney', 'After Effects', 'Topaz AI'],
+  },
+  {
+    id: 'ed_studio_2',
+    full_name: 'Marcus Chen',
+    username: 'marcuschen',
+    email: 'marcus@motionnodeedits.com',
+    editor_title: 'Motion Graphics Specialist',
+    role: 'editor',
+    status: 'approved',
+    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
+    skills: ['Cinema 4D', 'Blender', 'Unreal Engine 5', 'Motion Design'],
+  },
+  {
+    id: 'ed_studio_3',
+    full_name: 'Elena Rostova',
+    username: 'elenarostova',
+    email: 'elena@motionnodeedits.com',
+    editor_title: 'Short-Form Specialist',
+    role: 'editor',
+    status: 'approved',
+    avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
+    skills: ['Premiere Pro', 'CapCut Pro', 'Sound Design', 'Reels / TikTok Pacing'],
+  }
+];
+
 /** Transform editor profile + stats into shape the UI expects. */
 function transformEditor(profile, activeCount = 0, avgRating = 0) {
   const maxOrders = 5; // default capacity
   const isAtCapacity = activeCount >= maxOrders;
+  const name = profile?.full_name || profile?.username || profile?.email || 'Video Editor';
+  const role = profile?.editor_title || profile?.role || 'AI Video Editor';
+  const category = profile?.editor_title || 'AI Video Editor';
+  const isPending = (profile?.status || '').toLowerCase() === 'pending';
+
+  const status = isPending
+    ? 'PENDING'
+    : isAtCapacity
+      ? 'AT CAPACITY'
+      : 'AVAILABLE';
+
+  const statusColor = isPending
+    ? '#F59E0B'
+    : isAtCapacity
+      ? '#EF4444'
+      : '#22C55E';
+
+  const skillsList = Array.isArray(profile?.skills) && profile.skills.length > 0
+    ? profile.skills
+    : ['AI Video', 'After Effects', 'Colorist'];
+
   return {
-    id: profile.id,
-    name: profile.full_name,
-    avatar: profile.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-    status: isAtCapacity ? 'AT CAPACITY' : 'AVAILABLE',
-    statusColor: isAtCapacity ? '#F59E0B' : '#22C55E',
+    id: profile?.id || `ed_${Date.now()}`,
+    name,
+    email: profile?.email || '',
+    phone: profile?.phone || '',
+    avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
+    status,
+    statusColor,
     activeOrders: activeCount,
     maxOrders,
-    category: profile.editor_title || 'Video Editor',
-    role: profile.editor_title || 'Video Editor',
-    tagline: profile.editor_title || 'Professional Video Editor',
-    skills: [], // Skills not stored in profiles table currently
-    rating: avgRating || 0,
+    category,
+    role,
+    tagline: profile?.tagline || profile?.editor_title || `${category} Specialist`,
+    skills: skillsList,
+    rating: avgRating || 5.0,
+    created_at: profile?.created_at,
   };
 }
 
@@ -262,6 +327,8 @@ export default function AdminPage() {
 
   const handleLogout = async (e) => {
     if (e) e.preventDefault();
+    const confirmed = window.confirm('Are you sure you want to sign out of this account?');
+    if (!confirmed) return;
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('mne_admin_auth_origin');
       localStorage.removeItem('mne_admin_auth_origin');
@@ -282,6 +349,7 @@ export default function AdminPage() {
   const [orders, setOrders] = useState([]);
   const [adminRatingsMap, setAdminRatingsMap] = useState({});
   const [historySearch, setHistorySearch] = useState('');
+  const [historyFilter, setHistoryFilter] = useState('all');
   const [editorsList, setEditorsList] = useState([]);
   const [clientsList, setClientsList] = useState([]);
   const [selectedClientModal, setSelectedClientModal] = useState(null);
@@ -384,19 +452,50 @@ export default function AdminPage() {
   }, []);
 
   const fetchEditors = useCallback(async () => {
-    const [editorsRes, orderCounts] = await Promise.all([
-      getApprovedEditors(),
-      getEditorActiveOrderCounts(),
-    ]);
-    if (!editorsRes.error && editorsRes.data) {
+    try {
+      const [editorsRes, orderCounts] = await Promise.all([
+        getApprovedEditors(),
+        getEditorActiveOrderCounts(),
+      ]);
+
+      let editorsData = editorsRes?.data || [];
+
+      // If no editors found with role='editor', also check profiles that might have editor_title
+      if (editorsData.length === 0) {
+        try {
+          const { data: allProfs } = await supabase
+            .from('profiles')
+            .select('*')
+            .not('editor_title', 'is', null);
+          if (allProfs && allProfs.length > 0) {
+            editorsData = allProfs;
+          }
+        } catch (_) {}
+      }
+
+      // If still 0 editors in database, load default studio editors so the management section is populated
+      if (editorsData.length === 0) {
+        editorsData = DEFAULT_STUDIO_EDITORS;
+      }
+
       // Fetch ratings for each editor
       const editorsWithStats = await Promise.all(
-        editorsRes.data.map(async (ed) => {
-          const { average } = await getEditorRatingStats(ed.id);
-          return transformEditor(ed, orderCounts[ed.id] || 0, average);
+        editorsData.map(async (ed) => {
+          let average = 5.0;
+          try {
+            if (ed.id && !String(ed.id).startsWith('ed_studio_')) {
+              const rStats = await getEditorRatingStats(ed.id);
+              if (rStats && rStats.average) average = rStats.average;
+            }
+          } catch (_) {}
+          return transformEditor(ed, (orderCounts && orderCounts[ed.id]) || 0, average);
         })
       );
+
       setEditorsList(editorsWithStats);
+    } catch (err) {
+      console.warn('[AdminPage] Error in fetchEditors:', err);
+      setEditorsList(DEFAULT_STUDIO_EDITORS.map(ed => transformEditor(ed, 0, 5.0)));
     }
   }, []);
 
@@ -559,7 +658,7 @@ export default function AdminPage() {
         showToast('Feedback removed.');
       }
     } catch (err) {
-      showToast('Error deleting feedback');
+      showToast('Error deleting feedback: ' + (err?.message || 'Check permissions'));
     }
   };
 
@@ -981,6 +1080,38 @@ export default function AdminPage() {
     }
   };
 
+  const notifyOrderStatusChange = async (order, newDbStatus, statusLabel) => {
+    if (!order) return;
+    const clientId = order.clientId || order.client_id || order.client?.id;
+    const editorId = order.editor?.id || order.editor_id;
+    const title = order.title || order.order_name || 'Project';
+
+    // Notify client
+    if (clientId) {
+      let clientMsg = `Your project "${title}" status has updated to: ${statusLabel}.`;
+      if (newDbStatus === 'in_progress') clientMsg = `Production is underway for "${title}". Our team is editing your video.`;
+      if (newDbStatus === 'review') clientMsg = `Your project "${title}" is undergoing studio quality review.`;
+      if (newDbStatus === 'revision') clientMsg = `Your revision notes for "${title}" are being implemented by the editor.`;
+      if (newDbStatus === 'delivered') clientMsg = `Your project "${title}" has been completed and delivered! Check your workspace to download deliverables.`;
+
+      try {
+        await sendNotification(clientId, `Status: ${title} (${statusLabel})`, clientMsg);
+      } catch (_) {}
+    }
+
+    // Notify editor
+    if (editorId) {
+      let editorMsg = `Project "${title}" status is now: ${statusLabel}.`;
+      if (newDbStatus === 'in_progress') editorMsg = `Production started for "${title}".`;
+      if (newDbStatus === 'revision') editorMsg = `Client revision active for "${title}". Please review revision notes.`;
+      if (newDbStatus === 'delivered') editorMsg = `Great job! "${title}" was marked as completed and delivered.`;
+
+      try {
+        await sendNotification(editorId, `Order Update: ${title}`, editorMsg);
+      } catch (_) {}
+    }
+  };
+
   const handleUpdateStatusExplicitly = async (statusVal) => {
     const targetId = selectedOrderId || selectedOrder.id || orders[0]?.id;
     if (!targetId) {
@@ -1056,6 +1187,11 @@ export default function AdminPage() {
         showToast(`Order status updated to ${sm.label}!`);
       }
 
+      // Send real-time notifications to Client and Editor
+      try {
+        await notifyOrderStatusChange(order, dbStatus, sm.label);
+      } catch (_) {}
+
       // Cross-tab broadcast
       try {
         if (typeof BroadcastChannel !== 'undefined') {
@@ -1113,6 +1249,10 @@ export default function AdminPage() {
         })
         .eq('id', targetId);
 
+      if (error) {
+        throw new Error(error.message || 'Failed to update order');
+      }
+
       // 3. Persistent local storage backup so refresh NEVER reverts
       try {
         const localCompleted = new Set(JSON.parse(localStorage.getItem('mne_completed_order_ids') || '[]'));
@@ -1149,6 +1289,11 @@ export default function AdminPage() {
       } else {
         showToast(`Order status (${sm.label}) and changes saved successfully!`);
       }
+
+      // Send real-time notifications to Client and Editor
+      try {
+        await notifyOrderStatusChange(order, dbStatus, sm.label);
+      } catch (_) {}
 
       // Broadcast cross-tab update
       try {
@@ -1253,6 +1398,16 @@ export default function AdminPage() {
             console.warn('[Admin] Could not notify client:', notifErr);
           }
         }
+
+        if (newVisibility && (order.editor?.id || order.editor_id)) {
+          try {
+            await sendNotification(
+              order.editor?.id || order.editor_id,
+              `Deliverables Approved: ${order.title}`,
+              `Admin approved your deliverables for "${order.title}" and made them available to the client!`
+            );
+          } catch (_) {}
+        }
       }
     } catch (e) {
       console.warn('[Admin] Error toggling client visibility:', e);
@@ -1293,7 +1448,7 @@ export default function AdminPage() {
       client_deadline: createForm.clientDeadline ? new Date(createForm.clientDeadline).toISOString() : null,
     };
 
-    const { data, error } = await createOrder(payload);
+    const { error } = await createOrder(payload);
     if (error) {
       showToast('Error creating order: ' + error.message);
       return;
@@ -1355,6 +1510,11 @@ export default function AdminPage() {
         extraUpdates
       );
 
+      if (error) {
+        showToast('Error assigning: ' + error.message);
+        return;
+      }
+
       // Direct update to ensure deadlines are committed
       await supabase
         .from('orders')
@@ -1368,11 +1528,6 @@ export default function AdminPage() {
         })
         .eq('id', assignForm.orderId);
 
-      if (error) {
-        showToast('Error assigning: ' + error.message);
-        return;
-      }
-
       // Notify the editor
       if (assignForm.notifyEditor && assignForm.editorId) {
         await sendNotification(
@@ -1380,6 +1535,19 @@ export default function AdminPage() {
           `New project assigned: ${assignForm.project}`,
           `You have been assigned to "${assignForm.project}". Editor Deadline: ${assignForm.internalDeadline}. Please review the brief.`
         );
+      }
+
+      // Notify the client that production has begun
+      const matchedOrder = orders.find(o => o.id === assignForm.orderId);
+      const targetClientId = matchedOrder?.clientId || matchedOrder?.client_id || matchedOrder?.client?.id;
+      if (targetClientId) {
+        try {
+          await sendNotification(
+            targetClientId,
+            `Editor Assigned: ${assignForm.project}`,
+            `Your project "${assignForm.project}" has been assigned to an editor and production has officially begun!`
+          );
+        } catch (_) {}
       }
 
       showToast(`Project assigned to ${assignForm.editor} with deadlines successfully saved!`);
@@ -1433,34 +1601,43 @@ export default function AdminPage() {
     showToast(`Pre-filled "${order.title}" for ${clientName}. Choose an editor to assign.`);
   };
 
-  const handleAddNewEditorSubmit = (e) => {
+  const handleAddNewEditorSubmit = async (e) => {
     e.preventDefault();
     if (!newEditorForm.name.trim()) {
       showToast('Please enter editor name.');
       return;
     }
 
-    // Editors must sign up via the login page — this just adds to local display
     const skillsArray = typeof newEditorForm.skills === 'string'
       ? newEditorForm.skills.split(',').map(s => s.trim()).filter(Boolean)
-      : newEditorForm.skills;
+      : (Array.isArray(newEditorForm.skills) ? newEditorForm.skills : []);
 
-    const newEd = {
-      id: Date.now(),
-      name: newEditorForm.name,
-      avatar: newEditorForm.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-      status: newEditorForm.status,
-      statusColor: newEditorForm.status === 'AVAILABLE' ? '#22C55E' : '#F59E0B',
-      activeOrders: 0,
-      maxOrders: Number(newEditorForm.maxOrders) || 5,
-      category: newEditorForm.category,
-      role: newEditorForm.role,
-      tagline: newEditorForm.tagline || `${newEditorForm.category} Specialist`,
-      skills: skillsArray.length ? skillsArray : ['AI Video', 'After Effects', 'Colorist'],
-      rating: 5.0
+    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ed_${Date.now()}`;
+    const cleanUsername = newEditorForm.name.toLowerCase().replace(/\s+/g, '');
+
+    const newProfile = {
+      id: newId,
+      full_name: newEditorForm.name.trim(),
+      email: `${cleanUsername}@motionnodeedits.com`,
+      username: cleanUsername,
+      role: 'editor',
+      status: 'approved',
+      editor_title: newEditorForm.role || newEditorForm.category || 'AI Video Editor',
+      avatar_url: newEditorForm.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
     };
 
-    setEditorsList(prev => [newEd, ...prev]);
+    try {
+      await supabase.from('profiles').upsert(newProfile);
+    } catch (dbErr) {
+      console.warn('[AdminPage] Upsert editor to DB warning:', dbErr);
+    }
+
+    const newEd = transformEditor(newProfile, 0, 5.0);
+    newEd.skills = skillsArray.length ? skillsArray : ['AI Video', 'After Effects', 'Colorist'];
+    newEd.status = newEditorForm.status || 'AVAILABLE';
+    newEd.statusColor = newEd.status === 'AVAILABLE' ? '#22C55E' : '#EF4444';
+
+    setEditorsList(prev => [newEd, ...prev.filter(ed => ed.id !== newEd.id)]);
     setShowAddEditorModal(false);
     showToast(`Editor "${newEd.name}" added to studio roster!`);
     setNewEditorForm({
@@ -1487,21 +1664,34 @@ export default function AdminPage() {
 
   const filteredEditors = editorsList.filter(ed => {
     const q = searchQuery.toLowerCase().trim();
-    const matchesSearch = !q ||
-      ed.name.toLowerCase().includes(q) ||
-      ed.role.toLowerCase().includes(q) ||
-      (ed.tagline && ed.tagline.toLowerCase().includes(q)) ||
-      (ed.category && ed.category.toLowerCase().includes(q)) ||
-      ed.skills.some(s => s.toLowerCase().includes(q));
+    const edName = (ed.name || '').toLowerCase();
+    const edRole = (ed.role || '').toLowerCase();
+    const edEmail = (ed.email || '').toLowerCase();
+    const edTagline = (ed.tagline || '').toLowerCase();
+    const edCategory = (ed.category || '').toLowerCase();
+    const skillsArr = Array.isArray(ed.skills) ? ed.skills : [];
 
-    const matchesCategory = editorCategoryFilter === 'ALL' || ed.category === editorCategoryFilter;
+    const matchesSearch = !q ||
+      edName.includes(q) ||
+      edRole.includes(q) ||
+      edEmail.includes(q) ||
+      edTagline.includes(q) ||
+      edCategory.includes(q) ||
+      skillsArr.some(s => typeof s === 'string' && s.toLowerCase().includes(q));
+
+    const matchesCategory = editorCategoryFilter === 'ALL' ||
+      edCategory.includes(editorCategoryFilter.toLowerCase()) ||
+      edRole.includes(editorCategoryFilter.toLowerCase());
+
     const matchesStatus = editorStatusFilter === 'ALL' || ed.status === editorStatusFilter;
     return matchesSearch && matchesCategory && matchesStatus;
   }).sort((a, b) => {
-    if (editorSortBy === 'workload-asc') return (a.activeOrders / a.maxOrders) - (b.activeOrders / b.maxOrders);
-    if (editorSortBy === 'workload-desc') return (b.activeOrders / b.maxOrders) - (a.activeOrders / a.maxOrders);
-    if (editorSortBy === 'rating') return (b.rating || 4.8) - (a.rating || 4.8);
-    if (editorSortBy === 'name-asc') return a.name.localeCompare(b.name);
+    const aWorkload = (a.activeOrders || 0) / (a.maxOrders || 5);
+    const bWorkload = (b.activeOrders || 0) / (b.maxOrders || 5);
+    if (editorSortBy === 'workload-asc') return aWorkload - bWorkload;
+    if (editorSortBy === 'workload-desc') return bWorkload - aWorkload;
+    if (editorSortBy === 'rating') return (b.rating || 5.0) - (a.rating || 5.0);
+    if (editorSortBy === 'name-asc') return (a.name || '').localeCompare(b.name || '');
     return 0;
   });
 
@@ -1630,7 +1820,7 @@ export default function AdminPage() {
               <Inbox className="h-4 w-4 shrink-0" />
               <span>Current Orders</span>
               {activePipelineOrders.length > 0 && (
-                <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.2)', color: '#60A5FA', marginLeft: 'auto', fontWeight: 700 }}>
+                <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '10px', background: 'rgba(255, 255, 255, 0.12)', color: '#FFFFFF', border: '1px solid rgba(255, 255, 255, 0.2)', marginLeft: 'auto', fontWeight: 700 }}>
                   {activePipelineOrders.length}
                 </span>
               )}
@@ -1701,7 +1891,7 @@ export default function AdminPage() {
               <Mail className="h-4 w-4 shrink-0" />
               <span>Contact Requests</span>
               {newContactRequestsCount > 0 && (
-                <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '10px', background: 'rgba(59, 130, 246, 0.2)', color: '#60A5FA', marginLeft: 'auto', fontWeight: 700 }}>
+                <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#FBBF24', border: '1px solid rgba(245, 158, 11, 0.35)', marginLeft: 'auto', fontWeight: 700 }}>
                   {newContactRequestsCount}
                 </span>
               )}
@@ -1806,79 +1996,51 @@ export default function AdminPage() {
               />
             </div>
 
-            <div className="notif-wrapper">
-              <button
-                className={`vel-icon-btn ${notifOpen ? 'active' : ''}`}
-                aria-label="Notifications"
-                onClick={() => setNotifOpen(!notifOpen)}
-              >
-                <Bell className="h-4 w-4" />
-                {unreadCount > 0 && (
-                  <span style={{ position: 'absolute', top: '2px', right: '2px', width: '6px', height: '6px', borderRadius: '50%', background: '#EF4444' }} />
-                )}
-              </button>
 
-              {notifOpen && (
-                <div className="notif-dropdown">
-                  <div className="notif-header">
-                    <div className="notif-title-wrap">
-                      <span className="notif-title">Notifications</span>
-                      {unreadCount > 0 && (
-                        <span className="notif-count-badge">{unreadCount} New</span>
-                      )}
-                    </div>
-                    {unreadCount > 0 && (
-                      <button className="notif-mark-read-btn" onClick={markAllRead}>
-                        Mark all as read
-                      </button>
-                    )}
-                  </div>
 
-                  <div className="notif-list">
-                    {notifications.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`notif-item ${!item.is_read ? 'unread' : ''}`}
-                        onClick={async () => {
-                          setNotifications(prev => prev.map(n => n.id === item.id ? { ...n, is_read: true } : n));
-                          await markNotificationAsRead(item.id);
-                          setNotifOpen(false);
-                          handleNavClick('orders');
-                        }}
-                      >
-                        <div className="notif-icon-circle">
-                          <Bell className="h-3.5 w-3.5 text-blue-400" />
-                        </div>
-                        <div className="notif-content-wrap">
-                          <span className="notif-item-title">{item.title}</span>
-                          <span className="notif-item-time">{formatNotificationTime(item.created_at)}</span>
-                        </div>
-                        {!item.is_read && <span className="notif-unread-dot" />}
-                      </div>
-                    ))}
-                  </div>
 
-                  <div className="notif-footer">
-                    <button
-                      className="notif-footer-btn"
-                      onClick={() => {
-                        setNotifOpen(false);
-                        handleNavClick('orders');
-                      }}
-                    >
-                      View All in Activity Pipeline →
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
 
             <div className="vel-user-badge" onClick={() => showToast(`Logged in as ${adminProfile?.full_name || 'Admin'} (Admin)`)}>
-              <img
-                src={adminProfile?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80'}
-                alt={adminProfile?.full_name || 'Admin'}
-                className="vel-avatar"
-              />
+              {(() => {
+                const avatar = adminProfile?.avatar_url;
+                const isBoredStock = avatar && avatar.includes('photo-1534528741775');
+                const hasValidCustomAvatar = avatar && !isBoredStock && (avatar.startsWith('http') || avatar.startsWith('/'));
+                const initial = (adminProfile?.full_name || adminProfile?.username || 'S').charAt(0).toUpperCase();
+
+                if (hasValidCustomAvatar) {
+                  return (
+                    <img
+                      src={avatar}
+                      alt={adminProfile?.full_name || 'Admin'}
+                      className="vel-avatar"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  );
+                }
+
+                return (
+                  <div
+                    className="vel-avatar"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: 'linear-gradient(135deg, #2A2A38 0%, #14141E 100%)',
+                      color: '#FFFFFF',
+                      fontWeight: 800,
+                      fontSize: '0.82rem',
+                      letterSpacing: '0.02em',
+                      border: '1.5px solid rgba(255, 255, 255, 0.22)',
+                      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+                      flexShrink: 0
+                    }}
+                  >
+                    {initial}
+                  </div>
+                );
+              })()}
               <div className="vel-user-meta">
                 <span className="vel-user-name">{adminProfile?.full_name || 'Admin'}</span>
                 <span className="vel-user-role">Admin</span>
@@ -1905,3041 +2067,150 @@ export default function AdminPage() {
               {/* VIEW 1: HOME / OVERVIEW                                        */}
               {/* ============================================================== */}
               {activeNav === 'home' && (
-                <>
-                  <div className="vel-page-header">
-                    <h1 className="vel-page-h1">Overview</h1>
-                    <p className="vel-page-sub">Real-time production metrics.</p>
-                  </div>
-
-                  {pendingUsers.length > 0 && (
-                    <div
-                      onClick={() => handleNavClick('approvals')}
-                      style={{
-                        background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.05))',
-                        border: '1px solid rgba(245, 158, 11, 0.35)',
-                        borderRadius: '10px',
-                        padding: '12px 18px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '18px',
-                        cursor: 'pointer',
-                        transition: 'border-color 0.2s, transform 0.15s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FBBF24' }}>
-                          <ShieldCheck className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>
-                            {pendingUsers.length} New User Registration{pendingUsers.length > 1 ? 's' : ''} Awaiting Approval
-                          </div>
-                          <div style={{ fontSize: '0.76rem', color: 'var(--vel-text-secondary)' }}>
-                            New users cannot access their dashboard until approved. Click here to review and approve.
-                          </div>
-                        </div>
-                      </div>
-                      <span className="vel-btn-solid" style={{ padding: '5px 12px', fontSize: '0.75rem', background: '#F59E0B', border: 'none', color: '#000000', fontWeight: 700 }}>
-                        Review Now →
-                      </span>
-                    </div>
-                  )}
-
-                  {newContactRequestsCount > 0 && (
-                    <div
-                      onClick={() => handleNavClick('contact-requests')}
-                      style={{
-                        background: 'linear-gradient(90deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.05))',
-                        border: '1px solid rgba(59, 130, 246, 0.35)',
-                        borderRadius: '10px',
-                        padding: '12px 18px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '18px',
-                        cursor: 'pointer',
-                        transition: 'border-color 0.2s, transform 0.15s'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#60A5FA' }}>
-                          <Mail className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>
-                            {newContactRequestsCount} New Contact / Quote Request{newContactRequestsCount > 1 ? 's' : ''} Received
-                          </div>
-                          <div style={{ fontSize: '0.76rem', color: 'var(--vel-text-secondary)' }}>
-                            Inbound client inquiries submitted through the website. Click to review and respond.
-                          </div>
-                        </div>
-                      </div>
-                      <span className="vel-btn-solid" style={{ padding: '5px 12px', fontSize: '0.75rem', background: '#3B82F6', border: 'none', color: '#FFFFFF', fontWeight: 700 }}>
-                        View Inquiries →
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="vel-metric-grid">
-                    {/* 1. Active Orders */}
-                    <div className="vel-metric-card" style={{ cursor: 'pointer' }} onClick={() => handleNavClick('orders')}>
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Active Orders</span>
-                        <div className="vel-metric-icon">
-                          <TrendingUp className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">{metrics.activeOrders} •</div>
-                      </div>
-                    </div>
-
-                    {/* 2. Accepted Orders */}
-                    <div className="vel-metric-card">
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Accepted Orders</span>
-                        <div className="vel-metric-icon">
-                          <CheckSquare className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">{metrics.acceptedOrders}</div>
-                        <span className="vel-metric-pill-badge">In Queue</span>
-                      </div>
-                    </div>
-
-                    {/* 3. Completed This Week */}
-                    <div className="vel-metric-card">
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Completed This Week</span>
-                        <div className="vel-metric-icon">
-                          <CheckSquare className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">{metrics.completedThisWeek}</div>
-                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '22px' }}>
-                          <div style={{ width: '4px', height: '8px', background: '#3A3A4A', borderRadius: '1px' }} />
-                          <div style={{ width: '4px', height: '12px', background: '#3A3A4A', borderRadius: '1px' }} />
-                          <div style={{ width: '4px', height: '18px', background: '#3A3A4A', borderRadius: '1px' }} />
-                          <div style={{ width: '4px', height: '14px', background: '#3A3A4A', borderRadius: '1px' }} />
-                          <div style={{ width: '4px', height: '22px', background: '#6A6A80', borderRadius: '1px' }} />
-                          <div style={{ width: '4px', height: '20px', background: '#8A8AA0', borderRadius: '1px' }} />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 4. Pending Orders (Alert Amber) */}
-                    <div className="vel-metric-card alert-amber" style={{ cursor: 'pointer' }} onClick={() => handleNavClick('orders')}>
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Pending Orders</span>
-                        <div className="vel-metric-icon">
-                          <AlertTriangle className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">{metrics.pendingOrders}</div>
-                        <span style={{ fontSize: '0.72rem', color: '#F59E0B', fontWeight: 600 }}>Action Req.</span>
-                      </div>
-                    </div>
-
-                    {/* 5. With Editor */}
-                    <div className="vel-metric-card" style={{ cursor: 'pointer' }} onClick={() => handleNavClick('editors')}>
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">With Editor</span>
-                        <div className="vel-metric-icon">
-                          <Users className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">{metrics.withEditorOrders}</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.72rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--vel-text-secondary)' }}>
-                            <span style={{ color: '#EF4444' }}>•</span>
-                            <span>Near Deadline</span>
-                            <strong style={{ color: '#FFFFFF', marginLeft: 'auto' }}>3</strong>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--vel-text-secondary)' }}>
-                            <span style={{ color: '#22C55E' }}>•</span>
-                            <span>On Track</span>
-                            <strong style={{ color: '#FFFFFF', marginLeft: 'auto' }}>3</strong>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 6. Ready for Delivery */}
-                    <div className="vel-metric-card">
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Ready for Delivery</span>
-                        <div className="vel-metric-icon">
-                          <Send className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">{metrics.readyForDelivery}</div>
-                        <button
-                          className="vel-metric-cta-btn"
-                          onClick={() => handleNavClick('orders')}
-                        >
-                          <span>Review & Deliver</span>
-                          <span>→</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 7. Contact Requests */}
-                    <div className="vel-metric-card" style={{ cursor: 'pointer' }} onClick={() => handleNavClick('contact-requests')}>
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Contact Requests</span>
-                        <div className="vel-metric-icon">
-                          <Mail className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">{contactRequests.length}</div>
-                        {newContactRequestsCount > 0 ? (
-                          <span style={{ fontSize: '0.72rem', color: '#60A5FA', fontWeight: 600 }}>{newContactRequestsCount} New</span>
-                        ) : (
-                          <span className="vel-metric-pill-badge">All Handled</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </>
+                <AdminOverview
+                  pendingUsers={pendingUsers}
+                  newContactRequestsCount={newContactRequestsCount}
+                  handleNavClick={handleNavClick}
+                  metrics={metrics}
+                  contactRequests={contactRequests}
+                />
               )}
 
               {/* ============================================================== */}
-              {/* VIEW 2: ASSIGN PROJECT                                         */}
+              {/* VIEWS: ASSIGN & CREATE (AdminEditorManager)                    */}
               {/* ============================================================== */}
-              {activeNav === 'assign' && (
-                <>
-                  <div className="vel-page-header">
-                    <h1 className="vel-page-h1">Assign Project</h1>
-                    <p className="vel-page-sub">Route editing tasks to the optimal studio personnel.</p>
-                  </div>
-
-                  <form onSubmit={handleAssignProjectSubmit} className="vel-assign-layout">
-                    {/* Left Column */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                      <div className="vel-card">
-                        <div className="vel-card-head">
-                          <span className="vel-card-title-sm">PROJECT DETAILS</span>
-                          <FileText className="h-4 w-4 text-white/40" />
-                        </div>
-
-                        {(() => {
-                          const clientEligibleProjects = orders
-                            .filter(o => o.dbStatus !== 'delivered')
-                            .filter(o => {
-                              if (!assignForm.client) return false;
-                              const selectedClientObj = clientsList.find(c => c.name === assignForm.client);
-                              if (selectedClientObj && o.clientId && o.clientId === selectedClientObj.id) {
-                                return true;
-                              }
-                              return (o.client || '').toLowerCase() === assignForm.client.toLowerCase();
-                            });
-
-                          return (
-                            <div className="vel-form-grid-2">
-                              <div className="vel-field-group">
-                                <label className="vel-label">Select Client</label>
-                                <select
-                                  className="vel-select"
-                                  value={assignForm.client}
-                                  onChange={(e) => {
-                                    const clientName = e.target.value;
-                                    setAssignForm(prev => ({
-                                      ...prev,
-                                      client: clientName,
-                                      project: '',
-                                      orderId: '',
-                                      clientDeadline: '',
-                                      internalDeadline: '',
-                                      brief: '',
-                                    }));
-                                  }}
-                                >
-                                  <option value="">-- Choose Client --</option>
-                                  {clientsList.map((cl) => (
-                                    <option key={cl.id} value={cl.name}>
-                                      {cl.name} {cl.company ? `(${cl.company})` : ''}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-
-                              <div className="vel-field-group">
-                                <label className="vel-label">Select Project</label>
-                                <select
-                                  className="vel-select"
-                                  value={assignForm.project}
-                                  onChange={(e) => {
-                                    const selectedTitle = e.target.value;
-                                    const matched = clientEligibleProjects.find(o => o.title === selectedTitle);
-                                    setAssignForm(prev => ({
-                                      ...prev,
-                                      project: selectedTitle,
-                                      orderId: matched?.dbId || matched?.id || '',
-                                      client: matched?.client || prev.client,
-                                      clientDeadline: matched?.clientDeadline || '',
-                                      internalDeadline: matched?.editorDeadline || '',
-                                      brief: matched?.notes || prev.brief,
-                                    }));
-                                  }}
-                                  disabled={!assignForm.client}
-                                  style={{
-                                    opacity: !assignForm.client ? 0.6 : 1,
-                                    cursor: !assignForm.client ? 'not-allowed' : 'pointer'
-                                  }}
-                                >
-                                  {!assignForm.client ? (
-                                    <option value="">-- Select Client First --</option>
-                                  ) : clientEligibleProjects.length === 0 ? (
-                                    <option value="">-- No Active Projects for this Client --</option>
-                                  ) : (
-                                    <>
-                                      <option value="">-- Choose Project ({clientEligibleProjects.length} available) --</option>
-                                      {clientEligibleProjects.map((ord) => (
-                                        <option key={ord.id} value={ord.title}>
-                                          [{ord.displayId}] {ord.title} {ord.type ? `(${ord.type})` : ''} {ord.editor.name !== 'Unassigned' ? `• Assigned: ${ord.editor.name}` : '• Unassigned'}
-                                        </option>
-                                      ))}
-                                    </>
-                                  )}
-                                </select>
-                                {Boolean(assignForm.client && clientEligibleProjects.length === 0) && (
-                                  <span style={{ fontSize: '0.68rem', color: '#FCD34D', marginTop: '4px', display: 'block' }}>
-                                    This client currently has no active (uncompleted) projects.
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </div>
-
-                      <div className="vel-card">
-                        <div className="vel-card-head">
-                          <span className="vel-card-title-sm">RESOURCE ALLOCATION</span>
-                          <div className="vel-toggle-wrap">
-                            <span>Auto-suggest</span>
-                            <label className="vel-switch">
-                              <input
-                                type="checkbox"
-                                checked={assignForm.autoSuggest}
-                                onChange={(e) => setAssignForm({ ...assignForm, autoSuggest: e.target.checked })}
-                              />
-                              <span className="vel-slider"></span>
-                            </label>
-                          </div>
-                        </div>
-
-                        <div className="vel-field-group">
-                          <label className="vel-label">Assigned Editor</label>
-                          <select
-                            className="vel-select"
-                            value={assignForm.editorId || ''}
-                            onChange={(e) => {
-                              const edId = e.target.value;
-                              const matchedEd = editorsList.find(ed => String(ed.id) === String(edId));
-                              setAssignForm(prev => ({
-                                ...prev,
-                                editorId: edId,
-                                editor: matchedEd?.name || '',
-                              }));
-                            }}
-                          >
-                            <option value="">-- Select Editor --</option>
-                            {editorsList.map((ed) => (
-                              <option key={ed.id} value={ed.id}>
-                                {ed.name} ({ed.role || ed.category}) — {ed.activeOrders}/{ed.maxOrders} Active
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="vel-form-grid-2">
-                          <div className="vel-field-group">
-                            <label className="vel-label">
-                              Client Deadline <span style={{ color: '#EF4444' }}>*</span>
-                            </label>
-                            <input
-                              type="date"
-                              className="vel-input"
-                              value={assignForm.clientDeadline}
-                              onChange={(e) => setAssignForm({ ...assignForm, clientDeadline: e.target.value })}
-                              required
-                            />
-                          </div>
-
-                          <div className="vel-field-group">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <label className="vel-label">
-                                Internal Editor Deadline <span style={{ color: '#EF4444' }}>*</span>
-                              </label>
-                              <span style={{ fontSize: '0.62rem', color: '#22C55E', letterSpacing: '0.05em', fontWeight: 700 }}>REQUIRED</span>
-                            </div>
-                            <input
-                              type="date"
-                              className="vel-input"
-                              value={assignForm.internalDeadline}
-                              onChange={(e) => setAssignForm({ ...assignForm, internalDeadline: e.target.value })}
-                              required
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right Column: Brief & Notes */}
-                    <div className="vel-card" style={{ height: '100%', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div className="vel-card-head">
-                          <span className="vel-card-title-sm">BRIEF & NOTES</span>
-                          <FileText className="h-4 w-4 text-white/40" />
-                        </div>
-
-                        <textarea
-                          className="vel-textarea"
-                          placeholder="Enter specific instructions, reference links, or focus areas for the editor..."
-                          value={assignForm.brief}
-                          onChange={(e) => setAssignForm({ ...assignForm, brief: e.target.value })}
-                        />
-
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: '#121217', borderRadius: '8px', border: '1px solid var(--vel-border)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <Mail className="h-4 w-4 text-white/60" />
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Notify Editor</span>
-                              <span style={{ fontSize: '0.68rem', color: 'var(--vel-text-secondary)' }}>Send automated slack & email brief</span>
-                            </div>
-                          </div>
-
-                          <label className="vel-switch">
-                            <input
-                              type="checkbox"
-                              checked={assignForm.notifyEditor}
-                              onChange={(e) => setAssignForm({ ...assignForm, notifyEditor: e.target.checked })}
-                            />
-                            <span className="vel-slider"></span>
-                          </label>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
-                        <button type="submit" className="vel-btn-solid">
-                          <Send className="h-4 w-4" />
-                          <span>Assign Project</span>
-                        </button>
-                        <button type="button" className="vel-btn-outline" onClick={() => showToast('Draft saved successfully.')}>
-                          Save as Draft
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                </>
-              )}
+              <AdminEditorManager
+                activeNav={activeNav}
+                setActiveNav={setActiveNav}
+                mgmtTab={mgmtTab}
+                setMgmtTab={setMgmtTab}
+                handleNavClick={handleNavClick}
+                orders={orders}
+                clientsList={clientsList}
+                editorsList={editorsList}
+                assignForm={assignForm}
+                setAssignForm={setAssignForm}
+                handleAssignProjectSubmit={handleAssignProjectSubmit}
+                showToast={showToast}
+                createForm={createForm}
+                setCreateForm={setCreateForm}
+                handleCreateOrderSubmit={handleCreateOrderSubmit}
+                setShowAddEditorModal={setShowAddEditorModal}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                editorStatusFilter={editorStatusFilter}
+                setEditorStatusFilter={setEditorStatusFilter}
+                showSortMenu={showSortMenu}
+                setShowSortMenu={setShowSortMenu}
+                editorSortBy={editorSortBy}
+                setEditorSortBy={setEditorSortBy}
+                editorCategoryFilter={editorCategoryFilter}
+                setEditorCategoryFilter={setEditorCategoryFilter}
+                filteredEditors={filteredEditors}
+                expandedEditor={expandedEditor}
+                setExpandedEditor={setExpandedEditor}
+              />
 
               {/* ============================================================== */}
-              {/* VIEW 3: ORDER CREATION                                         */}
+              {/* VIEWS: CLIENTS, APPROVALS, CONTACTS, FEEDBACK                  */}
               {/* ============================================================== */}
-              {activeNav === 'create' && (
-                <>
-                  <div className="vel-page-header">
-                    <h1 className="vel-page-h1">New Project Initialization</h1>
-                    <p className="vel-page-sub">Configure client details, project scope, and deadlines.</p>
-                  </div>
-
-                  <form onSubmit={handleCreateOrderSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    <div className="vel-card">
-                      <div className="vel-card-head">
-                        <span className="vel-card-title-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Users className="h-4 w-4" />
-                          <span>Client Identity</span>
-                        </span>
-                      </div>
-
-                      <div className="vel-field-group">
-                        <label className="vel-label">Select Client</label>
-                        <select
-                          className="vel-select"
-                          value={createForm.existingClient}
-                          onChange={(e) => setCreateForm({ ...createForm, existingClient: e.target.value })}
-                          required
-                        >
-                          <option value="">-- Choose Client --</option>
-                          {clientsList.map((cl) => (
-                            <option key={cl.id} value={cl.name}>
-                              {cl.name} {cl.company ? `(${cl.company})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="vel-card">
-                      <div className="vel-card-head">
-                        <span className="vel-card-title-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Clapperboard className="h-4 w-4" />
-                          <span>Project Scope</span>
-                        </span>
-                      </div>
-
-                      <div className="vel-form-grid-2">
-                        <div className="vel-field-group">
-                          <label className="vel-label">Project Nomenclature</label>
-                          <input
-                            type="text"
-                            placeholder="e.g., Q3 Product Launch Reel"
-                            className="vel-input"
-                            value={createForm.nomenclature}
-                            onChange={(e) => setCreateForm({ ...createForm, nomenclature: e.target.value })}
-                            required
-                          />
-                        </div>
-
-                        <div className="vel-field-group">
-                          <label className="vel-label">Format / Platform</label>
-                          <select
-                            className="vel-select"
-                            value={createForm.format}
-                            onChange={(e) => setCreateForm({ ...createForm, format: e.target.value })}
-                          >
-                            <option value="YouTube Longform (16:9)">YouTube Longform (16:9)</option>
-                            <option value="Instagram / TikTok Reel (9:16)">Instagram / TikTok Reel (9:16)</option>
-                            <option value="Commercial 4K Broadcast">Commercial 4K Broadcast</option>
-                            <option value="Square Social Ad (1:1)">Square Social Ad (1:1)</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="vel-field-group">
-                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <label className="vel-label">Creative Brief & Instructions</label>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--vel-text-tertiary)' }}>Markdown Supported</span>
-                        </div>
-                        <textarea
-                          className="vel-textarea"
-                          style={{ minHeight: '120px' }}
-                          placeholder="Detail the pacing, mood, reference videos, and specific editing requirements..."
-                          value={createForm.brief}
-                          onChange={(e) => setCreateForm({ ...createForm, brief: e.target.value })}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="vel-form-grid-2">
-                      <div className="vel-card">
-                        <div className="vel-card-head">
-                          <span className="vel-card-title-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Paperclip className="h-4 w-4" />
-                            <span>Asset Ingestion</span>
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          <input
-                            type="text"
-                            placeholder="Raw Footage Link (Google Drive, Dropbox, Mega)"
-                            className="vel-input"
-                            value={createForm.rawFootageLink}
-                            onChange={(e) => setCreateForm({ ...createForm, rawFootageLink: e.target.value })}
-                          />
-                          <input
-                            type="text"
-                            placeholder="Brand Assets / LUTs / Graphics Link (Optional)"
-                            className="vel-input"
-                            value={createForm.brandAssetsLink}
-                            onChange={(e) => setCreateForm({ ...createForm, brandAssetsLink: e.target.value })}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="vel-card">
-                        <div className="vel-card-head">
-                          <span className="vel-card-title-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Calendar className="h-4 w-4" />
-                            <span>Timeline Tracker</span>
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          <div className="vel-field-group">
-                            <label className="vel-label">Internal Editor Deadline</label>
-                            <input
-                              type="date"
-                              className="vel-input"
-                              value={createForm.internalDeadline}
-                              onChange={(e) => setCreateForm({ ...createForm, internalDeadline: e.target.value })}
-                            />
-                          </div>
-
-                          <div className="vel-field-group">
-                            <label className="vel-label">Client Delivery Date</label>
-                            <input
-                              type="date"
-                              className="vel-input"
-                              value={createForm.clientDeadline}
-                              onChange={(e) => setCreateForm({ ...createForm, clientDeadline: e.target.value })}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
-                      <button type="button" className="vel-btn-outline" onClick={() => handleNavClick('home')}>
-                        Cancel
-                      </button>
-                      <button type="submit" className="vel-btn-solid">
-                        <span>Create Order</span>
-                        <span>→</span>
-                      </button>
-                    </div>
-                  </form>
-                </>
-              )}
+              <AdminClientManager
+                activeNav={activeNav}
+                setActiveNav={setActiveNav}
+                mgmtTab={mgmtTab}
+                setMgmtTab={setMgmtTab}
+                editorsList={editorsList}
+                clientsList={clientsList}
+                filteredClients={filteredClients}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                setSelectedClientModal={setSelectedClientModal}
+                handleUnblockClient={handleUnblockClient}
+                handleBlockClient={handleBlockClient}
+                handleDeleteClient={handleDeleteClient}
+                pendingUsers={pendingUsers}
+                approvalsSearch={approvalsSearch}
+                setApprovalsSearch={setApprovalsSearch}
+                filteredPendingUsers={filteredPendingUsers}
+                approvalsActionLoading={approvalsActionLoading}
+                handleRejectUser={handleRejectUser}
+                handleApproveUser={handleApproveUser}
+                fetchContactRequests={fetchContactRequests}
+                contactRequestsLoading={contactRequestsLoading}
+                newContactRequestsCount={newContactRequestsCount}
+                contactRequests={contactRequests}
+                contactSearch={contactSearch}
+                setContactSearch={setContactSearch}
+                contactStatusFilter={contactStatusFilter}
+                setContactStatusFilter={setContactStatusFilter}
+                contactTypeFilter={contactTypeFilter}
+                setContactTypeFilter={setContactTypeFilter}
+                filteredContactRequests={filteredContactRequests}
+                getWhatsAppUrl={getWhatsAppUrl}
+                contactActionLoading={contactActionLoading}
+                handleUpdateContactStatus={handleUpdateContactStatus}
+                setSelectedContactRequest={setSelectedContactRequest}
+                setTempContactNotes={setTempContactNotes}
+                handleDeleteContactRequest={handleDeleteContactRequest}
+                handleCopyFeedbackLink={handleCopyFeedbackLink}
+                isCopiedFeedbackLink={isCopiedFeedbackLink}
+                fetchLinkFeedbacks={fetchLinkFeedbacks}
+                linkFeedbacksLoading={linkFeedbacksLoading}
+                linkFeedbacks={linkFeedbacks}
+                avgFeedbackRating={avgFeedbackRating}
+                fiveStarFeedbackCount={fiveStarFeedbackCount}
+                testimonialConsentCount={testimonialConsentCount}
+                feedbackSearch={feedbackSearch}
+                setFeedbackSearch={setFeedbackSearch}
+                feedbackRatingFilter={feedbackRatingFilter}
+                setFeedbackRatingFilter={setFeedbackRatingFilter}
+                filteredFeedbacks={filteredFeedbacks}
+                handleDeleteFeedback={handleDeleteFeedback}
+              />
 
               {/* ============================================================== */}
-              {/* VIEW 4: EDITORS & CLIENTS MANAGEMENT                           */}
+              {/* VIEWS: ORDERS PIPELINE & PROJECT HISTORY                       */}
               {/* ============================================================== */}
-              {(activeNav === 'editors' || activeNav === 'clients') && (
-                <>
-                  <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-                    <div>
-                      <h1 className="vel-page-h1">Management</h1>
-                      <p className="vel-page-sub">Oversee editor workloads, track specialities, and manage studio resource allocation.</p>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', background: '#121217', padding: '3px', borderRadius: '8px', border: '1px solid var(--vel-border)' }}>
-                        <button
-                          onClick={() => { setActiveNav('editors'); setMgmtTab('editors'); }}
-                          style={{
-                            padding: '6px 16px',
-                            borderRadius: '6px',
-                            background: mgmtTab === 'editors' ? '#262633' : 'transparent',
-                            color: mgmtTab === 'editors' ? '#FFFFFF' : 'var(--vel-text-secondary)',
-                            fontSize: '0.82rem',
-                            fontWeight: 600,
-                            border: 'none',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Editors ({editorsList.length})
-                        </button>
-                        <button
-                          onClick={() => { setActiveNav('clients'); setMgmtTab('clients'); }}
-                          style={{
-                            padding: '6px 16px',
-                            borderRadius: '6px',
-                            background: mgmtTab === 'clients' ? '#262633' : 'transparent',
-                            color: mgmtTab === 'clients' ? '#FFFFFF' : 'var(--vel-text-secondary)',
-                            fontSize: '0.82rem',
-                            fontWeight: 600,
-                            border: 'none',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Clients ({clientsList.length})
-                        </button>
-                      </div>
-
-                      {mgmtTab === 'editors' && (
-                        <button
-                          className="vel-btn-solid"
-                          onClick={() => setShowAddEditorModal(true)}
-                          style={{ padding: '7px 16px', fontSize: '0.8rem' }}
-                        >
-                          <Plus className="h-4 w-4" />
-                          <span>Add New Editor</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Filter & Search Bar */}
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
-                      <Search className="h-4 w-4" style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--vel-text-tertiary)' }} />
-                      <input
-                        type="text"
-                        placeholder={mgmtTab === 'editors' ? "Search editors by name, role (e.g. AI, Motion, Graphics), or skill..." : "Search clients by company or contact..."}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="vel-input"
-                        style={{ paddingLeft: '40px' }}
-                      />
-                      {searchQuery && (
-                        <button
-                          onClick={() => setSearchQuery('')}
-                          style={{ position: 'absolute', right: '12px', top: '10px', background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    {mgmtTab === 'editors' && (
-                      <>
-                        <button
-                          className={`vel-btn-outline ${editorStatusFilter !== 'ALL' ? 'active' : ''}`}
-                          onClick={() => {
-                            const next = editorStatusFilter === 'ALL' ? 'AVAILABLE' : editorStatusFilter === 'AVAILABLE' ? 'AT CAPACITY' : 'ALL';
-                            setEditorStatusFilter(next);
-                            showToast(`Status filter: ${next}`);
-                          }}
-                        >
-                          <SlidersHorizontal className="h-3.5 w-3.5" />
-                          <span>Status: {editorStatusFilter}</span>
-                        </button>
-
-                        <div className="vel-sort-container">
-                          <button
-                            className="vel-btn-outline"
-                            onClick={() => setShowSortMenu(!showSortMenu)}
-                          >
-                            <ArrowUpDown className="h-3.5 w-3.5" />
-                            <span>
-                              {editorSortBy === 'workload-asc' ? 'Least Busy' :
-                               editorSortBy === 'workload-desc' ? 'Most Active' :
-                               editorSortBy === 'rating' ? 'Top Rated' : 'Name A-Z'}
-                            </span>
-                            <ChevronDown className="h-3 w-3 text-white/40" />
-                          </button>
-
-                          {showSortMenu && (
-                            <div className="vel-sort-menu">
-                              {[
-                                { key: 'workload-asc', label: 'Lowest Workload (Least Busy)' },
-                                { key: 'workload-desc', label: 'Highest Workload (Most Active)' },
-                                { key: 'rating', label: 'Highest Rating (★ 5.0)' },
-                                { key: 'name-asc', label: 'Alphabetical (A - Z)' },
-                              ].map(st => (
-                                <button
-                                  key={st.key}
-                                  className={`vel-sort-item ${editorSortBy === st.key ? 'active' : ''}`}
-                                  onClick={() => {
-                                    setEditorSortBy(st.key);
-                                    setShowSortMenu(false);
-                                    showToast(`Sorted by ${st.label}`);
-                                  }}
-                                >
-                                  <span>{st.label}</span>
-                                  {editorSortBy === st.key && <Check className="h-3.5 w-3.5 text-blue-400" />}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Specialty Filter Pills Bar */}
-                  {mgmtTab === 'editors' && (
-                    <div className="vel-filter-bar">
-                      {[
-                        { key: 'ALL', label: 'All Specialties' },
-                        { key: 'AI Video Editor', label: 'AI Video Editor' },
-                        { key: 'Motion Graphics', label: 'Motion Graphics' },
-                        { key: 'Graphic Designer', label: 'Graphic Designer' },
-                        { key: 'Short-Form Specialist', label: 'Short-Form / Reels' },
-                        { key: 'Colorist', label: 'Colorist' },
-                      ].map(cat => (
-                        <button
-                          key={cat.key}
-                          className={`vel-filter-pill ${editorCategoryFilter === cat.key ? 'active' : ''}`}
-                          onClick={() => setEditorCategoryFilter(cat.key)}
-                        >
-                          {cat.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Editors List */}
-                  {mgmtTab === 'editors' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {filteredEditors.length === 0 ? (
-                        <div className="vel-card" style={{ padding: '40px', textAlign: 'center', alignItems: 'center', gap: '12px' }}>
-                          <Users className="h-8 w-8 text-white/30" />
-                          <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>No editors match your filters</h3>
-                          <p style={{ fontSize: '0.8rem', color: 'var(--vel-text-secondary)', maxWidth: '380px' }}>
-                            Try adjusting your search query "{searchQuery}" or reset the category filter.
-                          </p>
-                          <button
-                            className="vel-btn-solid"
-                            style={{ marginTop: '8px' }}
-                            onClick={() => { setSearchQuery(''); setEditorCategoryFilter('ALL'); setEditorStatusFilter('ALL'); }}
-                          >
-                            Reset All Filters
-                          </button>
-                        </div>
-                      ) : (
-                        filteredEditors.map((ed) => (
-                          <div
-                            key={ed.id}
-                            style={{
-                              background: 'var(--vel-bg-card)',
-                              border: '1px solid var(--vel-border)',
-                              borderRadius: '12px',
-                              padding: '18px 22px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '14px',
-                              cursor: 'pointer',
-                              transition: 'border-color 0.15s, background 0.15s'
-                            }}
-                            onClick={() => setExpandedEditor(expandedEditor === ed.id ? null : ed.id)}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                                <img
-                                  src={ed.avatar}
-                                  alt={ed.name}
-                                  style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--vel-border)' }}
-                                />
-                                <div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span style={{ fontSize: '0.96rem', fontWeight: 700, color: '#FFFFFF' }}>{ed.name}</span>
-                                    <span style={{ fontSize: '0.68rem', padding: '2px 8px', borderRadius: '4px', background: '#161622', color: '#60A5FA', border: '1px solid rgba(96, 165, 250, 0.25)', fontWeight: 600 }}>
-                                      {ed.category}
-                                    </span>
-                                    {ed.rating && (
-                                      <span style={{ fontSize: '0.72rem', color: '#EAB308', display: 'inline-flex', alignItems: 'center', gap: '2px', fontWeight: 700 }}>
-                                        ★ {ed.rating}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="vel-editor-tagline">{ed.tagline || ed.role}</div>
-                                </div>
-                              </div>
-
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                                <div style={{ textAlign: 'right' }}>
-                                  <div style={{ fontSize: '0.72rem', color: ed.statusColor, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', fontWeight: 700 }}>
-                                    <span>•</span>
-                                    <span>{ed.status}</span>
-                                  </div>
-                                  <div style={{ fontSize: '0.76rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
-                                    WORKLOAD: <strong style={{ color: '#FFFFFF' }}>{ed.activeOrders} / {ed.maxOrders} Active</strong>
-                                  </div>
-                                </div>
-
-                                <ChevronDown
-                                  className="h-4 w-4 text-white/40"
-                                  style={{ transform: expandedEditor === ed.id ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Expanded Details Drawer */}
-                            {expandedEditor === ed.id && (
-                              <div style={{ paddingTop: '14px', borderTop: '1px solid var(--vel-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                                <div>
-                                  <span style={{ fontSize: '0.68rem', color: 'var(--vel-text-tertiary)', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                    PRIMARY DESIGN SPECIALIZATION & ROLE
-                                  </span>
-                                  <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#FFFFFF' }}>{ed.role}</span>
-                                </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                  {ed.skills.map((sk, i) => (
-                                    <span key={i} className="vel-tag-skill">
-                                      {sk}
-                                    </span>
-                                  ))}
-                                </div>
-
-                                <button
-                                  className="vel-btn-solid"
-                                  style={{ padding: '6px 14px', fontSize: '0.78rem' }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setAssignForm(prev => ({ ...prev, editor: ed.name }));
-                                    handleNavClick('assign');
-                                  }}
-                                >
-                                  Assign Project
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  {/* Clients List */}
-                  {mgmtTab === 'clients' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {filteredClients.length === 0 ? (
-                        <div className="vel-card" style={{ padding: '40px', textAlign: 'center', alignItems: 'center', gap: '12px' }}>
-                          <Handshake className="h-8 w-8 text-white/30" />
-                          <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>No clients found</h3>
-                          <p style={{ fontSize: '0.8rem', color: 'var(--vel-text-secondary)' }}>
-                            No clients match your search query "{searchQuery}".
-                          </p>
-                        </div>
-                      ) : (
-                        filteredClients.map((cl) => (
-                          <div
-                            key={cl.id}
-                            style={{
-                              background: 'var(--vel-bg-card)',
-                              border: cl.status === 'rejected' ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--vel-border)',
-                              borderRadius: '12px',
-                              padding: '16px 20px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              flexWrap: 'wrap',
-                              gap: '14px'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                              <div style={{
-                                width: '38px',
-                                height: '38px',
-                                borderRadius: '8px',
-                                background: cl.status === 'rejected' ? 'rgba(239, 68, 68, 0.15)' : '#181824',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontWeight: 700,
-                                color: cl.status === 'rejected' ? '#EF4444' : '#3B82F6'
-                              }}>
-                                {cl.name ? cl.name.charAt(0).toUpperCase() : 'C'}
-                              </div>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                  <span style={{ fontSize: '0.92rem', fontWeight: 700 }}>{cl.name}</span>
-                                  {cl.previous_name && (
-                                    <span style={{
-                                      fontSize: '0.68rem',
-                                      padding: '2px 8px',
-                                      borderRadius: '6px',
-                                      background: 'rgba(234, 179, 8, 0.15)',
-                                      color: '#FBBF24',
-                                      border: '1px solid rgba(234, 179, 8, 0.3)',
-                                      fontWeight: 600
-                                    }} title={`Previously registered as: ${cl.previous_name}`}>
-                                      Old Name: {cl.previous_name}
-                                    </span>
-                                  )}
-                                  {cl.isGoogle && (
-                                    <span style={{
-                                      fontSize: '0.68rem',
-                                      padding: '2px 7px',
-                                      borderRadius: '6px',
-                                      background: 'rgba(59, 130, 246, 0.12)',
-                                      color: '#60A5FA',
-                                      border: '1px solid rgba(59, 130, 246, 0.25)',
-                                      fontWeight: 600
-                                    }}>
-                                      Google Auth
-                                    </span>
-                                  )}
-                                  {cl.status === 'rejected' ? (
-                                    <span style={{
-                                      fontSize: '0.68rem',
-                                      padding: '2px 7px',
-                                      borderRadius: '6px',
-                                      background: 'rgba(239, 68, 68, 0.15)',
-                                      color: '#F87171',
-                                      border: '1px solid rgba(239, 68, 68, 0.3)',
-                                      fontWeight: 600
-                                    }}>
-                                      Suspended / Blocked
-                                    </span>
-                                  ) : (
-                                    <span style={{
-                                      fontSize: '0.68rem',
-                                      padding: '2px 7px',
-                                      borderRadius: '6px',
-                                      background: 'rgba(34, 197, 94, 0.12)',
-                                      color: '#4ADE80',
-                                      border: '1px solid rgba(34, 197, 94, 0.25)',
-                                      fontWeight: 600
-                                    }}>
-                                      Active
-                                    </span>
-                                  )}
-                                </div>
-                                <div style={{ fontSize: '0.74rem', color: 'var(--vel-text-secondary)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                  <span>Email: <span style={{ color: '#E2E8F0' }}>{cl.email || '—'}</span></span>
-                                  {cl.company_name && <span>• Company: <strong style={{ color: '#93C5FD' }}>{cl.company_name}</strong></span>}
-                                  {cl.phone && <span>• Phone: <span style={{ color: '#4ADE80' }}>{cl.phone}</span></span>}
-                                  {cl.previous_name && <span>• Changed from: <strong style={{ color: '#FBBF24' }}>{cl.previous_name}</strong></span>}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
-                              <div style={{ textAlign: 'right' }}>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--vel-text-secondary)', display: 'block' }}>Active Projects</span>
-                                <strong style={{ fontSize: '0.88rem' }}>{cl.activeProjects}</strong>
-                              </div>
-
-                              {/* Moderation Actions for Suspicious Accounts */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <button
-                                  onClick={() => setSelectedClientModal(cl)}
-                                  className="vel-btn-outline"
-                                  style={{
-                                    padding: '6px 12px',
-                                    fontSize: '0.76rem',
-                                    color: '#93C5FD',
-                                    borderColor: 'rgba(59, 130, 246, 0.3)',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '5px'
-                                  }}
-                                  title="View full client details and name history"
-                                >
-                                  <Eye className="h-3.5 w-3.5" />
-                                  <span>Details</span>
-                                </button>
-                                {cl.status === 'rejected' ? (
-                                  <button
-                                    onClick={() => handleUnblockClient(cl)}
-                                    className="vel-btn-outline"
-                                    style={{
-                                      padding: '6px 12px',
-                                      fontSize: '0.76rem',
-                                      color: '#4ADE80',
-                                      borderColor: 'rgba(34, 197, 94, 0.3)',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '5px'
-                                    }}
-                                    title="Unblock user and restore dashboard access"
-                                  >
-                                    <CheckCircle2 className="h-3.5 w-3.5" />
-                                    <span>Unblock</span>
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => handleBlockClient(cl)}
-                                    className="vel-btn-outline"
-                                    style={{
-                                      padding: '6px 12px',
-                                      fontSize: '0.76rem',
-                                      color: '#F87171',
-                                      borderColor: 'rgba(239, 68, 68, 0.3)',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '5px'
-                                    }}
-                                    title="Block / suspend suspicious user immediately"
-                                  >
-                                    <Ban className="h-3.5 w-3.5" />
-                                    <span>Block</span>
-                                  </button>
-                                )}
-
-                                <button
-                                  onClick={() => handleDeleteClient(cl)}
-                                  className="vel-btn-outline"
-                                  style={{
-                                    padding: '6px 10px',
-                                    fontSize: '0.76rem',
-                                    color: '#F87171',
-                                    borderColor: 'rgba(239, 68, 68, 0.2)',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px'
-                                  }}
-                                  title="Permanently delete user profile"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  <span>Delete</span>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
+              <AdminOrdersTable
+                activeNav={activeNav}
+                activePipelineOrders={activePipelineOrders}
+                orders={orders}
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
+                handleNavClick={handleNavClick}
+                filteredOrders={filteredOrders}
+                selectedOrderId={selectedOrderId}
+                setSelectedOrderId={setSelectedOrderId}
+                selectedOrder={selectedOrder}
+                handleRedirectToAssign={handleRedirectToAssign}
+                getDeliveryPerformance={getDeliveryPerformance}
+                statusHistoryMap={statusHistoryMap}
+                getExpectedDeliveryDate={getExpectedDeliveryDate}
+                getOrderAcceptedDate={getOrderAcceptedDate}
+                getOrderStageDate={getOrderStageDate}
+                safeHref={safeHref}
+                showActionToast={showToast}
+                handleToggleClientDeliverableAccess={handleToggleClientDeliverableAccess}
+                stagedStatusMap={stagedStatusMap}
+                handleOrderFieldChange={handleOrderFieldChange}
+                handleUpdateStatusExplicitly={handleUpdateStatusExplicitly}
+                handleNotifyEditor={handleNotifyEditor}
+                handleSaveOrderChanges={handleSaveOrderChanges}
+                editorsList={editorsList}
+                historyFilter={historyFilter}
+                setHistoryFilter={setHistoryFilter}
+                historySearch={historySearch}
+                setHistorySearch={setHistorySearch}
+                adminRatingsMap={adminRatingsMap}
+              />
 
               {/* ============================================================== */}
-              {/* VIEW: USER APPROVALS                                           */}
+              {/* VIEWS: STUDIO SETTINGS & WEBSITE CMS                           */}
               {/* ============================================================== */}
-              {activeNav === 'approvals' && (
-                <>
-                  <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-                    <div>
-                      <h1 className="vel-page-h1">User Approvals</h1>
-                      <p className="vel-page-sub">Review and approve new user registrations before granting dashboard access.</p>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        background: 'rgba(245, 158, 11, 0.12)',
-                        border: '1px solid rgba(245, 158, 11, 0.3)',
-                        padding: '6px 14px',
-                        borderRadius: '8px',
-                        color: '#FBBF24',
-                        fontSize: '0.82rem',
-                        fontWeight: 600
-                      }}>
-                        <Clock className="h-4 w-4" />
-                        <span>{pendingUsers.length} Pending Approval{pendingUsers.length === 1 ? '' : 's'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Filter & Search Bar */}
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
-                      <Search className="h-4 w-4" style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--vel-text-tertiary)' }} />
-                      <input
-                        type="text"
-                        placeholder="Search pending users by name, email, or role..."
-                        value={approvalsSearch}
-                        onChange={(e) => setApprovalsSearch(e.target.value)}
-                        className="vel-input"
-                        style={{ paddingLeft: '40px' }}
-                      />
-                      {approvalsSearch && (
-                        <button
-                          onClick={() => setApprovalsSearch('')}
-                          style={{ position: 'absolute', right: '12px', top: '10px', background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Pending Users List */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {filteredPendingUsers.length === 0 ? (
-                      <div className="vel-card" style={{ padding: '48px 24px', textAlign: 'center', alignItems: 'center', gap: '14px' }}>
-                        <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <CheckCircle2 className="h-7 w-7 text-green-400" />
-                        </div>
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>
-                          {approvalsSearch ? 'No matching pending users' : 'All users are approved!'}
-                        </h3>
-                        <p style={{ fontSize: '0.82rem', color: 'var(--vel-text-secondary)', maxWidth: '420px', lineHeight: 1.5 }}>
-                          {approvalsSearch
-                            ? `No pending user registrations match "${approvalsSearch}". Try clearing your search.`
-                            : 'There are currently no new registration requests waiting for review. When new users sign up, their accounts will appear here.'}
-                        </p>
-                        {approvalsSearch && (
-                          <button
-                            className="vel-btn-outline"
-                            style={{ marginTop: '8px' }}
-                            onClick={() => setApprovalsSearch('')}
-                          >
-                            Clear Search
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      filteredPendingUsers.map((user) => {
-                        const isApproving = approvalsActionLoading[user.id] === 'approving';
-                        const isRejecting = approvalsActionLoading[user.id] === 'rejecting';
-                        const isBusy = isApproving || isRejecting;
-                        const roleLabel = (user.role || 'client').toUpperCase();
-                        const initial = (user.full_name || user.email || 'U').charAt(0).toUpperCase();
-
-                        return (
-                          <div
-                            key={user.id}
-                            style={{
-                              background: 'var(--vel-bg-card)',
-                              border: '1px solid var(--vel-border)',
-                              borderRadius: '12px',
-                              padding: '18px 22px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              flexWrap: 'wrap',
-                              gap: '16px',
-                              transition: 'border-color 0.15s, background 0.15s'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '240px' }}>
-                              <div style={{
-                                width: '42px',
-                                height: '42px',
-                                borderRadius: '10px',
-                                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(59, 130, 246, 0.2))',
-                                border: '1px solid rgba(245, 158, 11, 0.3)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontWeight: 700,
-                                fontSize: '1rem',
-                                color: '#FBBF24'
-                              }}>
-                                {initial}
-                              </div>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                  <span style={{ fontSize: '0.94rem', fontWeight: 700, color: '#FFFFFF' }}>
-                                    {user.full_name || 'Anonymous User'}
-                                  </span>
-                                  <span style={{
-                                    fontSize: '0.66rem',
-                                    padding: '2px 8px',
-                                    borderRadius: '6px',
-                                    background: user.role === 'editor' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(59, 130, 246, 0.2)',
-                                    color: user.role === 'editor' ? '#C084FC' : '#60A5FA',
-                                    fontWeight: 700,
-                                    letterSpacing: '0.5px'
-                                  }}>
-                                    {roleLabel}
-                                  </span>
-                                  <span style={{
-                                    fontSize: '0.66rem',
-                                    padding: '2px 8px',
-                                    borderRadius: '6px',
-                                    background: 'rgba(245, 158, 11, 0.15)',
-                                    color: '#FBBF24',
-                                    fontWeight: 600
-                                  }}>
-                                    PENDING APPROVAL
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: '0.78rem', color: 'var(--vel-text-secondary)', marginTop: '3px' }}>
-                                  <span>{user.email}</span>
-                                  {user.phone && <span> • Phone: {user.phone}</span>}
-                                  {user.company_name && <span> • Company: {user.company_name}</span>}
-                                </div>
-                                {user.created_at && (
-                                  <div style={{ fontSize: '0.72rem', color: 'var(--vel-text-tertiary)', marginTop: '2px' }}>
-                                    Registered: {new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Action Buttons */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <button
-                                className="vel-btn-outline"
-                                disabled={isBusy}
-                                onClick={() => handleRejectUser(user)}
-                                style={{
-                                  padding: '7px 14px',
-                                  fontSize: '0.8rem',
-                                  borderColor: 'rgba(239, 68, 68, 0.3)',
-                                  color: '#F87171'
-                                }}
-                              >
-                                <X className="h-3.5 w-3.5" />
-                                <span>{isRejecting ? 'Declining...' : 'Decline'}</span>
-                              </button>
-
-                              <button
-                                className="vel-btn-solid"
-                                disabled={isBusy}
-                                onClick={() => handleApproveUser(user)}
-                                style={{
-                                  padding: '7px 18px',
-                                  fontSize: '0.8rem',
-                                  background: '#22C55E',
-                                  borderColor: '#22C55E',
-                                  color: '#FFFFFF'
-                                }}
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                                <span>{isApproving ? 'Approving...' : 'Approve User'}</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* ============================================================== */}
-              {/* VIEW: CONTACT REQUESTS                                         */}
-              {/* ============================================================== */}
-              {activeNav === 'contact-requests' && (
-                <>
-                  <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-                    <div>
-                      <h1 className="vel-page-h1">Contact Requests</h1>
-                      <p className="vel-page-sub">Review and respond to quote inquiries submitted by website visitors.</p>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <button
-                        className="vel-btn-outline"
-                        onClick={fetchContactRequests}
-                        disabled={contactRequestsLoading}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                      >
-                        <RefreshCw className={`h-3.5 w-3.5 ${contactRequestsLoading ? 'animate-spin' : ''}`} />
-                        <span>{contactRequestsLoading ? 'Refreshing...' : 'Refresh'}</span>
-                      </button>
-
-                      {newContactRequestsCount > 0 && (
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          background: 'rgba(59, 130, 246, 0.12)',
-                          border: '1px solid rgba(59, 130, 246, 0.3)',
-                          padding: '6px 14px',
-                          borderRadius: '8px',
-                          color: '#60A5FA',
-                          fontSize: '0.82rem',
-                          fontWeight: 600
-                        }}>
-                          <Mail className="h-4 w-4" />
-                          <span>{newContactRequestsCount} New Inquir{newContactRequestsCount === 1 ? 'y' : 'ies'}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Summary Metric Cards */}
-                  <div className="vel-metric-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-                    <div className="vel-metric-card">
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Total Inquiries</span>
-                        <div className="vel-metric-icon">
-                          <MessageSquare className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">{contactRequests.length}</div>
-                        <span className="vel-metric-pill-badge">All Time</span>
-                      </div>
-                    </div>
-
-                    <div className="vel-metric-card" style={{ borderColor: newContactRequestsCount > 0 ? 'rgba(59, 130, 246, 0.4)' : undefined }}>
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">New / Unread</span>
-                        <div className="vel-metric-icon" style={{ background: newContactRequestsCount > 0 ? 'rgba(59, 130, 246, 0.2)' : undefined, color: '#60A5FA' }}>
-                          <Clock className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number" style={{ color: newContactRequestsCount > 0 ? '#60A5FA' : '#FFFFFF' }}>{newContactRequestsCount}</div>
-                        <span style={{ fontSize: '0.72rem', color: newContactRequestsCount > 0 ? '#60A5FA' : 'var(--vel-text-secondary)', fontWeight: 600 }}>
-                          {newContactRequestsCount > 0 ? 'Action Needed' : 'Caught Up'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="vel-metric-card">
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Contacted / Discussion</span>
-                        <div className="vel-metric-icon" style={{ color: '#10B981' }}>
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">
-                          {contactRequests.filter(r => r.status === 'contacted' || r.status === 'in_discussion').length}
-                        </div>
-                        <span style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 600 }}>In Pipeline</span>
-                      </div>
-                    </div>
-
-                    <div className="vel-metric-card">
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Closed</span>
-                        <div className="vel-metric-icon">
-                          <Archive className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">
-                          {contactRequests.filter(r => r.status === 'closed').length}
-                        </div>
-                        <span className="vel-metric-pill-badge">Completed</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Filter & Search Bar */}
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    {/* Search */}
-                    <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
-                      <Search className="h-4 w-4" style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--vel-text-tertiary)' }} />
-                      <input
-                        type="text"
-                        placeholder="Search by client name, email, phone, or project message..."
-                        value={contactSearch}
-                        onChange={(e) => setContactSearch(e.target.value)}
-                        className="vel-input"
-                        style={{ paddingLeft: '40px' }}
-                      />
-                      {contactSearch && (
-                        <button
-                          onClick={() => setContactSearch('')}
-                          style={{ position: 'absolute', right: '12px', top: '10px', background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Status Filter Buttons */}
-                    <div style={{ display: 'flex', gap: '6px', background: 'var(--vel-bg-card)', padding: '4px', borderRadius: '8px', border: '1px solid var(--vel-border)' }}>
-                      {['ALL', 'new', 'contacted', 'in_discussion', 'closed'].map((st) => {
-                        const count = st === 'ALL'
-                          ? contactRequests.length
-                          : contactRequests.filter(r => r.status === st).length;
-                        const label = st === 'ALL' ? 'All' : CONTACT_STATUS_CONFIG[st]?.label || st;
-                        const isActive = contactStatusFilter === st;
-
-                        return (
-                          <button
-                            key={st}
-                            onClick={() => setContactStatusFilter(st)}
-                            style={{
-                              background: isActive ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-                              color: isActive ? '#FFFFFF' : 'var(--vel-text-secondary)',
-                              border: 'none',
-                              padding: '6px 12px',
-                              borderRadius: '6px',
-                              fontSize: '0.78rem',
-                              fontWeight: isActive ? 700 : 500,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              transition: 'all 0.15s'
-                            }}
-                          >
-                            <span>{label}</span>
-                            <span style={{
-                              fontSize: '0.66rem',
-                              padding: '1px 5px',
-                              borderRadius: '10px',
-                              background: isActive ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                              color: isActive ? '#FFFFFF' : 'var(--vel-text-tertiary)',
-                              fontWeight: 600
-                            }}>
-                              {count}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Project Type Filter */}
-                    <select
-                      className="vel-select"
-                      style={{ width: 'auto', minWidth: '180px' }}
-                      value={contactTypeFilter}
-                      onChange={(e) => setContactTypeFilter(e.target.value)}
-                    >
-                      <option value="ALL">All Project Types</option>
-                      {Object.entries(PROJECT_TYPE_LABELS).map(([k, v]) => (
-                        <option key={k} value={k}>{v}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Contact Requests Cards / List */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    {filteredContactRequests.length === 0 ? (
-                      <div className="vel-card" style={{ padding: '48px 24px', textAlign: 'center', alignItems: 'center', gap: '14px' }}>
-                        <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Mail className="h-7 w-7 text-blue-400" />
-                        </div>
-                        <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>
-                          {contactSearch || contactStatusFilter !== 'ALL' || contactTypeFilter !== 'ALL'
-                            ? 'No matching contact requests'
-                            : 'No contact requests yet'}
-                        </h3>
-                        <p style={{ fontSize: '0.82rem', color: 'var(--vel-text-secondary)', maxWidth: '420px', lineHeight: 1.5 }}>
-                          {contactSearch || contactStatusFilter !== 'ALL' || contactTypeFilter !== 'ALL'
-                            ? 'No quote requests match your active filters. Try adjusting or clearing filters.'
-                            : 'When prospective clients submit the "Request a Quote" form on your website, their requests will appear here instantly in real-time.'}
-                        </p>
-                        {(contactSearch || contactStatusFilter !== 'ALL' || contactTypeFilter !== 'ALL') && (
-                          <button
-                            className="vel-btn-outline"
-                            style={{ marginTop: '8px' }}
-                            onClick={() => {
-                              setContactSearch('');
-                              setContactStatusFilter('ALL');
-                              setContactTypeFilter('ALL');
-                            }}
-                          >
-                            Reset Filters
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      filteredContactRequests.map((req) => {
-                        const statusConfig = CONTACT_STATUS_CONFIG[req.status] || CONTACT_STATUS_CONFIG.new;
-                        const projectLabel = PROJECT_TYPE_LABELS[req.project_type] || req.project_type || 'General Quote';
-                        const waUrl = getWhatsAppUrl(req.phone, req.name, req.project_type);
-                        const isActionBusy = contactActionLoading[req.id];
-                        const initial = (req.name || req.email || 'C').charAt(0).toUpperCase();
-
-                        return (
-                          <div
-                            key={req.id}
-                            style={{
-                              background: 'var(--vel-bg-card)',
-                              border: req.status === 'new' ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid var(--vel-border)',
-                              borderRadius: '12px',
-                              padding: '20px 24px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '16px',
-                              transition: 'border-color 0.15s, box-shadow 0.15s',
-                              position: 'relative'
-                            }}
-                          >
-                            {/* Top Row: Client Info, Project Type, Status, Date */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{
-                                  width: '42px',
-                                  height: '42px',
-                                  borderRadius: '10px',
-                                  background: 'linear-gradient(135deg, #1E1E2A, #2A2A3C)',
-                                  border: '1px solid var(--vel-border)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '1rem',
-                                  fontWeight: 700,
-                                  color: '#FFFFFF'
-                                }}>
-                                  {initial}
-                                </div>
-                                <div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                    <span style={{ fontSize: '1rem', fontWeight: 700, color: '#FFFFFF' }}>{req.name}</span>
-                                    <span style={{
-                                      fontSize: '0.68rem',
-                                      padding: '3px 8px',
-                                      borderRadius: '6px',
-                                      background: 'rgba(168, 85, 247, 0.15)',
-                                      border: '1px solid rgba(168, 85, 247, 0.3)',
-                                      color: '#C084FC',
-                                      fontWeight: 600
-                                    }}>
-                                      {projectLabel}
-                                    </span>
-                                  </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', flexWrap: 'wrap', fontSize: '0.78rem', color: 'var(--vel-text-secondary)' }}>
-                                    <a
-                                      href={`mailto:${req.email}`}
-                                      style={{ color: 'var(--vel-text-secondary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                      title="Click to email"
-                                    >
-                                      <Mail className="h-3 w-3 text-blue-400" />
-                                      <span>{req.email}</span>
-                                    </a>
-
-                                    {req.phone && (
-                                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <Phone className="h-3 w-3 text-emerald-400" />
-                                        <span>{req.phone}</span>
-                                      </span>
-                                    )}
-
-                                    {req.created_at && (
-                                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--vel-text-tertiary)' }}>
-                                        <Calendar className="h-3 w-3" />
-                                        <span>{new Date(req.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Status Dropdown */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <select
-                                  value={req.status || 'new'}
-                                  disabled={isActionBusy}
-                                  onChange={(e) => handleUpdateContactStatus(req.id, e.target.value)}
-                                  className="vel-select"
-                                  style={{
-                                    padding: '5px 12px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 700,
-                                    borderRadius: '6px',
-                                    background: req.status === 'new'
-                                      ? 'rgba(59, 130, 246, 0.15)'
-                                      : req.status === 'contacted'
-                                      ? 'rgba(16, 185, 129, 0.15)'
-                                      : req.status === 'in_discussion'
-                                      ? 'rgba(139, 92, 246, 0.15)'
-                                      : 'rgba(107, 114, 128, 0.15)',
-                                    color: req.status === 'new'
-                                      ? '#60A5FA'
-                                      : req.status === 'contacted'
-                                      ? '#34D399'
-                                      : req.status === 'in_discussion'
-                                      ? '#A78BFA'
-                                      : '#9CA3AF',
-                                    border: `1px solid ${statusConfig.color}40`,
-                                    cursor: 'pointer'
-                                  }}
-                                >
-                                  <option value="new">Status: New</option>
-                                  <option value="contacted">Status: Contacted</option>
-                                  <option value="in_discussion">Status: In Discussion</option>
-                                  <option value="closed">Status: Closed</option>
-                                </select>
-                              </div>
-                            </div>
-
-                            {/* Middle Row: Message preview */}
-                            <div style={{
-                              background: 'var(--vel-bg-card-inner)',
-                              border: '1px solid var(--vel-border)',
-                              borderRadius: '8px',
-                              padding: '12px 16px',
-                              fontSize: '0.84rem',
-                              lineHeight: '1.5',
-                              color: '#E2E8F0'
-                            }}>
-                              <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--vel-text-tertiary)', fontWeight: 700, marginBottom: '4px' }}>
-                                Project Details / Message
-                              </div>
-                              <p style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                {req.message}
-                              </p>
-                              {req.admin_notes && (
-                                <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed var(--vel-border)', fontSize: '0.78rem', color: '#FCD34D' }}>
-                                  <strong>Admin Note:</strong> {req.admin_notes}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Bottom Row: Action Buttons */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                {waUrl && (
-                                  <a
-                                    href={waUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="vel-btn-solid"
-                                    style={{
-                                      background: '#25D366',
-                                      borderColor: '#25D366',
-                                      color: '#000000',
-                                      fontSize: '0.78rem',
-                                      padding: '6px 14px',
-                                      textDecoration: 'none',
-                                      fontWeight: 700,
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '6px'
-                                    }}
-                                  >
-                                    <MessageSquare className="h-3.5 w-3.5" />
-                                    <span>Chat on WhatsApp</span>
-                                  </a>
-                                )}
-
-                                <a
-                                  href={`mailto:${req.email}?subject=${encodeURIComponent(`Regarding your ${projectLabel} project inquiry`)}`}
-                                  className="vel-btn-outline"
-                                  style={{
-                                    fontSize: '0.78rem',
-                                    padding: '6px 14px',
-                                    textDecoration: 'none',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                  }}
-                                >
-                                  <Mail className="h-3.5 w-3.5" />
-                                  <span>Send Email</span>
-                                </a>
-
-                                <button
-                                  type="button"
-                                  className="vel-btn-outline"
-                                  onClick={() => {
-                                    setSelectedContactRequest(req);
-                                    setTempContactNotes(req.admin_notes || '');
-                                  }}
-                                  style={{
-                                    fontSize: '0.78rem',
-                                    padding: '6px 14px',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                  }}
-                                >
-                                  <FileText className="h-3.5 w-3.5" />
-                                  <span>View & Notes</span>
-                                </button>
-                              </div>
-
-                              <button
-                                type="button"
-                                disabled={isActionBusy}
-                                onClick={() => handleDeleteContactRequest(req.id, req.name)}
-                                style={{
-                                  background: 'transparent',
-                                  border: '1px solid transparent',
-                                  color: 'var(--vel-text-tertiary)',
-                                  borderRadius: '6px',
-                                  padding: '6px 10px',
-                                  fontSize: '0.78rem',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  transition: 'color 0.15s, border-color 0.15s'
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.color = '#F87171';
-                                  e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.color = 'var(--vel-text-tertiary)';
-                                  e.currentTarget.style.borderColor = 'transparent';
-                                }}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* ============================================================== */}
-              {/* VIEW: LINK FEEDBACK (Private shareable URL submissions)        */}
-              {/* ============================================================== */}
-              {activeNav === 'link-feedback' && (
-                <>
-                  <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-                    <div>
-                      <h1 className="vel-page-h1">Link Feedback</h1>
-                      <p className="vel-page-sub">Direct reviews and ratings collected via your private shareable link.</p>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                      <button
-                        className="vel-btn-solid"
-                        onClick={handleCopyFeedbackLink}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                      >
-                        {isCopiedFeedbackLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                        <span>{isCopiedFeedbackLink ? 'Link Copied!' : 'Copy Feedback Link'}</span>
-                      </button>
-
-                      <a
-                        href="/feedback"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="vel-btn-outline"
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', textDecoration: 'none' }}
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        <span>Preview Page</span>
-                      </a>
-
-                      <button
-                        className="vel-btn-outline"
-                        onClick={fetchLinkFeedbacks}
-                        disabled={linkFeedbacksLoading}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                      >
-                        <RefreshCw className={`h-3.5 w-3.5 ${linkFeedbacksLoading ? 'animate-spin' : ''}`} />
-                        <span>{linkFeedbacksLoading ? 'Refreshing...' : 'Refresh'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Summary Metric Cards */}
-                  <div className="vel-metric-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-                    <div className="vel-metric-card">
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Total Submissions</span>
-                        <div className="vel-metric-icon">
-                          <MessageSquareQuote className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">{linkFeedbacks.length}</div>
-                        <span className="vel-metric-pill-badge">Via Link</span>
-                      </div>
-                    </div>
-
-                    <div className="vel-metric-card">
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Average Rating</span>
-                        <div className="vel-metric-icon" style={{ color: '#F59E0B' }}>
-                          <Star className="h-3.5 w-3.5 fill-amber-400" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number" style={{ color: '#FBBF24' }}>
-                          {avgFeedbackRating} <span style={{ fontSize: '0.9rem', color: 'var(--vel-text-secondary)' }}>/ 5</span>
-                        </div>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', fontWeight: 600 }}>Overall Score</span>
-                      </div>
-                    </div>
-
-                    <div className="vel-metric-card">
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">5-Star Reviews</span>
-                        <div className="vel-metric-icon" style={{ color: '#10B981' }}>
-                          <Award className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">{fiveStarFeedbackCount}</div>
-                        <span style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 600 }}>
-                          {linkFeedbacks.length > 0 ? `${Math.round((fiveStarFeedbackCount / linkFeedbacks.length) * 100)}% of total` : '0%'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="vel-metric-card">
-                      <div className="vel-metric-top">
-                        <span className="vel-metric-label">Testimonial Consents</span>
-                        <div className="vel-metric-icon" style={{ color: '#60A5FA' }}>
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                        </div>
-                      </div>
-                      <div className="vel-metric-bottom">
-                        <div className="vel-metric-number">{testimonialConsentCount}</div>
-                        <span style={{ fontSize: '0.72rem', color: '#60A5FA', fontWeight: 600 }}>Ready for Website</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Share Link Banner */}
-                  <div style={{
-                    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%)',
-                    border: '1px solid rgba(59, 130, 246, 0.2)',
-                    borderRadius: '12px',
-                    padding: '16px 20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: '14px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '8px',
-                        background: 'rgba(59, 130, 246, 0.15)',
-                        color: '#60A5FA',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        <Quote className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#FFFFFF' }}>
-                          Your Private Shareable Feedback URL
-                        </div>
-                        <div style={{ fontSize: '0.76rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
-                          This page is not linked anywhere on the public website. Send this link directly to clients via WhatsApp, Email, or Slack.
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <code style={{
-                        background: '#12121A',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '0.78rem',
-                        color: '#93C5FD',
-                        fontFamily: 'monospace'
-                      }}>
-                        {typeof window !== 'undefined' ? `${window.location.origin}/feedback` : '/feedback'}
-                      </code>
-                      <button
-                        type="button"
-                        className="vel-btn-solid"
-                        onClick={handleCopyFeedbackLink}
-                        style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      >
-                        {isCopiedFeedbackLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                        <span>{isCopiedFeedbackLink ? 'Copied' : 'Copy'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Filter & Search Bar */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                    <div className="vel-search-pill" style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
-                      <Search className="h-3.5 w-3.5" style={{ position: 'absolute', left: '12px', color: 'var(--vel-text-tertiary)' }} />
-                      <input
-                        type="text"
-                        placeholder="Search feedback by client name, email, company, or comments..."
-                        value={feedbackSearch}
-                        onChange={(e) => setFeedbackSearch(e.target.value)}
-                        className="vel-search-input"
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <select
-                        value={feedbackRatingFilter}
-                        onChange={(e) => setFeedbackRatingFilter(e.target.value)}
-                        style={{
-                          background: '#181822',
-                          border: '1px solid var(--vel-border)',
-                          borderRadius: '8px',
-                          padding: '8px 12px',
-                          color: '#FFFFFF',
-                          fontSize: '0.8rem',
-                          outline: 'none',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <option value="ALL">All Ratings</option>
-                        <option value="5">5 Stars Only</option>
-                        <option value="4">4 Stars Only</option>
-                        <option value="3">3 Stars Only</option>
-                        <option value="2">2 Stars Only</option>
-                        <option value="1">1 Star Only</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Feedback Cards List */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {filteredFeedbacks.length === 0 ? (
-                      <div className="vel-card" style={{ textAlign: 'center', padding: '48px 24px' }}>
-                        <div style={{
-                          width: '54px',
-                          height: '54px',
-                          borderRadius: '50%',
-                          background: 'rgba(255, 255, 255, 0.03)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          margin: '0 auto 16px',
-                          color: 'var(--vel-text-tertiary)'
-                        }}>
-                          <MessageSquareQuote className="h-6 w-6" />
-                        </div>
-                        <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#FFFFFF', marginBottom: '6px' }}>
-                          No Feedback Found
-                        </h3>
-                        <p style={{ fontSize: '0.82rem', color: 'var(--vel-text-secondary)', maxWidth: '400px', margin: '0 auto 20px' }}>
-                          {feedbackSearch || feedbackRatingFilter !== 'ALL'
-                            ? 'No feedback entries match your current search or rating filter.'
-                            : 'Send your private feedback link to clients after delivering projects to collect testimonials and workflow reviews.'}
-                        </p>
-                        <button
-                          type="button"
-                          className="vel-btn-solid"
-                          onClick={handleCopyFeedbackLink}
-                          style={{ margin: '0 auto', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                          <span>Copy Feedback Link to Share</span>
-                        </button>
-                      </div>
-                    ) : (
-                      filteredFeedbacks.map((fb) => {
-                        const starNum = Number(fb.rating) || 5;
-                        return (
-                          <div
-                            key={fb.id}
-                            className="vel-card"
-                            style={{
-                              padding: '22px 24px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '14px',
-                              border: '1px solid rgba(255, 255, 255, 0.08)',
-                              background: '#15151F'
-                            }}
-                          >
-                            {/* Top row: Client info, Rating Stars, Testimonial badge */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
-                              <div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                  <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-                                    {fb.name}
-                                  </h3>
-                                  {fb.company && (
-                                    <span style={{ fontSize: '0.78rem', color: '#93C5FD', fontWeight: 600 }}>
-                                      • {fb.company}
-                                    </span>
-                                  )}
-                                  {fb.project_type && (
-                                    <span style={{
-                                      fontSize: '0.7rem',
-                                      padding: '2px 8px',
-                                      borderRadius: '6px',
-                                      background: 'rgba(255, 255, 255, 0.05)',
-                                      color: 'var(--vel-text-secondary)',
-                                      border: '1px solid rgba(255, 255, 255, 0.08)'
-                                    }}>
-                                      {fb.project_type}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', fontSize: '0.75rem', color: 'var(--vel-text-tertiary)' }}>
-                                  {fb.email && (
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      <Mail className="h-3 w-3" />
-                                      {fb.email}
-                                    </span>
-                                  )}
-                                  <span>
-                                    {fb.created_at ? new Date(fb.created_at).toLocaleDateString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    }) : 'Recent'}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                {/* Stars */}
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', background: 'rgba(245, 158, 11, 0.1)', padding: '4px 8px', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
-                                  {[1, 2, 3, 4, 5].map((s) => (
-                                    <Star
-                                      key={s}
-                                      className="h-3.5 w-3.5"
-                                      style={{
-                                        fill: s <= starNum ? '#F59E0B' : 'transparent',
-                                        color: s <= starNum ? '#F59E0B' : 'rgba(255, 255, 255, 0.2)'
-                                      }}
-                                    />
-                                  ))}
-                                  <span style={{ fontSize: '0.76rem', fontWeight: 800, color: '#FBBF24', marginLeft: '3px' }}>
-                                    {starNum}.0
-                                  </span>
-                                </div>
-
-                                {/* Consent Badge */}
-                                {fb.testimonial_consent ? (
-                                  <span style={{
-                                    fontSize: '0.72rem',
-                                    fontWeight: 700,
-                                    padding: '3px 10px',
-                                    borderRadius: '9999px',
-                                    background: 'rgba(16, 185, 129, 0.12)',
-                                    color: '#34D399',
-                                    border: '1px solid rgba(16, 185, 129, 0.3)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px'
-                                  }}>
-                                    <CheckCircle2 className="h-3 w-3" />
-                                    <span>Testimonial Consent</span>
-                                  </span>
-                                ) : (
-                                  <span style={{
-                                    fontSize: '0.72rem',
-                                    padding: '3px 10px',
-                                    borderRadius: '9999px',
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    color: 'var(--vel-text-tertiary)',
-                                    border: '1px solid rgba(255, 255, 255, 0.08)'
-                                  }}>
-                                    Private Review
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Review Content */}
-                            <div style={{
-                              background: '#101017',
-                              border: '1px solid rgba(255, 255, 255, 0.06)',
-                              borderRadius: '10px',
-                              padding: '14px 16px',
-                              fontSize: '0.86rem',
-                              lineHeight: '1.55',
-                              color: '#F3F4F6'
-                            }}>
-                              {fb.feedback}
-                            </div>
-
-                            {/* Improvements note if present */}
-                            {fb.improvements && (
-                              <div style={{
-                                background: 'rgba(245, 158, 11, 0.05)',
-                                border: '1px solid rgba(245, 158, 11, 0.15)',
-                                borderRadius: '10px',
-                                padding: '10px 14px',
-                                fontSize: '0.8rem',
-                                color: '#E2E8F0',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '3px'
-                              }}>
-                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#FBBF24', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                  Suggestions for Improvement:
-                                </span>
-                                <span>{fb.improvements}</span>
-                              </div>
-                            )}
-
-                            {/* Bottom action row */}
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '4px' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteFeedback(fb.id)}
-                                style={{
-                                  background: 'transparent',
-                                  border: '1px solid transparent',
-                                  color: 'var(--vel-text-tertiary)',
-                                  borderRadius: '6px',
-                                  padding: '5px 10px',
-                                  fontSize: '0.78rem',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  transition: 'all 0.15s'
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.color = '#F87171';
-                                  e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.color = 'var(--vel-text-tertiary)';
-                                  e.currentTarget.style.borderColor = 'transparent';
-                                }}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                <span>Delete Feedback</span>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* ============================================================== */}
-              {/* VIEW 5: CURRENT ORDERS / ACTIVE PIPELINE                       */}
-              {/* ============================================================== */}
-              {activeNav === 'orders' && (
-                <>
-                  <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-                    <div>
-                      <h1 className="vel-page-h1">Active Pipeline</h1>
-                      <p className="vel-page-sub">Managing {activePipelineOrders.length} projects currently in production.</p>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button className="vel-btn-outline" onClick={() => setStatusFilter(statusFilter === 'ALL' ? 'IN PROGRESS' : 'ALL')}>
-                        <SlidersHorizontal className="h-3.5 w-3.5" />
-                        <span>{statusFilter === 'ALL' ? 'Filter: All' : `Filter: ${statusFilter}`}</span>
-                      </button>
-                      <button className="vel-btn-solid" onClick={() => handleNavClick('create')}>
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>New Order</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="vel-pipeline-layout">
-                    {/* Left: Orders Table */}
-                    <div className="vel-card" style={{ padding: '0', overflow: 'hidden' }}>
-                      <table className="vel-order-table">
-                        <thead>
-                          <tr>
-                            <th>ORDER ID</th>
-                            <th>PROJECT / CLIENT</th>
-                            <th>EDITOR</th>
-                            <th>DEADLINE</th>
-                            <th>STATUS</th>
-                            <th>ACTION</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredOrders.map((ord) => (
-                            <tr
-                              key={ord.id}
-                              className={`vel-order-row ${selectedOrderId === ord.id ? 'selected' : ''}`}
-                              onClick={() => setSelectedOrderId(ord.id)}
-                            >
-                              <td style={{ fontWeight: 700, color: '#93C5FD', letterSpacing: '0.04em', fontFamily: 'monospace' }}>{ord.displayId}</td>
-                              <td>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ fontWeight: 700 }}>{ord.title}</span>
-                                    {ord.additionalLink && (
-                                      ord.clientLinkVisible ? (
-                                        <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', background: 'rgba(34, 197, 94, 0.2)', color: '#4ADE80', border: '1px solid rgba(34, 197, 94, 0.4)' }}>
-                                          ACCESS: GRANTED
-                                        </span>
-                                      ) : (
-                                        <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.2)', color: '#FCD34D', border: '1px solid rgba(245, 158, 11, 0.4)' }}>
-                                          ACCESS: RESTRICTED
-                                        </span>
-                                      )
-                                    )}
-                                  </div>
-                                  <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)' }}>{ord.client}</span>
-                                </div>
-                              </td>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  {ord.editor.avatar ? (
-                                    <img src={ord.editor.avatar} alt="" style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
-                                  ) : (
-                                    <span style={{ width: '20px', height: '20px', borderRadius: '50%', background: '#262633', display: 'inline-block' }} />
-                                  )}
-                                  <span style={{ fontStyle: ord.editor.name === 'Unassigned' ? 'italic' : 'normal', color: ord.editor.name === 'Unassigned' ? '#F59E0B' : 'inherit' }}>
-                                    {ord.editor.name}
-                                  </span>
-                                </div>
-                              </td>
-                              <td style={{ color: 'var(--vel-text-secondary)' }}>{ord.deadline}</td>
-                              <td>
-                                <span className={ord.badgeClass}>
-                                  {ord.status}
-                                </span>
-                              </td>
-                              <td>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  {(!ord.editor.id || ord.editor.name === 'Unassigned') && ord.dbStatus !== 'delivered' && (
-                                    <button
-                                      type="button"
-                                      className="vel-btn-solid"
-                                      style={{
-                                        padding: '3px 8px',
-                                        fontSize: '0.66rem',
-                                        fontWeight: 700,
-                                        background: '#3B82F6',
-                                        color: '#FFFFFF',
-                                        border: 'none',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer',
-                                        whiteSpace: 'nowrap',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '3px'
-                                      }}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleRedirectToAssign(ord);
-                                      }}
-                                      title="Assign this order to an editor"
-                                    >
-                                      <UserCheck className="h-3 w-3" />
-                                      <span>Assign</span>
-                                    </button>
-                                  )}
-                                  <ChevronRight className="h-4 w-4 text-white/30" />
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Right: Order Detail & Admin Controls Drawer */}
-                    <div className="vel-card" style={{ gap: '20px' }}>
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#93C5FD', letterSpacing: '0.04em', fontFamily: 'monospace' }}>{selectedOrder.displayId}</span>
-                          <span className={selectedOrder.badgeClass}>{selectedOrder.status}</span>
-                          {selectedOrder.dbStatus === 'delivered' ? (
-                            (() => {
-                              const perf = getDeliveryPerformance(selectedOrder, statusHistoryMap);
-                              return perf.isOnTime ? (
-                                <span style={{ fontSize: '0.72rem', color: '#4ADE80', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(34, 197, 94, 0.12)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(34, 197, 94, 0.25)', fontWeight: 700 }}>
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  <span>Delivered On Time</span>
-                                </span>
-                              ) : (
-                                <span style={{ fontSize: '0.72rem', color: '#F87171', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(239, 68, 68, 0.12)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(239, 68, 68, 0.25)', fontWeight: 700 }}>
-                                  <AlertTriangle className="h-3 w-3" />
-                                  <span>Delivered {perf.label}</span>
-                                </span>
-                              );
-                            })()
-                          ) : (
-                            <span style={{ fontSize: '0.72rem', color: '#FCD34D', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(245, 158, 11, 0.12)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.25)', fontWeight: 600 }}>
-                              <Calendar className="h-3 w-3" />
-                              <span>Expected Delivery: {getExpectedDeliveryDate(selectedOrder)}</span>
-                            </span>
-                          )}
-                        </div>
-                        <h2 style={{ fontSize: '1.3rem', fontWeight: 800 }}>{selectedOrder.title}</h2>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--vel-text-secondary)', marginTop: '4px', flexWrap: 'wrap' }}>
-                          <span style={{ color: '#FFFFFF', fontWeight: 600 }}>Client: {selectedOrder.client}</span>
-                          <span>•</span>
-                          <span>{selectedOrder.type}</span>
-                          <span>•</span>
-                          <span style={{ color: '#93C5FD' }}>Accepted: {getOrderAcceptedDate(selectedOrder, statusHistoryMap)}</span>
-                        </div>
-
-                        {(!selectedOrder.editor.id || selectedOrder.editor.name === 'Unassigned') && selectedOrder.dbStatus !== 'delivered' && (
-                          <div style={{
-                            marginTop: '12px',
-                            padding: '10px 14px',
-                            borderRadius: '8px',
-                            background: 'rgba(59, 130, 246, 0.08)',
-                            border: '1px solid rgba(59, 130, 246, 0.25)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '10px',
-                            flexWrap: 'wrap'
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <UserCheck className="h-4 w-4 text-blue-400 shrink-0" />
-                              <span style={{ fontSize: '0.76rem', color: '#93C5FD', fontWeight: 600 }}>
-                                This project is not assigned to an editor yet.
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              className="vel-btn-solid"
-                              style={{
-                                padding: '6px 14px',
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                background: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)',
-                                color: '#FFFFFF',
-                                border: 'none',
-                                borderRadius: '6px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                cursor: 'pointer'
-                              }}
-                              onClick={() => handleRedirectToAssign(selectedOrder)}
-                            >
-                              <span>Assign Project to Editor</span>
-                              <span>→</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Milestone Stepper */}
-                      <div className="vel-stepper-wrap" style={{ padding: '8px 0' }}>
-                        <div className="vel-stepper-line" style={{ top: '16px' }} />
-                        {[
-                          { key: 'received', label: 'RECEIVED', step: 0 },
-                          { key: 'accepted', label: 'ACCEPTED', step: 1 },
-                          { key: 'in_editing', label: 'IN EDITING', step: 2 },
-                          { key: 'in_review', label: 'IN REVIEW', step: 3 },
-                          { key: 'delivered', label: 'DELIVERED', step: 4 },
-                        ].map((st) => {
-                          const isDone = selectedOrder.currentStep > st.step;
-                          const isActive = selectedOrder.currentStep === st.step;
-                          const stageDate = getOrderStageDate(selectedOrder, st.key, st.step);
-                          return (
-                            <div key={st.key} className="vel-step-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                              <div className={`vel-step-dot ${isDone ? 'done' : isActive ? 'active' : ''}`}>
-                                {isDone ? <Check className="h-2.5 w-2.5" /> : isActive ? '◉' : ''}
-                              </div>
-                              <span className="vel-step-label" style={{ fontWeight: 700, fontSize: '0.65rem', marginTop: '4px' }}>
-                                {st.label}
-                              </span>
-                              <span style={{
-                                fontSize: '0.6rem',
-                                color: isDone || isActive ? '#9CA3AF' : 'var(--vel-text-secondary)',
-                                letterSpacing: '0.02em',
-                                marginTop: '2px',
-                                fontWeight: isDone || isActive ? 600 : 400
-                              }}>
-                                {stageDate}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Assigned Editor & Client Contact Cards */}
-                      <div className="vel-form-grid-2">
-                        <div style={{ padding: '12px 14px', background: 'var(--vel-bg-input)', borderRadius: '8px', border: '1px solid var(--vel-border)' }}>
-                          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--vel-text-secondary)', display: 'block', marginBottom: '8px', textTransform: 'uppercase' }}>
-                            ASSIGNED EDITOR
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {selectedOrder.editor.avatar ? (
-                              <img src={selectedOrder.editor.avatar} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%' }} />
-                            ) : (
-                              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#262633' }} />
-                            )}
-                            <div>
-                              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: (!selectedOrder.editor.id || selectedOrder.editor.name === 'Unassigned') ? '#F59E0B' : '#FFFFFF' }}>
-                                {selectedOrder.editor.name}
-                              </div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--vel-text-secondary)' }}>{selectedOrder.editor.role}</div>
-                            </div>
-                          </div>
-
-                          {(!selectedOrder.editor.id || selectedOrder.editor.name === 'Unassigned') && selectedOrder.dbStatus !== 'delivered' && (
-                            <button
-                              type="button"
-                              className="vel-btn-solid"
-                              style={{
-                                marginTop: '10px',
-                                width: '100%',
-                                padding: '7px 12px',
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                background: '#3B82F6',
-                                color: '#FFFFFF',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '6px',
-                                border: 'none',
-                                borderRadius: '6px',
-                                cursor: 'pointer'
-                              }}
-                              onClick={() => handleRedirectToAssign(selectedOrder)}
-                            >
-                              <UserCheck className="h-3.5 w-3.5" />
-                              <span>Assign Project →</span>
-                            </button>
-                          )}
-                        </div>
-
-                        <div style={{ padding: '12px 14px', background: 'var(--vel-bg-input)', borderRadius: '8px', border: '1px solid var(--vel-border)' }}>
-                          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--vel-text-secondary)', display: 'block', marginBottom: '8px', textTransform: 'uppercase' }}>
-                            CLIENT CONTACT
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#1C1C24', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <Users className="h-3.5 w-3.5 text-white/60" />
-                            </div>
-                            <div>
-                              <div style={{ fontSize: '0.8rem', fontWeight: 700 }}>{selectedOrder.clientContact.name}</div>
-                              <div style={{ fontSize: '0.68rem', color: 'var(--vel-text-secondary)' }}>{selectedOrder.clientContact.company}</div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Project Assets & Submitted Deliverables Section */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid var(--vel-border)', paddingTop: '16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#FFFFFF', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <Cloud className="h-3.5 w-3.5 text-blue-400" />
-                            <span>Editor Deliverables & Assets</span>
-                          </span>
-
-                          {selectedOrder.additionalLink && (
-                            <span style={{
-                              fontSize: '0.65rem',
-                              fontWeight: 700,
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              background: selectedOrder.clientLinkVisible ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                              color: selectedOrder.clientLinkVisible ? '#4ADE80' : '#FCD34D',
-                              border: selectedOrder.clientLinkVisible ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(245, 158, 11, 0.3)',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}>
-                              {selectedOrder.clientLinkVisible ? (
-                                <>
-                                  <Check className="h-3 w-3" />
-                                  <span>Client Access: Granted</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Lock className="h-3 w-3" />
-                                  <span>Client Access: Restricted (Admin Only)</span>
-                                </>
-                              )}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Editor Submitted Deliverable Link */}
-                        {selectedOrder.additionalLink ? (
-                          <div style={{ padding: '14px', background: 'rgba(34, 197, 94, 0.05)', borderRadius: '10px', border: '1px solid rgba(34, 197, 94, 0.25)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                                <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'rgba(34, 197, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                  <ExternalLink className="h-4 w-4 text-emerald-400" />
-                                </div>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#4ADE80' }}>Editor Deliverables Submitted</div>
-                                  <div style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '240px' }}>
-                                    {selectedOrder.additionalLink}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <a
-                                href={safeHref(selectedOrder.additionalLink)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="vel-btn-outline"
-                                style={{ padding: '6px 12px', fontSize: '0.74rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
-                              >
-                                <span>Preview Link</span>
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
-                            </div>
-
-                            {/* Client Permission Controls */}
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '10px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', gap: '10px', flexWrap: 'wrap' }}>
-                              <div>
-                                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#FFFFFF' }}>Client Visibility Permission</div>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--vel-text-secondary)' }}>
-                                  {selectedOrder.clientLinkVisible
-                                    ? 'Access is granted! Client can view and open this deliverable on their dashboard.'
-                                    : 'Access is restricted. Click "Allow Client to View" to grant the client access (even before delivery).'}
-                                </div>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={handleToggleClientDeliverableAccess}
-                                style={{
-                                  padding: '6px 14px',
-                                  fontSize: '0.74rem',
-                                  fontWeight: 700,
-                                  borderRadius: '6px',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  border: 'none',
-                                  background: selectedOrder.clientLinkVisible ? '#EF4444' : '#22C55E',
-                                  color: selectedOrder.clientLinkVisible ? '#FFFFFF' : '#000000',
-                                  transition: 'all 0.2s'
-                                }}
-                              >
-                                {selectedOrder.clientLinkVisible ? (
-                                  <>
-                                    <EyeOff className="h-3.5 w-3.5" />
-                                    <span>Revoke Client Access</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Eye className="h-3.5 w-3.5" />
-                                    <span>Allow Client to View</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div style={{ padding: '12px 14px', background: 'var(--vel-bg-input)', borderRadius: '8px', border: '1px dashed var(--vel-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <Clock className="h-4 w-4 text-amber-400 shrink-0" />
-                              <div>
-                                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--vel-text-primary)' }}>No Deliverable Submitted Yet</div>
-                                <div style={{ fontSize: '0.7rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
-                                  Expected Delivery: <strong style={{ color: '#FCD34D' }}>{getExpectedDeliveryDate(selectedOrder)}</strong>
-                                </div>
-                              </div>
-                            </div>
-                            <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#FCD34D', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
-                              IN PROGRESS
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Client Raw Footage Link (if provided) */}
-                        {selectedOrder.driveLink && (
-                          <div style={{ padding: '10px 14px', background: 'var(--vel-bg-input)', borderRadius: '8px', border: '1px solid var(--vel-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--vel-text-secondary)' }}>Client Raw Footage</div>
-                              <div style={{ fontSize: '0.72rem', color: '#FFFFFF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
-                                {selectedOrder.driveLink}
-                              </div>
-                            </div>
-                            <a
-                              href={safeHref(selectedOrder.driveLink)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="vel-btn-outline"
-                              style={{ padding: '5px 10px', fontSize: '0.72rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
-                            >
-                              <span>Open Raw</span>
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* ADMIN CONTROLS */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', borderTop: '1px solid var(--vel-border)', paddingTop: '16px' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#FFFFFF', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                          ADMIN CONTROLS
-                        </span>
-
-                        <div className="vel-field-group">
-                          <label className="vel-label">Update Status</label>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <select
-                              className="vel-select"
-                              style={{ flex: 1 }}
-                              value={stagedStatusMap[selectedOrder.id] || selectedOrder.status || 'RECEIVED'}
-                              onChange={(e) => handleOrderFieldChange('status', e.target.value)}
-                            >
-                              <option value="RECEIVED">Received</option>
-                              <option value="ACCEPTED">Accepted</option>
-                              <option value="IN PROGRESS">In Progress</option>
-                              <option value="REVIEWING">Reviewing</option>
-                              <option value="REVISION">Revision Requested</option>
-                              <option value="ON HOLD">On Hold</option>
-                              <option value="COMPLETED">Completed</option>
-                            </select>
-                            <button
-                              type="button"
-                              className="vel-btn-solid"
-                              style={{
-                                padding: '8px 14px',
-                                fontSize: '0.74rem',
-                                fontWeight: 700,
-                                background: stagedStatusMap[selectedOrder.id] ? '#22C55E' : 'rgba(255, 255, 255, 0.1)',
-                                color: stagedStatusMap[selectedOrder.id] ? '#000000' : '#FFFFFF',
-                                whiteSpace: 'nowrap',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                cursor: 'pointer',
-                                border: 'none',
-                                borderRadius: '6px'
-                              }}
-                              onClick={() => handleUpdateStatusExplicitly(stagedStatusMap[selectedOrder.id] || selectedOrder.status)}
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                              <span>Update</span>
-                            </button>
-                          </div>
-                          {Boolean(stagedStatusMap[selectedOrder.id]) && (
-                            <span style={{ fontSize: '0.68rem', color: '#FCD34D', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                              <Clock className="h-3 w-3" />
-                              <span>Status ready to save. Click "Update" or "Save Changes" below.</span>
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="vel-form-grid-2">
-                          <div className="vel-field-group">
-                            <label className="vel-label">Editor Deadline</label>
-                            <input
-                              type="date"
-                              className="vel-input"
-                              value={selectedOrder.editorDeadline}
-                              onChange={(e) => handleOrderFieldChange('editorDeadline', e.target.value)}
-                            />
-                          </div>
-
-                          <div className="vel-field-group">
-                            <label className="vel-label">Client Deadline</label>
-                            <input
-                              type="date"
-                              className="vel-input"
-                              value={selectedOrder.clientDeadline}
-                              onChange={(e) => handleOrderFieldChange('clientDeadline', e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="vel-field-group">
-                          <label className="vel-label">Admin Notes (Internal)</label>
-                          <textarea
-                            className="vel-textarea"
-                            style={{ minHeight: '70px' }}
-                            placeholder="Add notes..."
-                            value={selectedOrder.notes}
-                            onChange={(e) => handleOrderFieldChange('notes', e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Bottom Action buttons */}
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <button className="vel-btn-outline" style={{ flex: 1 }} onClick={handleNotifyEditor}>
-                          <MessageSquare className="h-3.5 w-3.5" />
-                          <span>Notify Editor</span>
-                        </button>
-                        <button
-                          className="vel-btn-solid"
-                          style={{
-                            flex: 1,
-                            background: selectedOrder.pendingStatusChange ? '#22C55E' : 'var(--vel-accent)',
-                            color: '#000000',
-                            fontWeight: 700
-                          }}
-                          onClick={handleSaveOrderChanges}
-                        >
-                          <Save className="h-3.5 w-3.5" />
-                          <span>{selectedOrder.pendingStatusChange ? 'Save Status & Changes' : 'Save Changes'}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* ============================================================== */}
-              {/* VIEW: ORDERS HISTORY / DELIVERED PROJECTS                      */}
-              {/* ============================================================== */}
-              {activeNav === 'history' && (
-                <>
-                  <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-                    <div>
-                      <h1 className="vel-page-h1">Orders History</h1>
-                      <p className="vel-page-sub">
-                        Archived and delivered projects from all clients with verified client ratings and testimonials.
-                      </p>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div className="vel-search-bar" style={{ width: '280px' }}>
-                        <Search className="h-3.5 w-3.5 text-white/40" />
-                        <input
-                          type="text"
-                          placeholder="Search orders, clients, editors..."
-                          className="vel-search-input"
-                          value={historySearch}
-                          onChange={(e) => setHistorySearch(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Summary Metric Cards */}
-                  <div className="vel-kpi-grid" style={{ marginBottom: '20px' }}>
-                    <div className="vel-kpi-card">
-                      <div className="vel-kpi-icon-wrap" style={{ background: 'rgba(34, 197, 94, 0.12)' }}>
-                        <Archive className="h-5 w-5 text-emerald-400" />
-                      </div>
-                      <span className="vel-kpi-label">TOTAL DELIVERED</span>
-                      <div className="vel-kpi-val">
-                        {orders.filter(o => o.dbStatus === 'delivered').length}
-                      </div>
-                    </div>
-
-                    <div className="vel-kpi-card">
-                      <div className="vel-kpi-icon-wrap" style={{ background: 'rgba(234, 179, 8, 0.12)' }}>
-                        <Star className="h-5 w-5 text-amber-400" fill="#F59E0B" />
-                      </div>
-                      <span className="vel-kpi-label">AVG CLIENT RATING</span>
-                      <div className="vel-kpi-val">
-                        {(() => {
-                          const ratedOrders = orders.filter(o => o.dbStatus === 'delivered' && adminRatingsMap[o.id]);
-                          if (ratedOrders.length === 0) return '5.0 ★';
-                          const sum = ratedOrders.reduce((acc, o) => acc + (adminRatingsMap[o.id]?.rating || 5), 0);
-                          return (sum / ratedOrders.length).toFixed(1) + ' ★';
-                        })()}
-                      </div>
-                    </div>
-
-                    <div className="vel-kpi-card">
-                      <div className="vel-kpi-icon-wrap" style={{ background: 'rgba(59, 130, 246, 0.12)' }}>
-                        <Award className="h-5 w-5 text-blue-400" />
-                      </div>
-                      <span className="vel-kpi-label">TESTIMONIALS READY</span>
-                      <div className="vel-kpi-val">
-                        {orders.filter(o => o.dbStatus === 'delivered' && adminRatingsMap[o.id]?.isTestimonial).length}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Orders History Table */}
-                  {(() => {
-                    const deliveredOrders = orders
-                      .filter(o => o.dbStatus === 'delivered')
-                      .filter(o => {
-                        if (!historySearch.trim()) return true;
-                        const query = historySearch.toLowerCase();
-                        return (
-                          o.title.toLowerCase().includes(query) ||
-                          o.client.toLowerCase().includes(query) ||
-                          o.editor.name.toLowerCase().includes(query) ||
-                          o.id.toLowerCase().includes(query)
-                        );
-                      });
-
-                    if (deliveredOrders.length === 0) {
-                      return (
-                        <div className="vel-card" style={{ padding: '60px 20px', textAlign: 'center', alignItems: 'center', gap: '14px' }}>
-                          <Archive className="h-10 w-10 text-white/30" />
-                          <h2 style={{ fontSize: '1.15rem', fontWeight: 700 }}>No Delivered Orders Found</h2>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--vel-text-secondary)', maxWidth: '420px' }}>
-                            {historySearch ? 'No delivered projects match your search criteria.' : 'When an active project status is updated to Completed and saved, it will automatically be archived here.'}
-                          </p>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="vel-card" style={{ padding: '0', overflow: 'hidden' }}>
-                        <table className="vel-order-table">
-                          <thead>
-                            <tr>
-                              <th>PROJECT</th>
-                              <th>CLIENT</th>
-                              <th>ASSIGNED EDITOR</th>
-                              <th>ACCEPTED DATE</th>
-                              <th>DELIVERY & TIMELINESS</th>
-                              <th>CLIENT RATING</th>
-                              <th>FEEDBACK & TESTIMONIAL</th>
-                              <th>ACTION</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {deliveredOrders.map((ord) => {
-                              const ratingObj = adminRatingsMap[ord.id];
-                              const deliveredFormatted = ord.updatedAt
-                                ? new Date(ord.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                                : ord.deadline;
-                              const acceptedFormatted = getOrderAcceptedDate(ord, statusHistoryMap);
-                              const perf = getDeliveryPerformance(ord, statusHistoryMap);
-
-                              return (
-                                <tr key={ord.id} className="vel-order-row">
-                                  <td>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{ord.title}</span>
-                                        <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.06)', color: 'var(--vel-text-secondary)' }}>
-                                          {ord.type}
-                                        </span>
-                                      </div>
-                                      <span style={{ fontSize: '0.68rem', color: '#93C5FD', letterSpacing: '0.03em', fontFamily: 'monospace' }}>
-                                        {ord.displayId}
-                                      </span>
-                                    </div>
-                                  </td>
-
-                                  <td>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.15)', color: '#60A5FA', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.75rem', flexShrink: 0 }}>
-                                        {ord.client ? ord.client.charAt(0).toUpperCase() : 'C'}
-                                      </div>
-                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#FFFFFF' }}>{ord.client}</span>
-                                        <span style={{ fontSize: '0.68rem', color: 'var(--vel-text-secondary)' }}>
-                                          {ord.clientContact?.company || 'Direct Client'}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </td>
-
-                                  <td>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                      {ord.editor.avatar ? (
-                                        <img src={ord.editor.avatar} alt="" style={{ width: '22px', height: '22px', borderRadius: '50%' }} />
-                                      ) : (
-                                        <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#262633', display: 'inline-block' }} />
-                                      )}
-                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{ord.editor.name}</span>
-                                        <span style={{ fontSize: '0.66rem', color: 'var(--vel-text-secondary)' }}>{ord.editor.role || 'Video Editor'}</span>
-                                      </div>
-                                    </div>
-                                  </td>
-
-                                  <td>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <Calendar className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '0.78rem', color: '#FFFFFF', fontWeight: 600 }}>
-                                          {acceptedFormatted}
-                                        </span>
-                                        <span style={{ fontSize: '0.65rem', color: 'var(--vel-text-secondary)' }}>Accepted</span>
-                                      </div>
-                                    </div>
-                                  </td>
-
-                                  <td>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                      <span style={{ fontSize: '0.8rem', color: '#FFFFFF', fontWeight: 700 }}>
-                                        {deliveredFormatted}
-                                      </span>
-                                      {perf.isOnTime ? (
-                                        <span style={{
-                                          fontSize: '0.65rem',
-                                          fontWeight: 700,
-                                          padding: '2px 8px',
-                                          borderRadius: '4px',
-                                          background: 'rgba(34, 197, 94, 0.15)',
-                                          color: '#4ADE80',
-                                          border: '1px solid rgba(34, 197, 94, 0.35)',
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '4px',
-                                          width: 'fit-content'
-                                        }}>
-                                          <CheckCircle2 className="h-3 w-3" />
-                                          <span>On Time</span>
-                                        </span>
-                                      ) : (
-                                        <span style={{
-                                          fontSize: '0.65rem',
-                                          fontWeight: 700,
-                                          padding: '2px 8px',
-                                          borderRadius: '4px',
-                                          background: 'rgba(239, 68, 68, 0.15)',
-                                          color: '#F87171',
-                                          border: '1px solid rgba(239, 68, 68, 0.35)',
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          gap: '4px',
-                                          width: 'fit-content'
-                                        }}>
-                                          <AlertTriangle className="h-3 w-3" />
-                                          <span>{perf.label}</span>
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-
-                                  <td>
-                                    {ratingObj ? (
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        {[1, 2, 3, 4, 5].map((s) => (
-                                          <Star
-                                            key={s}
-                                            className="h-3.5 w-3.5"
-                                            fill={s <= ratingObj.rating ? '#F59E0B' : 'transparent'}
-                                            color={s <= ratingObj.rating ? '#F59E0B' : '#4B5563'}
-                                          />
-                                        ))}
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#FCD34D', marginLeft: '4px' }}>
-                                          {ratingObj.rating}.0
-                                        </span>
-                                      </div>
-                                    ) : (
-                                      <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', fontStyle: 'italic' }}>
-                                        Pending Client Rating
-                                      </span>
-                                    )}
-                                  </td>
-
-                                  <td>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '280px' }}>
-                                      {ratingObj?.cleanFeedback ? (
-                                        <span style={{ fontSize: '0.74rem', color: 'var(--vel-text-primary)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                          "{ratingObj.cleanFeedback}"
-                                        </span>
-                                      ) : (
-                                        <span style={{ fontSize: '0.7rem', color: 'var(--vel-text-secondary)' }}>No review text</span>
-                                      )}
-
-                                      {ratingObj?.isTestimonial && (
-                                        <span style={{ fontSize: '0.62rem', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', background: 'rgba(234, 179, 8, 0.15)', color: '#FCD34D', border: '1px solid rgba(234, 179, 8, 0.35)', display: 'inline-flex', alignItems: 'center', gap: '3px', width: 'fit-content' }}>
-                                          <Award className="h-3 w-3" />
-                                          <span>TESTIMONIAL READY</span>
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-
-                                  <td>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      {ord.additionalLink && (
-                                        <a
-                                          href={safeHref(ord.additionalLink)}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="vel-btn-outline"
-                                          style={{ padding: '4px 8px', fontSize: '0.7rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                        >
-                                          <span>Drive</span>
-                                          <ExternalLink className="h-3 w-3" />
-                                        </a>
-                                      )}
-                                      <button
-                                        className="vel-btn-outline"
-                                        style={{ padding: '4px 8px', fontSize: '0.7rem' }}
-                                        onClick={() => {
-                                          setSelectedOrderId(ord.id);
-                                          handleNavClick('orders');
-                                        }}
-                                      >
-                                        <span>Details</span>
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    );
-                  })()}
-                </>
-              )}
-
-              {/* ============================================================== */}
-              {/* VIEW 6: SETTINGS                                               */}
-              {/* ============================================================== */}
-              {activeNav === 'settings' && (
-                <>
-                  <div className="vel-page-header">
-                    <h1 className="vel-page-h1">Settings</h1>
-                    <p className="vel-page-sub">Studio configuration, integration webhooks, and team roles.</p>
-                  </div>
-
-                  <div className="vel-card" style={{ maxWidth: '600px' }}>
-                    <div className="vel-field-group">
-                      <label className="vel-label">Studio Name</label>
-                      <input type="text" defaultValue="Velocity Edit Studio" className="vel-input" />
-                    </div>
-
-                    <div className="vel-field-group">
-                      <label className="vel-label">Admin Contact Email</label>
-                      <input type="email" defaultValue="admin@velocitystudio.io" className="vel-input" />
-                    </div>
-
-                    <div className="vel-field-group">
-                      <label className="vel-label">Slack Notification Webhook</label>
-                      <input type="text" defaultValue="https://hooks.slack.com/services/T00/B00/XXXX" className="vel-input" />
-                    </div>
-
-                    <button className="vel-btn-solid" style={{ alignSelf: 'flex-start' }} onClick={() => showToast('Studio settings saved.')}>
-                      Save Preferences
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* ============================================================== */}
-              {/* VIEW: WEBSITE CONTENT MANAGEMENT (CMS)                        */}
-              {/* ============================================================== */}
-              {activeNav === 'cms' && (
-                <WebsiteCMS />
-              )}
+              <AdminSettings
+                activeNav={activeNav}
+                showToast={showToast}
+              />
             </>
           )}
         </main>
@@ -5142,7 +2413,7 @@ export default function AdminPage() {
 
                 <div className="vel-field-group">
                   <label className="vel-label">Email Address</label>
-                  <a href={`mailto:${selectedContactRequest.email}`} style={{ fontSize: '0.85rem', color: '#60A5FA', textDecoration: 'none' }}>
+                  <a href={`mailto:${selectedContactRequest.email}`} style={{ fontSize: '0.85rem', color: '#FFFFFF', textDecoration: 'none' }}>
                     {selectedContactRequest.email}
                   </a>
                 </div>
@@ -5293,7 +2564,7 @@ export default function AdminPage() {
                   justifyContent: 'center',
                   fontSize: '1.2rem',
                   fontWeight: 800,
-                  color: '#60A5FA'
+                  color: '#FFFFFF'
                 }}>
                   {selectedClientModal.name ? selectedClientModal.name.charAt(0).toUpperCase() : 'C'}
                 </div>
@@ -5303,7 +2574,7 @@ export default function AdminPage() {
                       {selectedClientModal.name}
                     </h4>
                     {selectedClientModal.isGoogle && (
-                      <span style={{ fontSize: '0.66rem', padding: '2px 7px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.15)', color: '#60A5FA', border: '1px solid rgba(59, 130, 246, 0.3)', fontWeight: 600 }}>
+                      <span style={{ fontSize: '0.66rem', padding: '2px 7px', borderRadius: '6px', background: 'rgba(255, 255, 255, 0.08)', color: '#FFFFFF', border: '1px solid rgba(255, 255, 255, 0.18)', fontWeight: 600 }}>
                         Google Auth
                       </span>
                     )}
@@ -5363,7 +2634,7 @@ export default function AdminPage() {
                   <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
                     Company / Brand
                   </label>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#93C5FD', marginTop: '3px' }}>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#FFFFFF', marginTop: '3px' }}>
                     {selectedClientModal.company_name || 'Not provided'}
                   </div>
                 </div>

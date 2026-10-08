@@ -93,14 +93,14 @@ DECLARE
   v_avatar TEXT;
   v_meta_role TEXT;
 BEGIN
-  v_meta_role := LOWER(COALESCE(NEW.raw_app_meta_data->>'role', NEW.raw_user_meta_data->>'role', ''));
+  v_meta_role := LOWER(COALESCE(NEW.raw_app_meta_data->>'role', ''));
 
-  IF v_meta_role = 'admin' OR LOWER(COALESCE(NEW.email, '')) = 'admin@motionnodeedits.com' THEN
+  IF v_meta_role = 'admin' THEN
     v_role := 'admin'::user_role;
     v_status := 'approved'::user_status;
-  ELSIF v_meta_role = 'editor' THEN
+  ELSIF LOWER(COALESCE(NEW.raw_user_meta_data->>'role', '')) = 'editor' OR v_meta_role = 'editor' THEN
     v_role := 'editor'::user_role;
-    v_status := 'approved'::user_status;
+    v_status := 'pending'::user_status;
   ELSE
     v_role := 'client'::user_role;
     v_status := 'approved'::user_status;
@@ -365,8 +365,14 @@ CREATE OR REPLACE FUNCTION public.set_user_role(target_email TEXT, new_role TEXT
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, auth, pg_temp
 AS $$
 BEGIN
+  -- Strict caller verification: caller MUST be an existing administrator
+  IF NOT public.is_admin() AND current_user NOT IN ('postgres', 'service_role', 'supabase_admin') THEN
+    RAISE EXCEPTION 'Access Denied: Only administrators can modify user roles.';
+  END IF;
+
   IF LOWER(new_role) NOT IN ('admin', 'editor', 'client') THEN
     RAISE EXCEPTION 'Invalid role: %. Must be admin, editor, or client.', new_role;
   END IF;
@@ -391,7 +397,8 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.set_user_role(TEXT, TEXT) TO postgres, service_role, authenticated;
+REVOKE EXECUTE ON FUNCTION public.set_user_role(TEXT, TEXT) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_user_role(TEXT, TEXT) TO service_role;
 
 
 -- ------------------------------------------------------------------------------

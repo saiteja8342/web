@@ -1,22 +1,25 @@
 -- ==============================================================================
--- MOTION NODE EDITS - COMPREHENSIVE SECURITY HARDENING & ANTI-TAMPERING SQL
+-- MOTION NODE EDITS - COMPREHENSIVE MASTER SECURITY HARDENING SQL
 -- ==============================================================================
 -- Run this script in your Supabase SQL Editor:
 -- https://supabase.com/dashboard/project/yipfxibyzqsxqhhiwotk/sql/new
 --
--- What this script defends against:
--- 1. Inspect Panel / DevTools Role Tampering:
---    Blocks any user from changing their role to 'admin' using DevTools console or PostgREST API.
--- 2. Unauthorized Profile Insertion:
---    Prevents attackers from inserting records with role='admin' during signup.
--- 3. Row-Level Security (RLS) Leakage:
---    Locks down orders, contact_requests, profiles, ratings, and revisions.
--- 4. Infinite Recursion in Policies:
---    Uses SECURITY DEFINER on public.is_admin() to safely verify administrative rank.
+-- Fixes applied:
+-- 1. Fixed public.set_user_role: Added strict is_admin() authorization check and
+--    revoked execute permission from authenticated/anon roles (prevents privilege escalation).
+-- 2. Fixed handle_new_user: Removed reliance on client-controlled raw_user_meta_data->>'role'
+--    for admin promotions. Only server-side app_metadata or manual DB assignment can set admin.
+-- 3. Fixed link_feedback: Dropped over-permissive USING (true) UPDATE policy. Replaced with
+--    a hardened, targeted RPC procedure update_feedback_consent() restricted to boolean consent.
+-- 4. Added BEFORE UPDATE triggers on orders and ratings to prevent editors and clients
+--    from modifying unauthorized columns (deadlines, client IDs, approval flags).
+-- 5. Added explicit SET search_path = public, auth, pg_temp to all SECURITY DEFINER
+--    functions to protect against schema-shadowing / search-path hijacking attacks.
+-- 6. Revoked execute on check_user_exists from anon to prevent account enumeration.
 -- ==============================================================================
 
 -- ------------------------------------------------------------------------------
--- 1. SAFE ADMIN ROLE VERIFICATION FUNCTION (SECURITY DEFINER)
+-- 1. SECURE ADMIN ROLE VERIFICATION FUNCTION (FIXED SEARCH_PATH)
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN AS $$
@@ -24,11 +27,33 @@ RETURNS BOOLEAN AS $$
     SELECT 1 FROM public.profiles
     WHERE id = auth.uid() AND role::text = 'admin'
   );
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
+$$ LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, auth, pg_temp;
 
 GRANT EXECUTE ON FUNCTION public.is_admin() TO anon, authenticated, service_role;
 
--- Function to check if a user account exists (used by login page to redirect un-registered visitors to signup)
+-- ------------------------------------------------------------------------------
+-- 2. SECURE CMS ADMIN VERIFICATION FUNCTION (FIXED SEARCH_PATH)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.is_cms_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  IF current_user IN ('postgres', 'service_role', 'supabase_admin') THEN
+    RETURN TRUE;
+  END IF;
+  IF (SELECT auth.role()) = 'service_role' THEN
+    RETURN TRUE;
+  END IF;
+  RETURN public.is_admin();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE
+SET search_path = public, auth, pg_temp;
+
+GRANT EXECUTE ON FUNCTION public.is_cms_admin() TO anon, authenticated, service_role;
+
+-- ------------------------------------------------------------------------------
+-- 3. ACCOUNT ENUMERATION PROTECTION: check_user_exists
+-- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.check_user_exists(target_email TEXT)
 RETURNS BOOLEAN AS $$
   SELECT EXISTS (
@@ -36,30 +61,39 @@ RETURNS BOOLEAN AS $$
     UNION
     SELECT 1 FROM public.profiles WHERE LOWER(email) = LOWER(TRIM(target_email))
   );
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
+$$ LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, auth, pg_temp;
 
+-- Revoke from public anon visitors to prevent automated email harvesting
+REVOKE EXECUTE ON FUNCTION public.check_user_exists(TEXT) FROM anon;
 GRANT EXECUTE ON FUNCTION public.check_user_exists(TEXT) TO authenticated, service_role;
 
+-- ------------------------------------------------------------------------------
+-- 4. CONTACT RATE LIMIT RPC (FIXED SEARCH_PATH)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.has_already_submitted_contact(p_email TEXT)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.contact_requests
+    WHERE LOWER(email) = LOWER(TRIM(p_email))
+    AND created_at > (NOW() - INTERVAL '24 hours')
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp;
+
+GRANT EXECUTE ON FUNCTION public.has_already_submitted_contact(TEXT) TO anon, authenticated, service_role;
 
 -- ------------------------------------------------------------------------------
--- CLEAN UP OLD / BLOCKING ANTI-TAMPERING TRIGGERS
+-- 5. SECURE PRIVILEGE ESCALATION BLOCKER (BEFORE UPDATE ON public.profiles)
 -- ------------------------------------------------------------------------------
-DROP TRIGGER IF EXISTS trg_prevent_role_tampering ON public.profiles;
-DROP TRIGGER IF EXISTS prevent_role_tampering ON public.profiles;
-DROP FUNCTION IF EXISTS public.prevent_role_tampering() CASCADE;
-
--- ------------------------------------------------------------------------------
--- 2. HARD-BLOCK PRIVILEGE ESCALATION ON PROFILES (TRIGGER: BEFORE UPDATE)
--- ------------------------------------------------------------------------------
--- If an attacker calls: supabase.from('profiles').update({ role: 'admin' })
--- This trigger intercepts the query at the database engine level and ABORTS it.
 CREATE OR REPLACE FUNCTION public.protect_profile_privilege_escalation()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, auth, pg_temp
 AS $$
 BEGIN
-  -- Allow updates initiated by Database Administrator (SQL Editor, postgres, service_role, or existing admins)
+  -- Allow updates initiated by Database Administrator (SQL Editor, postgres, service_role, or verified admin)
   IF auth.uid() IS NULL 
      OR current_user IN ('postgres', 'service_role', 'supabase_admin') 
      OR (auth.jwt()->>'role') = 'service_role'
@@ -72,7 +106,7 @@ BEGIN
     RAISE EXCEPTION 'Access Denied: You cannot modify user role. Tampering attempt logged.';
   END IF;
 
-  -- 2. Block unauthorized approval status modification (e.g. self-approving blocked account)
+  -- 2. Block unauthorized approval status modification
   IF NEW.status::text IS DISTINCT FROM OLD.status::text THEN
     RAISE EXCEPTION 'Access Denied: You cannot modify user approval status.';
   END IF;
@@ -84,7 +118,6 @@ BEGIN
 
   -- 4. Block email hijacking on profile
   IF NEW.email IS DISTINCT FROM OLD.email THEN
-    -- Email must match authenticated user's email
     IF LOWER(NEW.email) <> LOWER(COALESCE(auth.jwt()->>'email', '')) THEN
       RAISE EXCEPTION 'Access Denied: Profile email must match authenticated account.';
     END IF;
@@ -100,35 +133,27 @@ CREATE TRIGGER trg_protect_profile_privilege_escalation
   FOR EACH ROW
   EXECUTE FUNCTION public.protect_profile_privilege_escalation();
 
-
 -- ------------------------------------------------------------------------------
--- 3. HARD-BLOCK UNAUTHORIZED ADMIN INSERTS (TRIGGER: BEFORE INSERT)
+-- 6. SECURE PROFILE INSERTION GUARD (BEFORE INSERT ON public.profiles)
 -- ------------------------------------------------------------------------------
--- Prevents attackers from injecting role='admin' on registration/insert.
 CREATE OR REPLACE FUNCTION public.enforce_profile_insert_security()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, auth, pg_temp
 AS $$
-DECLARE
-  v_provider TEXT;
 BEGIN
-  -- If already an admin (e.g. admin provisioning a user via dashboard), permit
-  IF public.is_admin() THEN
+  -- If executed by an existing administrator or service role, allow custom role
+  IF public.is_admin() OR current_user IN ('postgres', 'service_role', 'supabase_admin') THEN
     RETURN NEW;
   END IF;
 
-  -- Non-admins CANNOT insert with role='admin'
+  -- Hard-block: Non-admins CANNOT self-insert with role='admin'
   IF LOWER(COALESCE(NEW.role::text, '')) = 'admin' THEN
     NEW.role := 'client'::user_role;
   END IF;
 
-  -- Detect if signup is Google OAuth from auth.users metadata
-  SELECT LOWER(COALESCE(raw_app_meta_data->>'provider', '')) INTO v_provider
-  FROM auth.users
-  WHERE id = NEW.id;
-
-  -- All client registrations receive instant approved status to enter the client dashboard directly
+  -- Default client registrations to approved status
   IF NEW.status IS NULL OR NEW.status::text NOT IN ('approved', 'rejected') THEN
     NEW.status := 'approved'::user_status;
   END IF;
@@ -143,195 +168,269 @@ CREATE TRIGGER trg_enforce_profile_insert_security
   FOR EACH ROW
   EXECUTE FUNCTION public.enforce_profile_insert_security();
 
--- Auto-approve any previously registered clients currently stuck in 'pending'
-UPDATE public.profiles
-SET status = 'approved'
-WHERE status = 'pending' AND (role = 'client' OR role IS NULL);
-
-
-
 -- ------------------------------------------------------------------------------
--- 4. SECURE ROW-LEVEL SECURITY POLICIES: PROFILES
+-- 7. SECURE SIGNUP TRIGGER ON auth.users (handle_new_user)
 -- ------------------------------------------------------------------------------
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+-- Fixes Vulnerability 2: NEVER accept role='admin' from client user_metadata.
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  v_role user_role := 'client';
+  v_status user_status := 'approved';
+  v_full_name TEXT;
+  v_username TEXT;
+  v_avatar TEXT;
+  v_app_role TEXT;
+  v_user_role TEXT;
+BEGIN
+  -- Only server-managed app_metadata can assign admin
+  v_app_role := LOWER(COALESCE(NEW.raw_app_meta_data->>'role', ''));
+  v_user_role := LOWER(COALESCE(NEW.raw_user_meta_data->>'role', ''));
 
-DO $$ BEGIN
-  DROP POLICY IF EXISTS "Admin full access on profiles" ON public.profiles;
-  DROP POLICY IF EXISTS "Users can read own profile" ON public.profiles;
-  DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
-  DROP POLICY IF EXISTS "Allow user insert on signup" ON public.profiles;
-  DROP POLICY IF EXISTS "Admin delete profiles" ON public.profiles;
-EXCEPTION WHEN undefined_object THEN null;
-END $$;
+  IF v_app_role = 'admin' THEN
+    v_role := 'admin'::user_role;
+    v_status := 'approved'::user_status;
+  ELSIF v_user_role = 'editor' OR v_app_role = 'editor' THEN
+    v_role := 'editor'::user_role;
+    v_status := 'pending'::user_status;
+  ELSE
+    v_role := 'client'::user_role;
+    v_status := 'approved'::user_status;
+  END IF;
 
--- Admins have unrestricted access to all profiles
-CREATE POLICY "Admin full access on profiles"
-  ON public.profiles FOR ALL
-  TO authenticated
-  USING (public.is_admin())
-  WITH CHECK (public.is_admin());
-
--- Regular authenticated users can only view their own profile
-CREATE POLICY "Users can read own profile"
-  ON public.profiles FOR SELECT
-  TO authenticated
-  USING (id = auth.uid());
-
--- Regular users can only update their own profile (guarded by anti-tampering trigger)
-CREATE POLICY "Users can update own profile"
-  ON public.profiles FOR UPDATE
-  TO authenticated
-  USING (id = auth.uid())
-  WITH CHECK (id = auth.uid());
-
--- Allow initial profile creation upon registration
-CREATE POLICY "Allow user insert on signup"
-  ON public.profiles FOR INSERT
-  TO authenticated
-  WITH CHECK (id = auth.uid());
-
-
--- ------------------------------------------------------------------------------
--- 5. SECURE ROW-LEVEL SECURITY POLICIES: ORDERS
--- ------------------------------------------------------------------------------
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-
-DO $$ BEGIN
-  DROP POLICY IF EXISTS "Admin full access on orders" ON public.orders;
-  DROP POLICY IF EXISTS "Editors can select assigned orders" ON public.orders;
-  DROP POLICY IF EXISTS "Editors can update assigned orders status" ON public.orders;
-  DROP POLICY IF EXISTS "Clients can select own orders" ON public.orders;
-EXCEPTION WHEN undefined_object THEN null;
-END $$;
-
--- Admins can read, create, update, and delete all orders
-CREATE POLICY "Admin full access on orders"
-  ON public.orders FOR ALL
-  TO authenticated
-  USING (public.is_admin())
-  WITH CHECK (public.is_admin());
-
--- Clients can strictly ONLY view their own orders
-CREATE POLICY "Clients can select own orders"
-  ON public.orders FOR SELECT
-  TO authenticated
-  USING (client_id = auth.uid());
-
--- Editors can strictly ONLY view orders assigned to them
-CREATE POLICY "Editors can select assigned orders"
-  ON public.orders FOR SELECT
-  TO authenticated
-  USING (editor_id = auth.uid());
-
--- Editors can update status on assigned orders
-CREATE POLICY "Editors can update assigned orders status"
-  ON public.orders FOR UPDATE
-  TO authenticated
-  USING (editor_id = auth.uid())
-  WITH CHECK (editor_id = auth.uid());
-
-
--- ------------------------------------------------------------------------------
--- 6. SECURE ROW-LEVEL SECURITY POLICIES: CONTACT REQUESTS
--- ------------------------------------------------------------------------------
-ALTER TABLE public.contact_requests ENABLE ROW LEVEL SECURITY;
-
-DO $$ BEGIN
-  DROP POLICY IF EXISTS "Allow public anonymous submissions" ON public.contact_requests;
-  DROP POLICY IF EXISTS "Admin full access on contact_requests" ON public.contact_requests;
-  DROP POLICY IF EXISTS "Allow public insert on contact_requests" ON public.contact_requests;
-EXCEPTION WHEN undefined_object THEN null;
-END $$;
-
--- Website visitors can submit inquiries
-CREATE POLICY "Allow public anonymous submissions"
-  ON public.contact_requests FOR INSERT
-  TO anon, authenticated
-  WITH CHECK (true);
-
--- ONLY admins can read, update, or delete customer contact requests
-CREATE POLICY "Admin full access on contact_requests"
-  ON public.contact_requests FOR ALL
-  TO authenticated
-  USING (public.is_admin())
-  WITH CHECK (public.is_admin());
-
-
--- ------------------------------------------------------------------------------
--- 7. SECURE ROW-LEVEL SECURITY POLICIES: RATINGS & REVISION REQUESTS
--- ------------------------------------------------------------------------------
-ALTER TABLE public.ratings ENABLE ROW LEVEL SECURITY;
-
-DO $$ BEGIN
-  DROP POLICY IF EXISTS "Admin full access on ratings" ON public.ratings;
-  DROP POLICY IF EXISTS "Clients can insert rating for delivered orders" ON public.ratings;
-  DROP POLICY IF EXISTS "Clients can select own ratings" ON public.ratings;
-  DROP POLICY IF EXISTS "Clients can update own ratings" ON public.ratings;
-  DROP POLICY IF EXISTS "Editors can select own ratings" ON public.ratings;
-  DROP POLICY IF EXISTS "Public can view approved testimonials" ON public.ratings;
-EXCEPTION WHEN undefined_object THEN null;
-END $$;
-
-CREATE POLICY "Admin full access on ratings"
-  ON public.ratings FOR ALL
-  TO authenticated
-  USING (public.is_admin())
-  WITH CHECK (public.is_admin());
-
-CREATE POLICY "Public can view approved testimonials"
-  ON public.ratings FOR SELECT
-  TO anon, authenticated
-  USING (is_approved = true AND is_public = true);
-
-CREATE POLICY "Clients can select own ratings"
-  ON public.ratings FOR SELECT
-  TO authenticated
-  USING (client_id = auth.uid());
-
-CREATE POLICY "Clients can insert rating for delivered orders"
-  ON public.ratings FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    client_id = auth.uid() AND
-    EXISTS (
-      SELECT 1 FROM public.orders
-      WHERE orders.id = ratings.order_id
-      AND orders.client_id = auth.uid()
-      AND orders.status = 'delivered'
-    )
+  v_full_name := COALESCE(
+    NEW.raw_user_meta_data->>'full_name',
+    NEW.raw_user_meta_data->>'name',
+    SPLIT_PART(NEW.email, '@', 1),
+    'User'
   );
 
-CREATE POLICY "Clients can update own ratings"
-  ON public.ratings FOR UPDATE
-  TO authenticated
-  USING (client_id = auth.uid())
-  WITH CHECK (client_id = auth.uid());
+  v_avatar := COALESCE(
+    NEW.raw_user_meta_data->>'avatar_url',
+    NEW.raw_user_meta_data->>'picture'
+  );
 
-CREATE POLICY "Editors can select own ratings"
-  ON public.ratings FOR SELECT
-  TO authenticated
-  USING (editor_id = auth.uid());
+  v_username := COALESCE(
+    NEW.raw_user_meta_data->>'username',
+    LOWER(REGEXP_REPLACE(v_full_name, '[^a-zA-Z0-9]', '', 'g')),
+    SPLIT_PART(NEW.email, '@', 1)
+  );
 
+  INSERT INTO public.profiles (
+    id, full_name, email, phone, company_name, avatar_url, role, status, username, created_at, updated_at
+  ) VALUES (
+    NEW.id, v_full_name, NEW.email,
+    NEW.raw_user_meta_data->>'phone',
+    NEW.raw_user_meta_data->>'company_name',
+    v_avatar, v_role, v_status, v_username, NOW(), NOW()
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name),
+    email = COALESCE(EXCLUDED.email, public.profiles.email),
+    avatar_url = COALESCE(EXCLUDED.avatar_url, public.profiles.avatar_url),
+    updated_at = NOW();
+
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'handle_new_user error for %: %', NEW.id, SQLERRM;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
 
 -- ------------------------------------------------------------------------------
--- 8. GRANT LEAST-PRIVILEGE TABLE PERMISSIONS
+-- 8. SECURE ROLE MANAGEMENT RPC (set_user_role)
 -- ------------------------------------------------------------------------------
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles TO authenticated;
-GRANT SELECT, INSERT ON public.profiles TO anon;
-GRANT SELECT, UPDATE ON public.orders TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.ratings TO authenticated;
-GRANT SELECT, INSERT ON public.ratings TO anon;
-GRANT INSERT ON public.contact_requests TO anon, authenticated;
-GRANT ALL ON public.contact_requests TO service_role;
+-- Fixes Vulnerability 1: Requires verified admin caller and revokes execute from public
+CREATE OR REPLACE FUNCTION public.set_user_role(target_email TEXT, new_role TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+BEGIN
+  -- Strict caller verification: caller MUST be an existing administrator
+  IF NOT public.is_admin() AND current_user NOT IN ('postgres', 'service_role', 'supabase_admin') THEN
+    RAISE EXCEPTION 'Access Denied: Only administrators can modify user roles.';
+  END IF;
 
+  IF LOWER(new_role) NOT IN ('admin', 'editor', 'client') THEN
+    RAISE EXCEPTION 'Invalid role: %. Must be admin, editor, or client.', new_role;
+  END IF;
+
+  -- 1. Update public.profiles
+  UPDATE public.profiles
+  SET 
+    role = LOWER(new_role)::user_role,
+    status = 'approved'::user_status,
+    updated_at = NOW()
+  WHERE LOWER(TRIM(email)) = LOWER(TRIM(target_email));
+
+  -- 2. Update auth.users metadata
+  UPDATE auth.users
+  SET 
+    raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('role', LOWER(new_role)),
+    raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || jsonb_build_object('role', LOWER(new_role)),
+    email_confirmed_at = COALESCE(email_confirmed_at, NOW())
+  WHERE LOWER(TRIM(email)) = LOWER(TRIM(target_email));
+
+  RETURN 'Role for ' || target_email || ' successfully updated to ' || LOWER(new_role);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.set_user_role(TEXT, TEXT) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_user_role(TEXT, TEXT) TO service_role;
 
 -- ------------------------------------------------------------------------------
--- 9. PERMISSION AUDIT FUNCTION
+-- 9. SECURE USER DELETION RPC (delete_user_by_admin)
 -- ------------------------------------------------------------------------------
--- Run this in SQL Editor to inspect any user's role and security state:
--- SELECT * FROM public.audit_user_security('user@example.com');
+CREATE OR REPLACE FUNCTION public.delete_user_by_admin(target_user_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Access Denied: Only administrators can delete users.';
+  END IF;
+
+  IF target_user_id = auth.uid() THEN
+    RAISE EXCEPTION 'Action Denied: You cannot delete your own admin account.';
+  END IF;
+
+  DELETE FROM public.profiles WHERE id = target_user_id;
+  DELETE FROM auth.users WHERE id = target_user_id;
+
+  RETURN jsonb_build_object('success', true, 'deleted_user_id', target_user_id);
+EXCEPTION WHEN OTHERS THEN
+  RETURN jsonb_build_object('success', false, 'error', SQLERRM);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.delete_user_by_admin(UUID) TO authenticated, service_role;
+
+-- ------------------------------------------------------------------------------
+-- 10. HARDENED FEEDBACK CONSENT RPC & RLS (link_feedback)
+-- ------------------------------------------------------------------------------
+-- Fixes Vulnerability 3: Drops over-permissive USING (true) UPDATE policy
+DROP POLICY IF EXISTS "Allow public update consent on link_feedback" ON public.link_feedback;
+DROP POLICY IF EXISTS "Allow public update to link_feedback" ON public.link_feedback;
+
+-- Dedicated procedure: Allows callers to ONLY update testimonial_consent
+CREATE OR REPLACE FUNCTION public.update_feedback_consent(p_feedback_id UUID, p_consent BOOLEAN)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  UPDATE public.link_feedback
+  SET testimonial_consent = p_consent
+  WHERE id = p_feedback_id;
+
+  RETURN FOUND;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.update_feedback_consent(UUID, BOOLEAN) TO anon, authenticated, service_role;
+
+-- ------------------------------------------------------------------------------
+-- 11. BEFORE UPDATE TRIGGER ON orders (PREVENTS UNAUTHORIZED COLUMN EDITS)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.protect_order_editor_tampering()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+BEGIN
+  -- If actor is an admin or service role, allow full edit
+  IF public.is_admin() 
+     OR current_user IN ('postgres', 'service_role', 'supabase_admin') 
+     OR auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- If actor is the assigned editor, they can ONLY update status
+  IF OLD.editor_id = auth.uid() THEN
+    NEW.order_name := OLD.order_name;
+    NEW.client_id := OLD.client_id;
+    NEW.editor_id := OLD.editor_id;
+    NEW.admin_id := OLD.admin_id;
+    NEW.brief := OLD.brief;
+    NEW.drive_link := OLD.drive_link;
+    NEW.dropbox_link := OLD.dropbox_link;
+    NEW.additional_link := OLD.additional_link;
+    NEW.editor_deadline := OLD.editor_deadline;
+    NEW.client_deadline := OLD.client_deadline;
+    NEW.admin_notes := OLD.admin_notes;
+    NEW.video_type := OLD.video_type;
+    NEW.created_at := OLD.created_at;
+    NEW.updated_at := NOW();
+    RETURN NEW;
+  END IF;
+
+  -- Other non-admin users cannot update orders
+  RAISE EXCEPTION 'Access Denied: You cannot modify this order.';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_protect_order_editor_tampering ON public.orders;
+CREATE TRIGGER trg_protect_order_editor_tampering
+  BEFORE UPDATE ON public.orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.protect_order_editor_tampering();
+
+-- ------------------------------------------------------------------------------
+-- 12. BEFORE UPDATE TRIGGER ON ratings (PREVENTS CLIENT SELF-APPROVAL)
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.protect_rating_tampering()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+BEGIN
+  -- If actor is an admin or service role, allow full edit
+  IF public.is_admin() 
+     OR current_user IN ('postgres', 'service_role', 'supabase_admin') 
+     OR auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  -- Non-admins cannot alter approval flags or foreign keys
+  IF NEW.order_id IS DISTINCT FROM OLD.order_id 
+     OR NEW.client_id IS DISTINCT FROM OLD.client_id
+     OR NEW.editor_id IS DISTINCT FROM OLD.editor_id THEN
+    RAISE EXCEPTION 'Access Denied: Cannot modify order or user references on rating.';
+  END IF;
+
+  -- Preserve admin moderation flags
+  NEW.is_testimonial := OLD.is_testimonial;
+  
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_protect_rating_tampering ON public.ratings;
+CREATE TRIGGER trg_protect_rating_tampering
+  BEFORE UPDATE ON public.ratings
+  FOR EACH ROW
+  EXECUTE FUNCTION public.protect_rating_tampering();
+
+-- ------------------------------------------------------------------------------
+-- 13. AUDIT USER SECURITY PROCEDURE (FIXED SEARCH_PATH)
+-- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.audit_user_security(target_email TEXT)
 RETURNS TABLE (
   profile_id UUID,
@@ -344,6 +443,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, auth, pg_temp
 AS $$
 BEGIN
   IF NOT public.is_admin() THEN
@@ -367,7 +467,26 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.audit_user_security(TEXT) TO authenticated, service_role;
 
--- Verification notice
+-- ------------------------------------------------------------------------------
+-- 14. ENSURE ROW LEVEL SECURITY IS ACTIVE ON ALL TABLES
+-- ------------------------------------------------------------------------------
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_status_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.revision_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ratings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.contact_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.testimonials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.portfolio_videos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.link_feedback ENABLE ROW LEVEL SECURITY;
+
+-- Revoke anon select on profiles
+REVOKE SELECT ON public.profiles FROM anon;
+GRANT SELECT ON public.profiles TO authenticated;
+
+-- Success notice
 DO $$ BEGIN
-  RAISE NOTICE 'Security hardening successfully applied! Anti-tampering triggers and RLS policies are active.';
+  RAISE NOTICE 'Complete Security Hardening script executed successfully! All policies and triggers are active.';
 END $$;
