@@ -571,32 +571,7 @@ export default function InstallPwaButton({
                   type="button"
                   onClick={() => setShowModal(false)}
                   style={{
-                    padding: '9px 18px',
-                    borderRadius: '9px',
-                    background: 'rgba(255, 255, 255, 0.06)',
-                    color: '#FFFFFF',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  Close
-                </button>
-
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const res = await triggerInstallApp();
-                    if (res.outcome === 'accepted') {
-                      setShowModal(false);
-                      setInstallSuccess(true);
-                      setTimeout(() => setInstallSuccess(false), 4000);
-                    }
-                  }}
-                  style={{
-                    padding: '9px 20px',
+                    padding: '10px 24px',
                     borderRadius: '9px',
                     background: 'linear-gradient(135deg, #FFFFFF 0%, #E2E8F0 100%)',
                     color: '#050508',
@@ -612,8 +587,8 @@ export default function InstallPwaButton({
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  <Download style={{ width: '15px', height: '15px' }} />
-                  <span>Prompt Direct Install</span>
+                  <Check style={{ width: '15px', height: '15px', color: '#16a34a' }} />
+                  <span>Got It</span>
                 </button>
               </div>
             </motion.div>

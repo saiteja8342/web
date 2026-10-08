@@ -174,8 +174,8 @@ export default function Navbar() {
           <div className="nav-right-actions" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
 
 
-            {/* DASHBOARD TAB (Only visible when user is logged in) */}
-            {sessionUser && (
+            {/* DASHBOARD (Only visible when user is logged in) */}
+            {sessionUser ? (
               <a
                 href={getDashboardUrl(userRole)}
                 className="nav-login-btn logged-in"
@@ -185,31 +185,31 @@ export default function Navbar() {
                 <span className="nav-login-status-dot" aria-hidden="true"></span>
                 <span>Dashboard</span>
               </a>
-            )}
-
-            {/* START A PROJECT CTA BUTTON */}
-            <div
-              onClick={handleStartProjectClick}
-              style={{ display: 'inline-flex', cursor: 'pointer' }}
-            >
-              <NoiseBackground
-                containerClassName="nav-cta-custom-wrapper"
-                gradientColors={[
-                  "rgb(255, 100, 150)",
-                  "rgb(100, 150, 255)",
-                  "rgb(255, 200, 100)",
-                ]}
+            ) : (
+              /* START A PROJECT CTA BUTTON (Only visible when user is signed out) */
+              <div
+                onClick={handleStartProjectClick}
+                style={{ display: 'inline-flex', cursor: 'pointer' }}
               >
-                <a
-                  href={sessionUser ? getDashboardUrl(userRole) : "/login"}
-                  onClick={handleStartProjectClick}
-                  className="nav-cta-custom-noise"
-                  data-hover-type="link"
+                <NoiseBackground
+                  containerClassName="nav-cta-custom-wrapper"
+                  gradientColors={[
+                    "rgb(255, 100, 150)",
+                    "rgb(100, 150, 255)",
+                    "rgb(255, 200, 100)",
+                  ]}
                 >
-                  Start a project
-                </a>
-              </NoiseBackground>
-            </div>
+                  <a
+                    href="/login"
+                    onClick={handleStartProjectClick}
+                    className="nav-cta-custom-noise"
+                    data-hover-type="link"
+                  >
+                    Start a project
+                  </a>
+                </NoiseBackground>
+              </div>
+            )}
           </div>
 
           <button 

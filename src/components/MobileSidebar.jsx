@@ -157,21 +157,38 @@ export default function MobileSidebar({ isOpen, onClose, sessionUser, userRole, 
               {/* Chrome App / PWA Install Button */}
               <InstallPwaButton variant="mobile" />
 
-              <a
-                href={sessionUser ? dashboardUrl : "/login"}
-                onClick={(e) => {
-                  onClose();
-                  if (onStartProject) {
-                    onStartProject(e);
-                  } else {
-                    window.location.href = sessionUser ? dashboardUrl : '/login';
-                  }
-                }}
-                className="mobile-sidebar-cta-btn"
-              >
-                <span>Start a Project</span>
-                <ArrowRight className="h-4 w-4" />
-              </a>
+              {sessionUser ? (
+                <a
+                  href={dashboardUrl}
+                  onClick={() => onClose()}
+                  className="mobile-sidebar-cta-btn"
+                  style={{
+                    background: 'rgba(74, 222, 128, 0.1)',
+                    borderColor: 'rgba(74, 222, 128, 0.35)',
+                    color: '#ffffff'
+                  }}
+                >
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 10px rgba(74,222,128,0.8)' }}></span>
+                  <span style={{ fontWeight: 600 }}>Dashboard</span>
+                  <ArrowRight className="h-4 w-4 text-emerald-400" />
+                </a>
+              ) : (
+                <a
+                  href="/login"
+                  onClick={(e) => {
+                    onClose();
+                    if (onStartProject) {
+                      onStartProject(e);
+                    } else {
+                      window.location.href = '/login';
+                    }
+                  }}
+                  className="mobile-sidebar-cta-btn"
+                >
+                  <span>Start a Project</span>
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              )}
 
               <a
                 href="https://wa.me/918985351756?text=Hi%20MotionNodeEdits,%20I'd%20like%20to%20discuss%20a%20video%20project."

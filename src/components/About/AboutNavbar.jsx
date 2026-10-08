@@ -129,41 +129,40 @@ export default function AboutNavbar() {
 
           {/* Right: CTA & Mobile Hamburger */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            {/* Dashboard Tab (Only visible when user is logged in) */}
-            {sessionUser && (
+            {/* Dashboard / CTA: Show Dashboard when logged in, Start a project when signed out */}
+            {sessionUser ? (
               <a
                 href={getDashboardUrl(userRole)}
-                className="about-nav-login"
+                className="about-nav-cta"
                 style={{
-                  color: '#4ade80',
-                  textDecoration: 'none',
+                  height: '36px',
+                  padding: '0 16px',
                   fontSize: '12px',
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  padding: '6px 14px',
-                  borderRadius: '9999px',
-                  border: '1px solid rgba(74, 222, 128, 0.35)',
-                  background: 'rgba(74, 222, 128, 0.06)',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
+                  borderRadius: '9999px',
+                  border: '1px solid rgba(74, 222, 128, 0.35)',
+                  background: 'rgba(74, 222, 128, 0.08)',
+                  color: '#ffffff',
+                  textDecoration: 'none',
+                  fontWeight: 600,
                   transition: 'all 0.2s ease'
                 }}
               >
                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80', boxShadow: '0 0 8px rgba(74, 222, 128, 0.7)' }}></span>
                 Dashboard
               </a>
+            ) : (
+              <a 
+                href="/login" 
+                onClick={handleStartProjectClick}
+                className="about-nav-cta about-btn-primary" 
+                style={{ height: '36px', padding: '0 16px', fontSize: '12px' }}
+              >
+                START A PROJECT
+              </a>
             )}
-
-            <a 
-              href={sessionUser ? getDashboardUrl(userRole) : "/login"} 
-              onClick={handleStartProjectClick}
-              className="about-nav-cta about-btn-primary" 
-              style={{ height: '36px', padding: '0 16px', fontSize: '12px' }}
-            >
-              START A PROJECT
-            </a>
             
             <button 
               className="about-hamburger"
@@ -219,17 +218,19 @@ export default function AboutNavbar() {
         <a href={sessionUser ? getDashboardUrl(userRole) : "/login"} onClick={() => setMobileMenuOpen(false)} style={{ color: sessionUser ? '#4ade80' : 'white', textDecoration: 'none', fontSize: '24px', fontWeight: 700 }}>
           {sessionUser ? 'Dashboard' : 'Login'}
         </a>
-        <a 
-          href={sessionUser ? getDashboardUrl(userRole) : "/login"} 
-          onClick={(e) => {
-            setMobileMenuOpen(false);
-            handleStartProjectClick(e);
-          }} 
-          className="about-btn-primary" 
-          style={{ marginTop: '24px' }}
-        >
-          START A PROJECT
-        </a>
+        {!sessionUser && (
+          <a 
+            href="/login" 
+            onClick={(e) => {
+              setMobileMenuOpen(false);
+              handleStartProjectClick(e);
+            }} 
+            className="about-btn-primary" 
+            style={{ marginTop: '24px' }}
+          >
+            START A PROJECT
+          </a>
+        )}
       </div>
 
       <style dangerouslySetInnerHTML={{__html: `
