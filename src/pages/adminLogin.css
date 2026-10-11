@@ -1,0 +1,288 @@
+/* ==========================================================================
+   MotionNodeEdits — Dedicated Admin Login (adminLogin.css)
+   Exact Match to UI Design Specification — Centered Layout with Username
+   ========================================================================== */
+
+:root {
+  --admin-page-bg: #07090e;
+  --admin-outer-card: #0b101c;
+  --admin-inner-card: #0f1523;
+  --admin-input-bg: #000000;
+  --admin-input-border: #182030;
+  --admin-input-focus: #5b8bf7;
+  --admin-btn-blue: #5b8bf7;
+  --admin-btn-blue-hover: #6c98f9;
+  --admin-btn-text: #060a12;
+  --admin-label-text: #8292a8;
+  --admin-icon-muted: #64748b;
+  --admin-font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-login-root {
+  height: 100vh;
+  min-height: 100vh;
+  width: 100vw;
+  background-color: var(--admin-page-bg);
+  color: #ffffff;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  font-family: var(--admin-font);
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Ambient glow */
+.admin-bg-glow-radial {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 800px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(91, 139, 247, 0.08) 0%, rgba(139, 92, 246, 0.04) 40%, transparent 70%);
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Outer Card Container — Centered */
+.admin-outer-wrapper {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 480px;
+  margin: auto;
+  background-color: var(--admin-outer-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 28px;
+  padding: 22px;
+  box-shadow: 
+    0 30px 70px -15px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+@media (max-width: 520px) {
+  .admin-outer-wrapper {
+    padding: 14px;
+    border-radius: 22px;
+  }
+}
+
+/* Inner Card Container */
+.admin-inner-card {
+  background-color: var(--admin-inner-card);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  padding: 34px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (max-width: 520px) {
+  .admin-inner-card {
+    padding: 26px 18px 24px;
+    border-radius: 16px;
+  }
+}
+
+/* Form Layout */
+.admin-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.admin-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-form-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--admin-label-text);
+  user-select: none;
+}
+
+/* Input Fields */
+.admin-input-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background-color: var(--admin-input-bg);
+  border: 1px solid var(--admin-input-border);
+  border-radius: 8px;
+  height: 50px;
+  padding: 0 16px;
+  transition: all 0.2s ease;
+}
+
+.admin-input-box:focus-within {
+  border-color: rgba(91, 139, 247, 0.7);
+  box-shadow: 0 0 0 2px rgba(91, 139, 247, 0.2);
+}
+
+.admin-input-icon-prefix {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--admin-icon-muted);
+  font-size: 1.15rem;
+  font-weight: 400;
+  width: 22px;
+  margin-right: 12px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.admin-input-field {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #ffffff;
+  font-size: 0.96rem;
+  font-family: var(--admin-font);
+  font-weight: 400;
+}
+
+.admin-input-field[type="password"] {
+  letter-spacing: 0.18em;
+  font-family: inherit;
+}
+
+/* Password Toggle Icon */
+.admin-eye-toggle {
+  background: none;
+  border: none;
+  color: var(--admin-icon-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-left: 8px;
+  transition: color 0.2s ease;
+  border-radius: 4px;
+}
+
+.admin-eye-toggle:hover {
+  color: #cbd5e1;
+}
+
+/* Submit Action Button */
+.admin-signin-btn {
+  width: 100%;
+  height: 52px;
+  background-color: var(--admin-btn-blue);
+  color: var(--admin-btn-text);
+  border: none;
+  border-radius: 8px;
+  font-size: 1.04rem;
+  font-weight: 600;
+  font-family: var(--admin-font);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 16px rgba(91, 139, 247, 0.25);
+}
+
+.admin-signin-btn:hover:not(:disabled) {
+  background-color: var(--admin-btn-blue-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(91, 139, 247, 0.35);
+}
+
+.admin-signin-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.admin-signin-btn:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.admin-btn-arrow {
+  font-size: 1.18rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.admin-signin-btn:hover:not(:disabled) .admin-btn-arrow {
+  transform: translateX(3px);
+}
+
+/* Alerts */
+.admin-alert-banner {
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  animation: adminFadeIn 0.2s ease forwards;
+}
+
+@keyframes adminFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.admin-alert-banner-error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  color: #fca5a5;
+}
+
+.admin-alert-banner-success {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  color: #6ee7b7;
+}
+
+/* Bottom Glow Accent Line (from screenshot) */
+.admin-bottom-accent-line {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent 5%, #8b5cf6 30%, #5b8bf7 50%, #8b5cf6 70%, transparent 95%);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.6);
+  pointer-events: none;
+  z-index: 10;
+}
