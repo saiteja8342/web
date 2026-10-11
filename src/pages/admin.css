@@ -1113,6 +1113,21 @@ input:checked + .vel-slider:before {
   letter-spacing: 0.03em;
 }
 
+.vel-badge-cancelled {
+  padding: 4px 11px;
+  border-radius: 9999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(239, 68, 68, 0.12);
+  color: #F87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.03em;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.15);
+}
+
 /* Laser Timeline Stepper Component */
 .vel-stepper-wrap {
   display: flex;

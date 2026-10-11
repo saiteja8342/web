@@ -32,6 +32,7 @@ export const STATUS_MAP = {
   revision_requested: { label: 'REVISION',    badgeClass: 'vel-badge-received',   step: 3 },
   on_hold:            { label: 'ON HOLD',     badgeClass: 'vel-badge-received',   step: -1 },
   delivered:          { label: 'COMPLETED',   badgeClass: 'vel-badge-progress',   step: 4 },
+  cancelled:          { label: 'CANCELLED',   badgeClass: 'vel-badge-cancelled',  step: -1 },
 };
 
 /**
@@ -45,6 +46,7 @@ export const UI_TO_DB_STATUS = {
   'REVISION':    'revision_requested',
   'ON HOLD':     'on_hold',
   'COMPLETED':   'delivered',
+  'CANCELLED':   'cancelled',
 };
 
 /**
@@ -99,6 +101,26 @@ export function formatOrderCode(order) {
 export function stripOrderCodeTag(notes) {
   if (!notes || typeof notes !== 'string') return '';
   return notes.replace(/\s*\[ORDER_CODE:[^\]]+\]/g, '').trim();
+}
+
+/**
+ * Strip [CANCELLATION_REASON:...] and [ORDER_CANCELLED:...] tags from notes for clean UI display.
+ */
+export function stripCancellationTag(notes) {
+  if (!notes || typeof notes !== 'string') return '';
+  return notes
+    .replace(/\s*\[CANCELLATION_REASON:[^\]]*\]/g, '')
+    .replace(/\s*\[ORDER_CANCELLED:[^\]]*\]/g, '')
+    .trim();
+}
+
+/**
+ * Extract cancellation reason from order notes.
+ */
+export function parseCancellationReason(notes) {
+  if (!notes || typeof notes !== 'string') return '';
+  const match = notes.match(/\[CANCELLATION_REASON:([^\]]*)\]/);
+  return match && match[1] ? match[1].trim() : '';
 }
 
 /**
@@ -515,6 +537,7 @@ export async function getEditorActiveOrderCounts() {
     .from('orders')
     .select('editor_id')
     .neq('status', 'delivered')
+    .neq('status', 'cancelled')
     .not('editor_id', 'is', null);
 
   if (error || !data) return {};
@@ -524,4 +547,115 @@ export async function getEditorActiveOrderCounts() {
     counts[row.editor_id] = (counts[row.editor_id] || 0) + 1;
   });
   return counts;
+}
+
+/**
+ * Cancel an order (Admin-only action).
+ * Updates order status to cancelled, records reason in admin_notes and order_status_history.
+ */
+export async function cancelOrder(orderId, adminId, cancellationReason, currentNotes = '') {
+  if (!orderId) {
+    return { data: null, error: new Error('Order ID is required to cancel an order') };
+  }
+
+  const reasonText = (cancellationReason || '').trim() || 'No reason provided';
+  const cleanNotes = stripCancellationTag(currentNotes || '');
+  const cancelTags = `[ORDER_CANCELLED:true] [CANCELLATION_REASON:${reasonText}]`;
+  const combinedNotes = cleanNotes ? `${cleanNotes} ${cancelTags}` : cancelTags;
+  const nowIso = new Date().toISOString();
+
+  let updatedOrder = null;
+  let updateErr = null;
+
+  // 1. Attempt update with dedicated columns (if schema migration was run)
+  try {
+    const res = await supabase
+      .from('orders')
+      .update({
+        status: 'cancelled',
+        admin_notes: combinedNotes,
+        cancellation_reason: reasonText,
+        cancelled_at: nowIso,
+        cancelled_by: adminId,
+        updated_at: nowIso,
+      })
+      .eq('id', orderId)
+      .select(`
+        *,
+        client:client_id (id, full_name, company_name, email),
+        editor:editor_id (id, full_name, email, editor_title, avatar_url)
+      `)
+      .maybeSingle();
+
+    if (!res.error && res.data) {
+      updatedOrder = res.data;
+    } else if (res.error) {
+      updateErr = res.error;
+    }
+  } catch (err) {
+    updateErr = err;
+  }
+
+  // 2. Fallback update if dedicated columns don't exist yet
+  if (!updatedOrder) {
+    try {
+      const res = await supabase
+        .from('orders')
+        .update({
+          status: 'cancelled',
+          admin_notes: combinedNotes,
+          updated_at: nowIso,
+        })
+        .eq('id', orderId)
+        .select('*')
+        .maybeSingle();
+
+      if (!res.error && res.data) {
+        updatedOrder = res.data;
+        updateErr = null;
+      } else if (res.error) {
+        // If PostgreSQL enum does not have 'cancelled' yet, save into on_hold with cancel tags
+        console.warn('[Orders DB] Cancel enum update failed, attempting resilient fallback with cancel tags:', res.error);
+        const fallbackRes = await supabase
+          .from('orders')
+          .update({
+            status: 'on_hold',
+            admin_notes: combinedNotes,
+            updated_at: nowIso,
+          })
+          .eq('id', orderId)
+          .select('*')
+          .maybeSingle();
+
+        if (fallbackRes.data) {
+          updatedOrder = { ...fallbackRes.data, status: 'cancelled' };
+          updateErr = null;
+        } else {
+          updateErr = res.error;
+        }
+      }
+    } catch (e2) {
+      updateErr = e2;
+    }
+  }
+
+  // 3. Record status change in order_status_history
+  if (adminId) {
+    try {
+      await supabase
+        .from('order_status_history')
+        .insert([{
+          order_id: orderId,
+          changed_by: adminId,
+          old_status: null,
+          new_status: 'cancelled',
+          changed_at: nowIso,
+          notes: `Cancelled by Studio Admin. Reason: ${reasonText}`,
+        }]);
+    } catch (hErr) {
+      console.warn('[Orders DB] Warning logging status history for cancellation:', hErr);
+    }
+  }
+
+  return { data: updatedOrder, error: updateErr };
 }

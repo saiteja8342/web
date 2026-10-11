@@ -27,7 +27,8 @@ import {
   Star,
   Award,
   Search,
-  Quote
+  Quote,
+  Ban
 } from 'lucide-react';
 import GoogleDriveVideoPlayer from '../GoogleDriveVideoPlayer';
 
@@ -61,7 +62,18 @@ export default function AdminOrdersTable({
   setHistoryFilter,
   historySearch,
   setHistorySearch,
-  adminRatingsMap = {}
+  adminRatingsMap = {},
+  adminProfile,
+  handleOpenCancelModal,
+  isCancelModalOpen,
+  orderToCancel,
+  cancelReason,
+  setCancelReason,
+  cancelReasonError,
+  setCancelReasonError,
+  isCancelling,
+  handleCloseCancelModal,
+  handleConfirmCancelOrder
 }) {
   return (
     <>
@@ -173,7 +185,7 @@ export default function AdminOrdersTable({
                           </td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              {(!ord.editor.id || ord.editor.name === 'Unassigned') && ord.dbStatus !== 'delivered' && (
+                              {(!ord.editor.id || ord.editor.name === 'Unassigned') && ord.dbStatus !== 'delivered' && ord.dbStatus !== 'cancelled' && (
                                 <button
                                   type="button"
                                   className="vel-btn-solid"
@@ -199,6 +211,34 @@ export default function AdminOrdersTable({
                                 >
                                   <UserCheck className="h-3 w-3" />
                                   <span>Assign</span>
+                                </button>
+                              )}
+                              {ord.dbStatus !== 'cancelled' && ord.dbStatus !== 'delivered' && (
+                                <button
+                                  type="button"
+                                  className="vel-btn-outline"
+                                  style={{
+                                    padding: '4px 8px',
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    color: '#F87171',
+                                    borderColor: 'rgba(239, 68, 68, 0.35)',
+                                    background: 'rgba(239, 68, 68, 0.08)',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenCancelModal(ord);
+                                  }}
+                                  title="Cancel this order (Admin only)"
+                                >
+                                  <Ban className="h-3 w-3" />
+                                  <span>Cancel</span>
                                 </button>
                               )}
                               <ChevronRight className="h-4 w-4 text-white/40" />
@@ -316,14 +356,76 @@ export default function AdminOrdersTable({
                       </span>
                     )}
                   </div>
-                  <h2 style={{ fontSize: '1.4rem', fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.02em' }}>{selectedOrder.title}</h2>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--vel-text-secondary)', marginTop: '6px', flexWrap: 'wrap' }}>
-                    <span style={{ color: '#FFFFFF', fontWeight: 600 }}>Client: {selectedOrder.client}</span>
-                    <span>•</span>
-                    <span style={{ color: '#E2E8F0' }}>{selectedOrder.type}</span>
-                    <span>•</span>
-                    <span style={{ color: '#FCD34D' }}>Accepted: {getOrderAcceptedDate(selectedOrder, statusHistoryMap)}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap' }}>
+                    <div>
+                      <h2 style={{ fontSize: '1.4rem', fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.02em' }}>{selectedOrder.title}</h2>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--vel-text-secondary)', marginTop: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ color: '#FFFFFF', fontWeight: 600 }}>Client: {selectedOrder.client}</span>
+                        <span>•</span>
+                        <span style={{ color: '#E2E8F0' }}>{selectedOrder.type}</span>
+                        <span>•</span>
+                        <span style={{ color: '#FCD34D' }}>Accepted: {getOrderAcceptedDate(selectedOrder, statusHistoryMap)}</span>
+                      </div>
+                    </div>
+
+                    {selectedOrder.dbStatus !== 'cancelled' && selectedOrder.dbStatus !== 'delivered' && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCancelModal(selectedOrder)}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          border: '1px solid rgba(239, 68, 68, 0.45)',
+                          background: 'rgba(239, 68, 68, 0.15)',
+                          color: '#F87171',
+                          boxShadow: '0 2px 10px rgba(239, 68, 68, 0.15)',
+                          transition: 'all 0.2s',
+                          whiteSpace: 'nowrap'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.28)';
+                          e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.7)';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                          e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.45)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                        title="Cancel this order (Admin only)"
+                      >
+                        <Ban className="h-4 w-4 text-red-400" />
+                        <span>Cancel Order</span>
+                      </button>
+                    )}
                   </div>
+
+                  {selectedOrder.dbStatus === 'cancelled' && (
+                    <div style={{
+                      marginTop: '14px',
+                      padding: '12px 16px',
+                      borderRadius: '8px',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '10px'
+                    }}>
+                      <Ban className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                      <div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#F87171', letterSpacing: '0.04em' }}>ORDER CANCELLED</div>
+                        <div style={{ fontSize: '0.74rem', color: '#E2E8F0', marginTop: '3px' }}>
+                          <strong style={{ color: '#FCA5A5' }}>Reason:</strong> {selectedOrder.cancellationReason || 'No detailed reason specified.'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {(!selectedOrder.editor.id || selectedOrder.editor.name === 'Unassigned') && selectedOrder.dbStatus !== 'delivered' && (
                     <div style={{
@@ -659,7 +761,13 @@ export default function AdminOrdersTable({
                         className="vel-select"
                         style={{ flex: 1 }}
                         value={stagedStatusMap[selectedOrder.id] || selectedOrder.status || 'RECEIVED'}
-                        onChange={(e) => handleOrderFieldChange('status', e.target.value)}
+                        onChange={(e) => {
+                          if (e.target.value === 'CANCELLED') {
+                            handleOpenCancelModal(selectedOrder);
+                          } else {
+                            handleOrderFieldChange('status', e.target.value);
+                          }
+                        }}
                       >
                         <option value="RECEIVED">Received</option>
                         <option value="ACCEPTED">Accepted</option>
@@ -668,6 +776,7 @@ export default function AdminOrdersTable({
                         <option value="REVISION">Revision Requested</option>
                         <option value="ON HOLD">On Hold</option>
                         <option value="COMPLETED">Completed</option>
+                        <option value="CANCELLED">Cancelled</option>
                       </select>
                       <button
                         type="button"
@@ -754,6 +863,56 @@ export default function AdminOrdersTable({
                     <span>{selectedOrder.pendingStatusChange ? 'Save Status & Changes' : 'Save Changes'}</span>
                   </button>
                 </div>
+
+                {selectedOrder.dbStatus !== 'cancelled' && selectedOrder.dbStatus !== 'delivered' && (
+                  <button
+                    type="button"
+                    className="vel-btn-outline"
+                    style={{
+                      marginTop: '10px',
+                      width: '100%',
+                      color: '#F87171',
+                      borderColor: 'rgba(239, 68, 68, 0.4)',
+                      background: 'rgba(239, 68, 68, 0.08)',
+                      padding: '10px 14px',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                    onClick={() => handleOpenCancelModal(selectedOrder)}
+                    title="Cancel this order (Admin only)"
+                  >
+                    <Ban className="h-4 w-4" />
+                    <span>Cancel Order</span>
+                  </button>
+                )}
+
+                {selectedOrder.dbStatus === 'cancelled' && (
+                  <div style={{
+                    marginTop: '10px',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#F87171', fontWeight: 800, fontSize: '0.76rem' }}>
+                      <Ban className="h-4 w-4" />
+                      <span>ORDER CANCELLED</span>
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: '#E2E8F0' }}>
+                      <strong style={{ color: '#FCA5A5' }}>Reason:</strong> {selectedOrder.cancellationReason || 'No detailed reason specified.'}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               /* STUDIO MISSION CONTROL TELEMETRY CONSOLE (WHEN 0 ORDERS OR NONE SELECTED) */
@@ -909,9 +1068,14 @@ export default function AdminOrdersTable({
                 <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '3px 10px', borderRadius: '9999px', background: 'rgba(34, 197, 94, 0.12)', color: '#4ADE80', border: '1px solid rgba(34, 197, 94, 0.28)' }}>
                   {orders.filter(o => o.dbStatus === 'delivered').length} Completed
                 </span>
+                {orders.filter(o => o.dbStatus === 'cancelled').length > 0 && (
+                  <span style={{ fontSize: '0.72rem', fontWeight: 700, padding: '3px 10px', borderRadius: '9999px', background: 'rgba(239, 68, 68, 0.12)', color: '#F87171', border: '1px solid rgba(239, 68, 68, 0.28)' }}>
+                    {orders.filter(o => o.dbStatus === 'cancelled').length} Cancelled
+                  </span>
+                )}
               </div>
               <p className="vel-page-sub" style={{ margin: 0 }}>
-                Archived and delivered projects from all clients with verified client ratings and testimonials.
+                Archived projects, delivered cut reels, and cancelled production logs with full audit trail.
               </p>
             </div>
 
@@ -923,7 +1087,7 @@ export default function AdminOrdersTable({
                   className={`history-filter-pill ${historyFilter === 'all' ? 'active' : ''}`}
                   onClick={() => setHistoryFilter('all')}
                 >
-                  All ({orders.filter(o => o.dbStatus === 'delivered').length})
+                  All Completed ({orders.filter(o => o.dbStatus === 'delivered').length})
                 </button>
                 <button
                   type="button"
@@ -940,6 +1104,15 @@ export default function AdminOrdersTable({
                 >
                   <Award className="h-3 w-3" />
                   Testimonials ({orders.filter(o => o.dbStatus === 'delivered' && adminRatingsMap[o.id]?.isTestimonial).length})
+                </button>
+                <button
+                  type="button"
+                  className={`history-filter-pill ${historyFilter === 'cancelled' ? 'active' : ''}`}
+                  onClick={() => setHistoryFilter(historyFilter === 'cancelled' ? 'all' : 'cancelled')}
+                  style={historyFilter === 'cancelled' ? { background: '#EF4444', color: '#FFFFFF', borderColor: '#EF4444' } : {}}
+                >
+                  <Ban className="h-3 w-3" />
+                  Cancelled ({orders.filter(o => o.dbStatus === 'cancelled').length})
                 </button>
               </div>
 
@@ -1064,10 +1237,172 @@ export default function AdminOrdersTable({
                 </span>
               </div>
             </div>
+
+            {/* Card 4: CANCELLED ORDERS */}
+            <div 
+              className={`vel-kpi-card ${historyFilter === 'cancelled' ? 'active' : ''}`}
+              onClick={() => setHistoryFilter(historyFilter === 'cancelled' ? 'all' : 'cancelled')}
+              style={{ cursor: 'pointer', border: historyFilter === 'cancelled' ? '1.5px solid #EF4444' : undefined }}
+              title="Click to view all cancelled orders"
+            >
+              <div className="vel-kpi-top">
+                <span className="vel-kpi-label">
+                  <span className="vel-kpi-pulse-dot" style={{ background: '#EF4444', boxShadow: '0 0 8px #EF4444' }} />
+                  CANCELLED ORDERS
+                </span>
+                <div className="vel-kpi-icon-wrap" style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#F87171', boxShadow: '0 0 15px rgba(239, 68, 68, 0.15)' }}>
+                  <Ban className="h-5 w-5" />
+                </div>
+              </div>
+              <div className="vel-kpi-bottom">
+                <div className="vel-kpi-val" style={{ background: 'linear-gradient(180deg, #FFFFFF 30%, #FCA5A5 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  {orders.filter(o => o.dbStatus === 'cancelled').length}
+                </div>
+                <span className="vel-kpi-badge" style={{ background: 'rgba(239, 68, 68, 0.12)', color: '#F87171', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                  <Ban className="h-3 w-3" />
+                  <span>Terminated</span>
+                </span>
+              </div>
+            </div>
           </div>
 
           {/* Orders History Table */}
           {(() => {
+            if (historyFilter === 'cancelled') {
+              const cancelledOrdersList = orders
+                .filter(o => o.dbStatus === 'cancelled')
+                .filter(o => {
+                  if (!historySearch.trim()) return true;
+                  const query = historySearch.toLowerCase();
+                  return (
+                    o.title.toLowerCase().includes(query) ||
+                    o.client.toLowerCase().includes(query) ||
+                    o.editor.name.toLowerCase().includes(query) ||
+                    o.id.toLowerCase().includes(query) ||
+                    (o.cancellationReason && o.cancellationReason.toLowerCase().includes(query))
+                  );
+                });
+
+              if (cancelledOrdersList.length === 0) {
+                return (
+                  <div className="vel-card" style={{ padding: '60px 20px', textAlign: 'center', alignItems: 'center', gap: '14px' }}>
+                    <Ban className="h-10 w-10 text-red-400/40" />
+                    <h2 style={{ fontSize: '1.15rem', fontWeight: 700 }}>No Cancelled Orders Found</h2>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--vel-text-secondary)', maxWidth: '420px' }}>
+                      {historySearch ? 'No cancelled projects match your search query.' : 'There are currently no cancelled projects in your studio archive.'}
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="vel-card" style={{ padding: '0', overflow: 'hidden' }}>
+                  <table className="vel-order-table">
+                    <thead>
+                      <tr>
+                        <th>PROJECT / ORDER</th>
+                        <th>CLIENT</th>
+                        <th>ASSIGNED EDITOR</th>
+                        <th>CANCELLATION DATE</th>
+                        <th>STATUS</th>
+                        <th>CANCELLATION REASON / DESCRIPTION</th>
+                        <th>ACTION</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cancelledOrdersList.map((ord) => {
+                        const cancelDate = ord.cancelledAt
+                          ? new Date(ord.cancelledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                          : (ord.updatedAt ? new Date(ord.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recently');
+
+                        return (
+                          <tr key={ord.id} className="vel-order-row">
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{ord.title}</span>
+                                  <span style={{ fontSize: '0.62rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.06)', color: 'var(--vel-text-secondary)' }}>
+                                    {ord.type}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '0.68rem', color: '#CBD5E1', letterSpacing: '0.03em', fontFamily: 'monospace' }}>
+                                  {ord.displayId}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: 'rgba(255, 255, 255, 0.08)', color: '#FFFFFF', border: '1px solid rgba(255, 255, 255, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.75rem', flexShrink: 0 }}>
+                                  {ord.client ? ord.client.charAt(0).toUpperCase() : 'C'}
+                                </div>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#FFFFFF' }}>{ord.client}</span>
+                              </div>
+                            </td>
+
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {ord.editor.avatar ? (
+                                  <img src={ord.editor.avatar} alt="" style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} />
+                                ) : (
+                                  <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#262633', display: 'inline-block' }} />
+                                )}
+                                <span style={{ fontSize: '0.8rem', color: ord.editor.name === 'Unassigned' ? '#F59E0B' : 'inherit' }}>
+                                  {ord.editor.name}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td style={{ color: 'var(--vel-text-secondary)', fontFamily: "'JetBrains Mono', monospace", fontSize: '0.76rem' }}>
+                              {cancelDate}
+                            </td>
+
+                            <td>
+                              <span className="vel-badge-cancelled">
+                                <span className="vel-badge-pip" />
+                                CANCELLED
+                              </span>
+                            </td>
+
+                            <td style={{ maxWidth: '340px' }}>
+                              <div style={{
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                background: 'rgba(239, 68, 68, 0.08)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: '#FECACA',
+                                fontSize: '0.76rem',
+                                lineHeight: 1.45,
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: '8px'
+                              }}>
+                                <Quote className="h-3.5 w-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                                <span>{ord.cancellationReason || 'No detailed reason provided.'}</span>
+                              </div>
+                            </td>
+
+                            <td>
+                              <button
+                                className="vel-btn-outline"
+                                style={{ padding: '4px 8px', fontSize: '0.7rem' }}
+                                onClick={() => {
+                                  setSelectedOrderId(ord.id);
+                                  handleNavClick('orders');
+                                }}
+                              >
+                                <span>View Details</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            }
+
             const deliveredOrders = orders
               .filter(o => o.dbStatus === 'delivered')
               .filter(o => {
@@ -1302,6 +1637,229 @@ export default function AdminOrdersTable({
             );
           })()}
         </>
+      )}
+
+      {/* ============================================================== */}
+      {/* CANCEL ORDER MODAL (ADMIN ONLY)                                */}
+      {/* ============================================================== */}
+      {isCancelModalOpen && orderToCancel && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isCancelling) {
+              handleCloseCancelModal();
+            }
+          }}
+        >
+          <div
+            style={{
+              background: 'linear-gradient(180deg, #181822 0%, #101017 100%)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.75), 0 0 30px rgba(239, 68, 68, 0.15)',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '540px',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'velModalFadeIn 0.2s ease-out'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'rgba(239, 68, 68, 0.06)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px',
+                  background: 'rgba(239, 68, 68, 0.18)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#F87171'
+                }}>
+                  <Ban className="h-5 w-5 stroke-[2.2]" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#FFFFFF' }}>
+                    Cancel Client Order
+                  </h3>
+                  <span style={{ fontSize: '0.72rem', color: '#94A3B8', fontFamily: "'JetBrains Mono', monospace" }}>
+                    {orderToCancel.displayId || orderToCancel.orderCode}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isCancelling}
+                onClick={handleCloseCancelModal}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94A3B8',
+                  fontSize: '1.25rem',
+                  cursor: isCancelling ? 'not-allowed' : 'pointer',
+                  padding: '4px',
+                  lineHeight: 1
+                }}
+                title="Close modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {/* Admin Exclusivity Warning Callout */}
+              <div style={{
+                padding: '12px 14px',
+                borderRadius: '10px',
+                background: 'rgba(239, 68, 68, 0.09)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                display: 'flex',
+                gap: '10px',
+                alignItems: 'flex-start'
+              }}>
+                <AlertTriangle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
+                <div style={{ fontSize: '0.76rem', color: '#E2E8F0', lineHeight: 1.5 }}>
+                  <strong style={{ color: '#F87171' }}>Admin Authorization Only:</strong> Only studio administrators can cancel client orders. This action will halt active editing production, notify the client & editor, and archive the project.
+                </div>
+              </div>
+
+              {/* Order Target Summary */}
+              <div style={{
+                padding: '12px 16px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px'
+              }}>
+                <div style={{ fontSize: '0.68rem', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+                  Target Project & Client
+                </div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#FFFFFF' }}>
+                  {orderToCancel.title}
+                </div>
+                <div style={{ fontSize: '0.76rem', color: '#CBD5E1', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <span>Client: <strong style={{ color: '#FFFFFF' }}>{orderToCancel.client}</strong></span>
+                  <span>Editor: <strong style={{ color: '#FFFFFF' }}>{orderToCancel.editor?.name || 'Unassigned'}</strong></span>
+                </div>
+              </div>
+
+              {/* Cancellation Reason / Description Textarea */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#FFFFFF', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>
+                    Description / Reason for Cancellation <span style={{ color: '#F87171' }}>*</span>
+                  </span>
+                  <span style={{ fontSize: '0.7rem', color: '#94A3B8' }}>Required</span>
+                </label>
+                <textarea
+                  value={cancelReason}
+                  disabled={isCancelling}
+                  onChange={(e) => {
+                    setCancelReason(e.target.value);
+                    if (cancelReasonError) setCancelReasonError('');
+                  }}
+                  placeholder="Please state the specific reason for cancelling this order (e.g., Client requested termination, duplicate order, invalid brief, raw footage unreadable, billing dispute)..."
+                  rows={4}
+                  className="vel-textarea"
+                  style={{
+                    width: '100%',
+                    minHeight: '110px',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    borderColor: cancelReasonError ? '#EF4444' : undefined,
+                    boxShadow: cancelReasonError ? '0 0 0 1px #EF4444' : undefined
+                  }}
+                />
+                {cancelReasonError && (
+                  <span style={{ fontSize: '0.74rem', color: '#F87171', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    <span>{cancelReasonError}</span>
+                  </span>
+                )}
+                <span style={{ fontSize: '0.7rem', color: 'var(--vel-text-secondary)' }}>
+                  This reason will be recorded on the order's permanent audit trail and shared with the client.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: '16px 24px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px',
+              background: 'rgba(0, 0, 0, 0.28)'
+            }}>
+              <button
+                type="button"
+                className="vel-btn-outline"
+                disabled={isCancelling}
+                onClick={handleCloseCancelModal}
+                style={{ padding: '9px 18px', fontSize: '0.8rem' }}
+              >
+                Nevermind, Keep Order
+              </button>
+              <button
+                type="button"
+                disabled={isCancelling}
+                onClick={handleConfirmCancelOrder}
+                style={{
+                  background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '9px 22px',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: isCancelling ? 'not-allowed' : 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 16px rgba(220, 38, 38, 0.45)'
+                }}
+              >
+                {isCancelling ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Cancelling Order...</span>
+                  </>
+                ) : (
+                  <>
+                    <Ban className="h-4 w-4" />
+                    <span>Confirm & Cancel Order</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

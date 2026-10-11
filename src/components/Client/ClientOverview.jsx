@@ -1,5 +1,6 @@
 import React from 'react';
 import { Film, Check } from 'lucide-react';
+import ClientProjectStatusStepper from './ClientProjectStatusStepper';
 
 export default function ClientOverview({
   clientProfile,
@@ -223,30 +224,14 @@ export default function ClientOverview({
             )}
 
             {/* Milestone Stepper */}
-            <div className="cp-stepper-wrap" style={{ marginTop: '20px' }}>
-              <div className="cp-stepper-line" />
-              {[
-                { key: 'received', label: 'RECEIVED', step: 0 },
-                { key: 'accepted', label: 'ACCEPTED', step: 1 },
-                { key: 'in_editing', label: 'IN EDITING', step: 2 },
-                { key: 'in_review', label: 'IN REVIEW', step: 3 },
-                { key: 'delivered', label: 'DELIVERED', step: 4 },
-              ].map((s, idx) => {
-                const isDone = activeStepIdx > s.step;
-                const isActive = activeStepIdx === s.step;
-                const stageDate = getStageDate(s.key, s.step);
-                return (
-                  <div key={idx} className={`cp-step-item ${isActive ? 'active' : ''}`}>
-                    <div className={`cp-step-circle ${isDone ? 'done' : isActive ? 'active' : ''}`}>
-                      {isDone ? <Check className="h-2.5 w-2.5" /> : isActive ? '◉' : ''}
-                    </div>
-                    <span className="cp-step-name">{s.label}</span>
-                    <span style={{ fontSize: '0.62rem', color: isDone || isActive ? '#9CA3AF' : 'var(--cp-text-tertiary)', marginTop: '2px' }}>
-                      {stageDate}
-                    </span>
-                  </div>
-                );
-              })}
+            <div style={{ marginTop: '20px' }}>
+              <ClientProjectStatusStepper
+                status={activeOrder?.status}
+                cancellationReason={activeOrder?.cancellation_reason}
+                orderCreatedAt={activeOrder?.created_at}
+                orderUpdatedAt={activeOrder?.updated_at}
+                getStageDate={getStageDate}
+              />
             </div>
           </div>
         </div>

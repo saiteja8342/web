@@ -34,7 +34,7 @@ import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { isGoogleUser } from '../lib/auth/authUtils';
-import { getClientOrders, formatOrderCode, STATUS_MAP, VIDEO_TYPE_MAP } from '../lib/db/orders';
+import { getClientOrders, formatOrderCode, STATUS_MAP, VIDEO_TYPE_MAP, parseCancellationReason, stripCancellationTag } from '../lib/db/orders';
 import { getProfile, updateProfile } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, notifyAdmins, formatNotificationTime } from '../lib/db/notifications';
 import { submitRevisionRequest, getOrderRevisions } from '../lib/db/revisions';
@@ -448,9 +448,33 @@ export default function ClientDashboard() {
       }
 
       if (!ordersRes.error && ordersRes.data) {
-        setOrders(ordersRes.data);
-        if (ordersRes.data.length > 0 && !selectedHistoryId) {
-          const firstDelivered = ordersRes.data.find(o => o.status === 'delivered');
+        let localCancelled = new Map();
+        try {
+          localCancelled = new Map(JSON.parse(localStorage.getItem('mne_cancelled_order_map') || '[]'));
+        } catch (_) {}
+
+        const transformedOrders = ordersRes.data.map(ord => {
+          let effStatus = (ord.status || 'received').toLowerCase();
+          let cancelReason = ord.cancellation_reason || '';
+
+          if (localCancelled.has(ord.id)) {
+            effStatus = 'cancelled';
+            cancelReason = cancelReason || localCancelled.get(ord.id)?.reason;
+          } else if (ord.admin_notes && (ord.admin_notes.includes('[ORDER_CANCELLED:true]') || ord.admin_notes.includes('[CANCELLATION_REASON:'))) {
+            effStatus = 'cancelled';
+            cancelReason = cancelReason || parseCancellationReason(ord.admin_notes);
+          }
+
+          return {
+            ...ord,
+            status: effStatus,
+            cancellation_reason: cancelReason,
+          };
+        });
+
+        setOrders(transformedOrders);
+        if (transformedOrders.length > 0 && !selectedHistoryId) {
+          const firstDelivered = transformedOrders.find(o => o.status === 'delivered');
           if (firstDelivered) setSelectedHistoryId(firstDelivered.id);
         }
       }
@@ -528,11 +552,18 @@ export default function ClientDashboard() {
     if (!currentUser) return;
     const userId = currentUser.id;
 
+    // Listen to orders table changes and verify client ID in callback.
+    // This bypasses the PostgreSQL replica identity filter drop issue on UPDATE events!
     const ordersChannel = subscribeToOrders({
-      filter: `client_id=eq.${userId}`,
-      onInsert: () => fetchClientData(userId),
-      onUpdate: () => fetchClientData(userId),
-      onDelete: () => fetchClientData(userId),
+      onInsert: (newRow) => {
+        if (!newRow || newRow.client_id === userId) fetchClientData(userId);
+      },
+      onUpdate: (newRow) => {
+        if (!newRow || newRow.client_id === userId) fetchClientData(userId);
+      },
+      onDelete: (oldRow) => {
+        if (!oldRow || oldRow.client_id === userId) fetchClientData(userId);
+      },
     });
 
     const notifChannel = subscribeToUserNotifications(
@@ -565,13 +596,22 @@ export default function ClientDashboard() {
       console.warn('BroadcastChannel error:', e);
     }
 
-    // Periodic sync every 4 seconds
+    // Storage event listener for instant multi-tab sync
+    const handleStorageChange = (e) => {
+      if (e.key === 'mne_client_visible_orders' || e.key === 'mne_cancelled_order_map') {
+        fetchClientData(userId);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    // Periodic sync every 3 seconds for guaranteed live updates
     const pollInterval = setInterval(() => {
       fetchClientData(userId);
-    }, 4000);
+    }, 3000);
 
     return () => {
       if (bc) bc.close();
+      window.removeEventListener('storage', handleStorageChange);
       clearInterval(pollInterval);
     };
   }, [currentUser, fetchClientData]);
@@ -746,21 +786,31 @@ export default function ClientDashboard() {
     }
   };
 
-  // Deliverable permission check: visible whenever admin grants access (even before delivery)
+  // Deliverable permission check: visible whenever admin grants access, or when order is delivered
   const isOrderDeliverablePermitted = (order) => {
     if (!order) return false;
 
-    // 1. Check explicit admin notes tag
+    // 1. Check local storage cache (immediate sync across tabs)
+    try {
+      const visibleMap = JSON.parse(localStorage.getItem('mne_client_visible_orders') || '{}');
+      if (visibleMap[order.id] === true) return true;
+      if (visibleMap[order.id] === false) return false;
+    } catch (e) {}
+
+    // 2. Check explicit admin notes tag
     if (typeof order.admin_notes === 'string') {
       if (order.admin_notes.includes('[CLIENT_DELIVERABLE_VISIBLE:true]')) return true;
       if (order.admin_notes.includes('[CLIENT_DELIVERABLE_VISIBLE:false]')) return false;
     }
 
-    // 2. Check client_link_visible column
+    // 3. Check client_link_visible column
     if (order.client_link_visible === true) return true;
     if (order.client_link_visible === false) return false;
 
-    // 3. Fallback: by default before admin gives access, keep hidden
+    // 4. If order status is delivered, deliverable is accessible to client by default
+    if (order.status === 'delivered') return true;
+
+    // 5. Fallback: by default before admin gives access, keep hidden
     return false;
   };
 
@@ -862,7 +912,7 @@ export default function ClientDashboard() {
     return () => {
       isMounted = false;
     };
-  }, [activeOrder?.id]);
+  }, [activeOrder?.id, activeOrder?.status, activeOrder?.updated_at]);
 
   const historyProjects = completedOrders.length > 0 ? completedOrders.map(o => {
     const exp = getDeliverableExpiration(o, statusHistory);
@@ -1377,6 +1427,8 @@ export default function ClientDashboard() {
                   isDeliverablePermitted={isDeliverablePermitted}
                   activeOrderExp={activeOrderExp}
                   editorNotes={editorNotes}
+                  statusHistory={statusHistory}
+                  getStageDate={getStageDate}
                   onSendRevisionNote={handleRequestRevisionWithTimestamp}
                   isSubmittingNote={isSubmittingRevision}
                   safeOpenUrl={safeOpenUrl}

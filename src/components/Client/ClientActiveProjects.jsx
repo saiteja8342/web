@@ -8,10 +8,14 @@ import {
   StickyNote, 
   User, 
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Lock,
+  Download,
+  CheckCircle2
 } from 'lucide-react';
 import GoogleDriveVideoPlayer from '../GoogleDriveVideoPlayer';
 import TimestampedRevisionComposer, { RevisionNoteBadge } from '../TimestampedRevisionComposer';
+import ClientProjectStatusStepper from './ClientProjectStatusStepper';
 
 export default function ClientActiveProjects({
   runningOrders = [],
@@ -20,6 +24,8 @@ export default function ClientActiveProjects({
   isDeliverablePermitted,
   activeOrderExp,
   editorNotes = [],
+  statusHistory = [],
+  getStageDate = null,
   onSendRevisionNote,
   isSubmittingNote = false,
   safeOpenUrl,
@@ -43,6 +49,7 @@ export default function ClientActiveProjects({
 
   const sm = activeOrder ? (STATUS_MAP[activeOrder.status] || STATUS_MAP.received) : STATUS_MAP.received;
   const ordCode = activeOrder ? formatOrderCode(activeOrder) : '';
+  const deliverableVideoUrl = activeOrder?.additional_link || activeOrder?.dropbox_link || (activeOrder?.status === 'delivered' ? activeOrder?.drive_link : null);
 
   return (
     <div className="flex flex-col gap-6">
@@ -141,50 +148,69 @@ export default function ClientActiveProjects({
             </div>
           </div>
 
-          {/* STAGE PIPELINE */}
-          <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--cp-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Milestone Progress
-              </span>
-              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#60A5FA' }}>
-                Step {sm.step} of 6: {sm.label}
-              </span>
-            </div>
-            <div className="cp-stepper">
-              {['Received', 'Accepted', 'Editing in Process', 'Review', 'Revision', 'Delivered'].map((stepLabel, idx) => {
-                const stepNum = idx + 1;
-                const isCompleted = sm.step > stepNum;
-                const isCurrent = sm.step === stepNum;
-                return (
-                  <div key={stepLabel} className={`cp-step ${isCompleted ? 'completed' : isCurrent ? 'current' : ''}`}>
-                    <div className="cp-step-circle">{stepNum}</div>
-                    <span className="cp-step-label">{stepLabel}</span>
-                  </div>
-                );
-              })}
-            </div>
+          {/* ANIMATED STAGE PIPELINE */}
+          <div style={{ marginTop: '20px' }}>
+            <ClientProjectStatusStepper
+              status={activeOrder.status}
+              cancellationReason={activeOrder.cancellation_reason}
+              statusHistory={statusHistory}
+              orderCreatedAt={activeOrder.created_at}
+              orderUpdatedAt={activeOrder.updated_at}
+              getStageDate={getStageDate}
+              expectedDelivery={getExpectedDeliveryDate(activeOrder)}
+            />
           </div>
         </div>
       )}
 
-      {/* EMBEDDED GOOGLE DRIVE VIDEO PREVIEW (IF AVAILABLE) */}
-      {activeOrder && (isDeliverablePermitted && activeOrder.additional_link) && !activeOrderExp?.isExpired && (
+      {/* EMBEDDED GOOGLE DRIVE VIDEO PREVIEW (IF PERMITTED & AVAILABLE) */}
+      {activeOrder && deliverableVideoUrl && isDeliverablePermitted && !activeOrderExp?.isExpired && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <Film className="h-4 w-4 text-cyan-400" />
               <span>In-Portal Deliverable Video Preview</span>
             </h3>
-            <span className="text-xs text-neutral-400">
-              Watch below and add timestamped revision notes
+            <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Approved by Studio • Watch & review below</span>
             </span>
           </div>
           <GoogleDriveVideoPlayer
-            videoUrl={activeOrder.additional_link}
+            videoUrl={deliverableVideoUrl}
             title={activeOrder.order_name || 'Master Deliverable Cut'}
             aspectRatio="16/9"
           />
+        </div>
+      )}
+
+      {/* DELIVERABLE UNDER QA REVIEW (WHEN VIDEO EXISTS BUT CLIENT ACCESS NOT YET GRANTED) */}
+      {activeOrder && deliverableVideoUrl && !isDeliverablePermitted && activeOrder.status !== 'cancelled' && (
+        <div style={{
+          padding: '16px 20px',
+          background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.45) 0%, rgba(15, 23, 42, 0.7) 100%)',
+          borderRadius: '12px',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '14px',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Sparkles className="h-5 w-5 text-cyan-400" />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>Deliverable Cut Under Studio QA</div>
+              <div style={{ fontSize: '0.74rem', color: '#94A3B8', marginTop: '2px' }}>
+                Our editing directors are conducting the final quality inspection. In-portal preview unlocks as soon as approved!
+              </div>
+            </div>
+          </div>
+          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#38BDF8', background: 'rgba(56, 189, 248, 0.1)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(56, 189, 248, 0.3)', whiteSpace: 'nowrap' }}>
+            QA Review In Progress
+          </span>
         </div>
       )}
 
@@ -208,57 +234,59 @@ export default function ClientActiveProjects({
               </div>
             )}
 
-            {isDeliverablePermitted && activeOrder.additional_link ? (
-              activeOrderExp?.isExpired ? (
-                <div style={{ padding: '16px 18px', background: '#111118', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            {deliverableVideoUrl ? (
+              isDeliverablePermitted ? (
+                activeOrderExp?.isExpired ? (
+                  <div style={{ padding: '16px 18px', background: '#111118', borderRadius: '10px', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Clock className="h-4 w-4 text-red-400" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>Deliverable Link Expired</div>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--cp-text-secondary)', marginTop: '2px' }}>
+                          This link expired after 10 days of delivery ({activeOrderExp.expiryDate}).
+                        </div>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.68rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.15)', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 600 }}>
+                      EXPIRED
+                    </span>
+                  </div>
+                ) : (
+                  <div className="cp-link-card" onClick={() => safeOpenUrl(deliverableVideoUrl)}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#181822', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Download className="h-4 w-4 text-emerald-400" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#FFFFFF' }}>Final Master Export</div>
+                        <div style={{ fontSize: '0.74rem', color: '#4ADE80' }}>
+                          Approved by Studio • Ready to download ({activeOrderExp?.daysRemaining} days remaining)
+                        </div>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-4 w-4 text-emerald-400" />
+                  </div>
+                )
+              ) : (
+                <div style={{ padding: '14px 16px', background: '#111118', borderRadius: '10px', border: '1px dashed rgba(245, 158, 11, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Clock className="h-4 w-4 text-red-400" />
+                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Clock className="h-4 w-4 text-amber-400" />
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>Deliverable Link Expired</div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>Deliverable in Production Review</div>
                       <div style={{ fontSize: '0.74rem', color: 'var(--cp-text-secondary)', marginTop: '2px' }}>
-                        This link expired after 10 days of delivery ({activeOrderExp.expiryDate}).
+                        Your access link will be available after final quality check
                       </div>
                     </div>
                   </div>
-                  <span style={{ fontSize: '0.68rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.15)', color: '#EF4444', border: '1px solid rgba(239, 68, 68, 0.3)', fontWeight: 600 }}>
-                    EXPIRED
+                  <span style={{ fontSize: '0.68rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#FCD34D', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
+                    ADMIN REVIEW
                   </span>
                 </div>
-              ) : (
-                <div className="cp-link-card" onClick={() => safeOpenUrl(activeOrder.additional_link)}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#181822', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <ExternalLink className="h-4 w-4 text-white/80" />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#FFFFFF' }}>Final Master Export</div>
-                      <div style={{ fontSize: '0.74rem', color: '#4ADE80' }}>
-                        Delivered • {activeOrderExp?.daysRemaining} days remaining (Expires {activeOrderExp?.expiryDate})
-                      </div>
-                    </div>
-                  </div>
-                  <ExternalLink className="h-4 w-4 text-white/40" />
-                </div>
               )
-            ) : activeOrder.additional_link ? (
-              <div style={{ padding: '14px 16px', background: '#111118', borderRadius: '10px', border: '1px dashed rgba(245, 158, 11, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Clock className="h-4 w-4 text-amber-400" />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>Deliverable in Production Review</div>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--cp-text-secondary)', marginTop: '2px' }}>
-                      Your access link will be available after final quality check
-                    </div>
-                  </div>
-                </div>
-                <span style={{ fontSize: '0.68rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.15)', color: '#FCD34D', border: '1px solid rgba(245, 158, 11, 0.3)', fontWeight: 600 }}>
-                  ADMIN REVIEW
-                </span>
-              </div>
             ) : (
               <div style={{ padding: '14px 16px', background: '#111118', borderRadius: '10px', border: '1px dashed var(--cp-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

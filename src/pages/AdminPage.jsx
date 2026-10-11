@@ -59,7 +59,7 @@ import AdminSettings from '../components/Admin/AdminSettings';
 
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
-import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, assignEditorToOrder, getEditorActiveOrderCounts, generateOrderCode, formatOrderCode, stripOrderCodeTag, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
+import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, cancelOrder, assignEditorToOrder, getEditorActiveOrderCounts, generateOrderCode, formatOrderCode, stripOrderCodeTag, stripCancellationTag, parseCancellationReason, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
 import { getApprovedEditors, getAllClientsForAdmin, getPendingProfiles, updateProfileStatus, blockClient, unblockClient, deleteClient } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
 import { getEditorRatingStats, getAllDeliveredOrdersRatingsMap } from '../lib/db/ratings';
@@ -103,7 +103,10 @@ function parseNotesVisibility(notes, clientLinkVisible) {
 
 /** Transform a Supabase order row into the shape the existing UI expects. */
 function transformOrder(dbOrder) {
-  const sm = STATUS_MAP[dbOrder.status] || STATUS_MAP.received;
+  const isCancelledByTag = (typeof dbOrder.admin_notes === 'string') && (dbOrder.admin_notes.includes('[ORDER_CANCELLED:true]') || dbOrder.admin_notes.includes('[CANCELLATION_REASON:'));
+  const effectiveStatus = (isCancelledByTag || dbOrder.status === 'cancelled') ? 'cancelled' : dbOrder.status;
+  const sm = STATUS_MAP[effectiveStatus] || STATUS_MAP.received;
+  const cancellationReason = dbOrder.cancellation_reason || parseCancellationReason(dbOrder.admin_notes) || '';
   const editorProfile = dbOrder.editor;
   const clientProfile = dbOrder.client;
 
@@ -131,12 +134,15 @@ function transformOrder(dbOrder) {
       ? new Date(dbOrder.client_deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
       : 'No deadline',
     status: sm.label,
-    dbStatus: dbOrder.status,
+    dbStatus: effectiveStatus,
     badgeClass: sm.badgeClass,
     currentStep: sm.step,
+    cancellationReason: cancellationReason,
+    cancelledAt: dbOrder.cancelled_at || null,
+    cancelledBy: dbOrder.cancelled_by || null,
     editorDeadline: dbOrder.editor_deadline ? dbOrder.editor_deadline.split('T')[0] : '',
     clientDeadline: dbOrder.client_deadline ? dbOrder.client_deadline.split('T')[0] : '',
-    notes: stripVisibilityTag(stripOrderCodeTag(dbOrder.admin_notes)),
+    notes: stripVisibilityTag(stripOrderCodeTag(stripCancellationTag(dbOrder.admin_notes))),
     rawAdminNotes: dbOrder.admin_notes || '',
     brief: dbOrder.brief || '',
     driveLink: dbOrder.drive_link || '',
@@ -411,8 +417,21 @@ export default function AdminPage() {
     const { data, error } = await getAdminAllOrders();
     if (!error && data) {
       const localCompleted = new Set(JSON.parse(localStorage.getItem('mne_completed_order_ids') || '[]'));
+      const localCancelledMap = new Map(JSON.parse(localStorage.getItem('mne_cancelled_order_map') || '[]'));
       const transformed = data.map(dbOrder => {
         const item = transformOrder(dbOrder);
+        // Ensure locally cancelled order stays cancelled even if Supabase replication lags
+        if (localCancelledMap.has(item.id) && item.dbStatus !== 'cancelled') {
+          const cancelMeta = localCancelledMap.get(item.id) || {};
+          return {
+            ...item,
+            status: 'CANCELLED',
+            dbStatus: 'cancelled',
+            badgeClass: 'vel-badge-cancelled',
+            currentStep: -1,
+            cancellationReason: cancelMeta.reason || item.cancellationReason || '',
+          };
+        }
         // Ensure locally completed order stays completed even if Supabase replication lags
         if (localCompleted.has(item.id) && item.dbStatus !== 'delivered') {
           return {
@@ -859,9 +878,17 @@ export default function AdminPage() {
 
   const [expandedEditor, setExpandedEditor] = useState(null);
 
-  // Active pipeline orders (excluding completed/delivered) vs Delivered History
-  const activePipelineOrders = orders.filter(o => o.dbStatus !== 'delivered');
+  // Active pipeline orders (excluding completed/delivered and cancelled) vs Delivered vs Cancelled
+  const activePipelineOrders = orders.filter(o => o.dbStatus !== 'delivered' && o.dbStatus !== 'cancelled');
   const deliveredHistoryOrders = orders.filter(o => o.dbStatus === 'delivered');
+  const cancelledOrders = orders.filter(o => o.dbStatus === 'cancelled');
+
+  // Cancel Order Modal State (Admin Exclusive)
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelReasonError, setCancelReasonError] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Selected order tracking
   const [selectedOrderId, setSelectedOrderId] = useState(null);
@@ -877,7 +904,7 @@ export default function AdminPage() {
   // Auto-select first active order initially on load
   useEffect(() => {
     if (orders.length > 0 && !selectedOrderId) {
-      const activeList = orders.filter(o => o.dbStatus !== 'delivered');
+      const activeList = orders.filter(o => o.dbStatus !== 'delivered' && o.dbStatus !== 'cancelled');
       setSelectedOrderId(activeList.length > 0 ? activeList[0].id : orders[0].id);
     }
   }, [orders.length, selectedOrderId]);
@@ -1112,6 +1139,147 @@ export default function AdminPage() {
     }
   };
 
+  // ─── Order Cancellation Handlers (Admin Only) ──────────────────────
+  const handleOpenCancelModal = (order) => {
+    const target = order || selectedOrder || (activeNav === 'orders' ? activePipelineOrders[0] : orders[0]);
+    if (!target) return;
+    const role = String(adminProfile?.role || '').toLowerCase();
+    if (!isAuthenticated && role !== 'admin') {
+      showToast('Unauthorized: Only studio administrators can cancel orders.');
+      return;
+    }
+    setOrderToCancel(target);
+    setCancelReason('');
+    setCancelReasonError('');
+    setIsCancelModalOpen(true);
+  };
+
+  const handleCloseCancelModal = () => {
+    if (isCancelling) return;
+    setIsCancelModalOpen(false);
+    setOrderToCancel(null);
+    setCancelReason('');
+    setCancelReasonError('');
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    if (!orderToCancel) return;
+    const role = String(adminProfile?.role || '').toLowerCase();
+    if (!isAuthenticated && role !== 'admin') {
+      showToast('Unauthorized: Only studio administrators can cancel orders.');
+      setIsCancelModalOpen(false);
+      return;
+    }
+
+    const trimmedReason = cancelReason.trim();
+    if (!trimmedReason) {
+      setCancelReasonError('Please provide a description / reason for cancelling this order.');
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      const targetId = orderToCancel.id;
+      const { error } = await cancelOrder(
+        targetId,
+        adminProfile.id,
+        trimmedReason,
+        orderToCancel.notes || orderToCancel.rawAdminNotes
+      );
+
+      if (error) {
+        console.warn('Cancel order warning:', error);
+      }
+
+      // Persist in localStorage backup map
+      try {
+        const localCancelled = new Map(JSON.parse(localStorage.getItem('mne_cancelled_order_map') || '[]'));
+        localCancelled.set(targetId, {
+          reason: trimmedReason,
+          cancelledAt: new Date().toISOString(),
+          adminId: adminProfile.id,
+        });
+        localStorage.setItem('mne_cancelled_order_map', JSON.stringify([...localCancelled.entries()]));
+
+        // Clear completed cache for this order if present
+        const localCompleted = new Set(JSON.parse(localStorage.getItem('mne_completed_order_ids') || '[]'));
+        localCompleted.delete(targetId);
+        localStorage.setItem('mne_completed_order_ids', JSON.stringify([...localCompleted]));
+      } catch {}
+
+      // Update React state
+      setOrders(prev => prev.map(o => {
+        if (o.id === targetId) {
+          return {
+            ...o,
+            status: 'CANCELLED',
+            dbStatus: 'cancelled',
+            badgeClass: 'vel-badge-cancelled',
+            currentStep: -1,
+            cancellationReason: trimmedReason,
+            cancelledAt: new Date().toISOString(),
+          };
+        }
+        return o;
+      }));
+
+      // Clear any staged status for this order
+      setStagedStatusMap(prev => {
+        const copy = { ...prev };
+        delete copy[targetId];
+        return copy;
+      });
+
+      // Send notifications to client and editor
+      if (orderToCancel.clientId) {
+        try {
+          await sendNotification(
+            orderToCancel.clientId,
+            `Order Cancelled: ${orderToCancel.title}`,
+            `Your order "${orderToCancel.title}" was cancelled by Admin. Reason: ${trimmedReason}`
+          );
+        } catch (_) {}
+      }
+
+      if (orderToCancel.editorId) {
+        try {
+          await sendNotification(
+            orderToCancel.editorId,
+            `Order Cancelled: ${orderToCancel.title}`,
+            `Project "${orderToCancel.title}" was cancelled by Admin. Reason: ${trimmedReason}`
+          );
+        } catch (_) {}
+      }
+
+      // Cross-tab broadcast
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('mne-order-updates');
+          bc.postMessage({ type: 'ORDER_CANCELLED', orderId: targetId });
+          bc.close();
+        }
+      } catch {}
+
+      showToast(`Order "${orderToCancel.title}" cancelled successfully. Reason recorded.`);
+      setIsCancelModalOpen(false);
+      setOrderToCancel(null);
+      setCancelReason('');
+
+      // Auto-select next active order if cancelled was selected
+      const nextActive = orders.filter(o => o.id !== targetId && o.dbStatus !== 'delivered' && o.dbStatus !== 'cancelled');
+      if (nextActive.length > 0) {
+        setSelectedOrderId(nextActive[0].id);
+      }
+
+      await fetchOrders();
+    } catch (err) {
+      console.error('Cancellation failed:', err);
+      showToast('Failed to cancel order: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   const handleUpdateStatusExplicitly = async (statusVal) => {
     const targetId = selectedOrderId || selectedOrder.id || orders[0]?.id;
     if (!targetId) {
@@ -1120,6 +1288,13 @@ export default function AdminPage() {
     }
 
     const order = orders.find(o => o.id === targetId) || selectedOrder;
+
+    // If cancelled is chosen, strictly route to cancellation modal to require description
+    if (statusVal === 'CANCELLED' || statusVal === 'cancelled') {
+      handleOpenCancelModal(order);
+      return;
+    }
+
     const dbStatus = UI_TO_DB_STATUS[statusVal] || (typeof statusVal === 'string' ? statusVal.toLowerCase() : 'received');
     const sm = STATUS_MAP[dbStatus] || STATUS_MAP.received;
 
@@ -1218,6 +1393,11 @@ export default function AdminPage() {
     setIsLoading(true);
     try {
       const chosenStatus = stagedStatusMap[targetId] || order.status;
+      if (chosenStatus === 'CANCELLED' || chosenStatus === 'cancelled') {
+        setIsLoading(false);
+        handleOpenCancelModal(order);
+        return;
+      }
       const dbStatus = UI_TO_DB_STATUS[chosenStatus] || order.dbStatus || 'received';
       const sm = STATUS_MAP[dbStatus] || STATUS_MAP.received;
 
@@ -1328,9 +1508,10 @@ export default function AdminPage() {
   };
 
   const handleToggleClientDeliverableAccess = async () => {
-    const order = orders.find(o => o.id === selectedOrderId);
+    const order = orders.find(o => o.id === (selectedOrderId || selectedOrder?.id));
     if (!order) return;
 
+    const targetId = order.id;
     const newVisibility = !order.clientLinkVisible;
     const cleanNotes = stripVisibilityTag(order.notes);
     const tag = `[CLIENT_DELIVERABLE_VISIBLE:${newVisibility ? 'true' : 'false'}]`;
@@ -1338,7 +1519,7 @@ export default function AdminPage() {
 
     // 1. Optimistic update
     setOrders(prev => prev.map(o => {
-      if (o.id === selectedOrderId) {
+      if (o.id === targetId) {
         return {
           ...o,
           clientLinkVisible: newVisibility,
@@ -1348,13 +1529,20 @@ export default function AdminPage() {
       return o;
     }));
 
+    // LocalStorage cross-tab sync
+    try {
+      const visibleMap = JSON.parse(localStorage.getItem('mne_client_visible_orders') || '{}');
+      visibleMap[targetId] = newVisibility;
+      localStorage.setItem('mne_client_visible_orders', JSON.stringify(visibleMap));
+    } catch (e) {}
+
     // Broadcast across browser tabs immediately
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         const bc = new BroadcastChannel('mne-order-updates');
         bc.postMessage({
           type: 'ORDER_VISIBILITY_UPDATED',
-          orderId: order.dbId || order.id,
+          orderId: order.dbId || targetId,
           visible: newVisibility
         });
         bc.close();
@@ -1366,14 +1554,14 @@ export default function AdminPage() {
     // 2. Persist to Supabase
     try {
       // First attempt: update both client_link_visible and admin_notes
-      let res = await updateOrder(order.dbId || order.id, {
+      let res = await updateOrder(order.dbId || targetId, {
         client_link_visible: newVisibility,
         admin_notes: updatedNotes,
       });
 
-      // Fallback: if client_link_visible column doesn't exist yet, update admin_notes
-      if (res.error && res.error.message && res.error.message.toLowerCase().includes('column')) {
-        res = await updateOrder(order.dbId || order.id, {
+      // Fallback: if client_link_visible column doesn't exist yet or update had error, update admin_notes
+      if (res.error) {
+        res = await updateOrder(order.dbId || targetId, {
           admin_notes: updatedNotes,
         });
       }
@@ -2202,6 +2390,17 @@ export default function AdminPage() {
                 historySearch={historySearch}
                 setHistorySearch={setHistorySearch}
                 adminRatingsMap={adminRatingsMap}
+                adminProfile={adminProfile}
+                handleOpenCancelModal={handleOpenCancelModal}
+                isCancelModalOpen={isCancelModalOpen}
+                orderToCancel={orderToCancel}
+                cancelReason={cancelReason}
+                setCancelReason={setCancelReason}
+                cancelReasonError={cancelReasonError}
+                setCancelReasonError={setCancelReasonError}
+                isCancelling={isCancelling}
+                handleCloseCancelModal={handleCloseCancelModal}
+                handleConfirmCancelOrder={handleConfirmCancelOrder}
               />
 
               {/* ============================================================== */}

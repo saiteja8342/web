@@ -28,7 +28,8 @@ DO $$ BEGIN
     'in_review',
     'revision_requested',
     'on_hold',
-    'delivered'
+    'delivered',
+    'cancelled'
   );
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
