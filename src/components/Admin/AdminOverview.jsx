@@ -14,13 +14,23 @@ export default function AdminOverview({
   newContactRequestsCount = 0,
   handleNavClick,
   metrics = {},
-  contactRequests = []
+  contactRequests = [],
+  orders = []
 }) {
+  const now = Date.now();
+  const activeOrdersList = orders.filter(o => o.dbStatus === 'in_editing' || o.dbStatus === 'in_review');
+  const nearDeadlineCount = activeOrdersList.filter(o => {
+    if (!o.clientDeadline) return false;
+    const diff = new Date(o.clientDeadline).getTime() - now;
+    return diff > 0 && diff <= 24 * 60 * 60 * 1000;
+  }).length;
+  const onTrackCount = Math.max(0, activeOrdersList.length - nearDeadlineCount);
+
   return (
     <>
       <div className="vel-page-header">
         <h1 className="vel-page-h1">Overview</h1>
-        <p className="vel-page-sub">Real-time production metrics.</p>
+        <p className="vel-page-sub">Real-time studio production metrics and throughput.</p>
       </div>
 
       {pendingUsers.length > 0 && (
@@ -48,12 +58,12 @@ export default function AdminOverview({
                 {pendingUsers.length} New User Registration{pendingUsers.length > 1 ? 's' : ''} Awaiting Approval
               </div>
               <div style={{ fontSize: '0.76rem', color: 'var(--vel-text-secondary)' }}>
-                New users cannot access their dashboard until approved. Click here to review and approve.
+                New users cannot access their dashboard until approved. Click to review.
               </div>
             </div>
           </div>
-          <span className="vel-btn-solid" style={{ padding: '5px 12px', fontSize: '0.75rem', background: '#F59E0B', border: 'none', color: '#000000', fontWeight: 700 }}>
-            Review Now →
+          <span className="vel-btn-solid" style={{ padding: '6px 14px', fontSize: '0.75rem', background: '#F59E0B', border: 'none', color: '#000000', fontWeight: 700 }}>
+            Review Approvals
           </span>
         </div>
       )}
@@ -88,7 +98,7 @@ export default function AdminOverview({
             </div>
           </div>
           <span className="vel-btn-solid" style={{ padding: '6px 14px', fontSize: '0.75rem', background: '#FFFFFF', border: 'none', color: '#050507', fontWeight: 800 }}>
-            View Inquiries →
+            View Inquiries
           </span>
         </div>
       )}
@@ -103,7 +113,8 @@ export default function AdminOverview({
             </div>
           </div>
           <div className="vel-metric-bottom">
-            <div className="vel-metric-number">{metrics.activeOrders} •</div>
+            <div className="vel-metric-number">{metrics.activeOrders || 0}</div>
+            <span className="vel-metric-pill-badge">In Production</span>
           </div>
         </div>
 
@@ -116,7 +127,7 @@ export default function AdminOverview({
             </div>
           </div>
           <div className="vel-metric-bottom">
-            <div className="vel-metric-number">{metrics.acceptedOrders}</div>
+            <div className="vel-metric-number">{metrics.acceptedOrders || 0}</div>
             <span className="vel-metric-pill-badge">In Queue</span>
           </div>
         </div>
@@ -124,34 +135,27 @@ export default function AdminOverview({
         {/* 3. Completed This Week */}
         <div className="vel-metric-card">
           <div className="vel-metric-top">
-            <span className="vel-metric-label">Completed This Week</span>
+            <span className="vel-metric-label">Completed Recently</span>
             <div className="vel-metric-icon">
               <CheckSquare className="h-3.5 w-3.5" />
             </div>
           </div>
           <div className="vel-metric-bottom">
-            <div className="vel-metric-number">{metrics.completedThisWeek}</div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '22px' }}>
-              <div style={{ width: '4px', height: '8px', background: '#3A3A4A', borderRadius: '1px' }} />
-              <div style={{ width: '4px', height: '12px', background: '#3A3A4A', borderRadius: '1px' }} />
-              <div style={{ width: '4px', height: '18px', background: '#3A3A4A', borderRadius: '1px' }} />
-              <div style={{ width: '4px', height: '14px', background: '#3A3A4A', borderRadius: '1px' }} />
-              <div style={{ width: '4px', height: '22px', background: '#6A6A80', borderRadius: '1px' }} />
-              <div style={{ width: '4px', height: '20px', background: '#8A8AA0', borderRadius: '1px' }} />
-            </div>
+            <div className="vel-metric-number">{metrics.completedThisWeek || 0}</div>
+            <span style={{ fontSize: '0.72rem', color: '#4ADE80', fontWeight: 600 }}>Archived</span>
           </div>
         </div>
 
         {/* 4. Pending Orders (Alert Amber) */}
         <div className="vel-metric-card alert-amber" style={{ cursor: 'pointer' }} onClick={() => handleNavClick('orders')}>
           <div className="vel-metric-top">
-            <span className="vel-metric-label">Pending Orders</span>
+            <span className="vel-metric-label">Pending Intake</span>
             <div className="vel-metric-icon">
               <AlertTriangle className="h-3.5 w-3.5" />
             </div>
           </div>
           <div className="vel-metric-bottom">
-            <div className="vel-metric-number">{metrics.pendingOrders}</div>
+            <div className="vel-metric-number">{metrics.pendingOrders || 0}</div>
             <span style={{ fontSize: '0.72rem', color: '#F59E0B', fontWeight: 600 }}>Action Req.</span>
           </div>
         </div>
@@ -165,17 +169,17 @@ export default function AdminOverview({
             </div>
           </div>
           <div className="vel-metric-bottom">
-            <div className="vel-metric-number">{metrics.withEditorOrders}</div>
+            <div className="vel-metric-number">{metrics.withEditorOrders || 0}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '0.72rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--vel-text-secondary)' }}>
                 <span style={{ color: '#EF4444' }}>•</span>
                 <span>Near Deadline</span>
-                <strong style={{ color: '#FFFFFF', marginLeft: 'auto' }}>3</strong>
+                <strong style={{ color: '#FFFFFF', marginLeft: 'auto' }}>{nearDeadlineCount}</strong>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--vel-text-secondary)' }}>
                 <span style={{ color: '#22C55E' }}>•</span>
                 <span>On Track</span>
-                <strong style={{ color: '#FFFFFF', marginLeft: 'auto' }}>3</strong>
+                <strong style={{ color: '#FFFFFF', marginLeft: 'auto' }}>{onTrackCount}</strong>
               </div>
             </div>
           </div>
@@ -190,13 +194,12 @@ export default function AdminOverview({
             </div>
           </div>
           <div className="vel-metric-bottom">
-            <div className="vel-metric-number">{metrics.readyForDelivery}</div>
+            <div className="vel-metric-number">{metrics.readyForDelivery || 0}</div>
             <button
               className="vel-metric-cta-btn"
               onClick={() => handleNavClick('orders')}
             >
-              <span>Review & Deliver</span>
-              <span>→</span>
+              <span>Review Deliverables</span>
             </button>
           </div>
         </div>

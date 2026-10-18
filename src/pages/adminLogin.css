@@ -4,15 +4,15 @@
    ========================================================================== */
 
 :root {
-  --admin-page-bg: #07090e;
-  --admin-outer-card: #0b101c;
-  --admin-inner-card: #0f1523;
-  --admin-input-bg: #000000;
-  --admin-input-border: #182030;
-  --admin-input-focus: #5b8bf7;
-  --admin-btn-blue: #5b8bf7;
-  --admin-btn-blue-hover: #6c98f9;
-  --admin-btn-text: #060a12;
+  --admin-page-bg: #050508;
+  --admin-outer-card: #0A0D15;
+  --admin-inner-card: #0E121B;
+  --admin-input-bg: #06070B;
+  --admin-input-border: rgba(255, 255, 255, 0.12);
+  --admin-input-focus: #FFFFFF;
+  --admin-btn-silver: #FFFFFF;
+  --admin-btn-silver-hover: #E2E8F0;
+  --admin-btn-text: #050507;
   --admin-label-text: #8292a8;
   --admin-icon-muted: #64748b;
   --admin-font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -91,19 +91,61 @@ html, body {
 /* Inner Card Container */
 .admin-inner-card {
   background-color: var(--admin-inner-card);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
-  padding: 34px 32px 32px;
+  padding: 30px 28px 28px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 @media (max-width: 520px) {
   .admin-inner-card {
-    padding: 26px 18px 24px;
+    padding: 24px 18px 22px;
     border-radius: 16px;
   }
+}
+
+/* Brand Header */
+.admin-card-brand-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-brand-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+
+.admin-brand-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-brand-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #FFFFFF;
+  margin: 0;
+  letter-spacing: -0.02em;
+  font-family: 'Space Grotesk', var(--admin-font);
+}
+
+.admin-brand-badge {
+  font-size: 0.72rem;
+  color: #94A3B8;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 /* Form Layout */
@@ -142,8 +184,8 @@ html, body {
 }
 
 .admin-input-box:focus-within {
-  border-color: rgba(91, 139, 247, 0.7);
-  box-shadow: 0 0 0 2px rgba(91, 139, 247, 0.2);
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
 }
 
 .admin-input-icon-prefix {
@@ -195,16 +237,16 @@ html, body {
   color: #cbd5e1;
 }
 
-/* Submit Action Button */
+/* Submit Action Button — Machined Metallic Silver Palette */
 .admin-signin-btn {
   width: 100%;
-  height: 52px;
-  background-color: var(--admin-btn-blue);
-  color: var(--admin-btn-text);
-  border: none;
+  height: 50px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #D4D4D8 100%);
+  color: #050507;
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 8px;
-  font-size: 1.04rem;
-  font-weight: 600;
+  font-size: 0.96rem;
+  font-weight: 700;
   font-family: var(--admin-font);
   letter-spacing: -0.01em;
   cursor: pointer;
@@ -214,13 +256,13 @@ html, body {
   gap: 8px;
   margin-top: 6px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 16px rgba(91, 139, 247, 0.25);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .admin-signin-btn:hover:not(:disabled) {
-  background-color: var(--admin-btn-blue-hover);
+  background: linear-gradient(180deg, #FFFFFF 0%, #E2E8F0 100%);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(91, 139, 247, 0.35);
+  box-shadow: 0 6px 22px rgba(255, 255, 255, 0.16), inset 0 1px 0 #FFFFFF;
 }
 
 .admin-signin-btn:active:not(:disabled) {
@@ -228,8 +270,10 @@ html, body {
 }
 
 .admin-signin-btn:disabled {
-  opacity: 0.75;
+  opacity: 0.6;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .admin-btn-arrow {
@@ -460,4 +504,14 @@ html, body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 

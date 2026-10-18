@@ -90,28 +90,71 @@ export default function AdminOrdersTable({
                   <span className="vel-rec-dot" />
                   <span>LIVE HUD</span>
                 </span>
-                <span style={{
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: '0.68rem',
-                  padding: '3px 8px',
-                  borderRadius: '6px',
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  color: '#94a3b8'
-                }}>
-                  4K • 60 FPS MASTER
-                </span>
               </div>
               <p className="vel-page-sub">
                 Managing {activePipelineOrders.length} {activePipelineOrders.length === 1 ? 'project' : 'projects'} currently in production pipeline.
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <button className="vel-btn-outline" onClick={() => setStatusFilter(statusFilter === 'ALL' ? 'IN PROGRESS' : 'ALL')}>
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                <span>{statusFilter === 'ALL' ? 'Filter: All' : `Filter: ${statusFilter}`}</span>
-              </button>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{
+                display: 'flex',
+                gap: '4px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                padding: '4px',
+                borderRadius: '8px',
+                border: '1px solid var(--vel-border)',
+                flexWrap: 'wrap'
+              }}>
+                {[
+                  { id: 'ALL', label: 'All' },
+                  { id: 'RECEIVED', label: 'Received' },
+                  { id: 'ACCEPTED', label: 'Accepted' },
+                  { id: 'IN PROGRESS', label: 'In Progress' },
+                  { id: 'REVIEWING', label: 'Reviewing' },
+                  { id: 'REVISION', label: 'Revision' },
+                  { id: 'ON HOLD', label: 'On Hold' },
+                ].map(st => {
+                  const isActive = statusFilter === st.id;
+                  const count = st.id === 'ALL'
+                    ? activePipelineOrders.length
+                    : activePipelineOrders.filter(o => o.status === st.id).length;
+                  return (
+                    <button
+                      key={st.id}
+                      onClick={() => setStatusFilter(st.id)}
+                      style={{
+                        background: isActive ? '#FFFFFF' : 'transparent',
+                        color: isActive ? '#050507' : 'var(--vel-text-secondary)',
+                        border: 'none',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.74rem',
+                        fontWeight: isActive ? 700 : 500,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span>{st.label}</span>
+                      {count > 0 && (
+                        <span style={{
+                          fontSize: '0.64rem',
+                          padding: '1px 5px',
+                          borderRadius: '10px',
+                          background: isActive ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.1)',
+                          fontWeight: 700
+                        }}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
               <button className="vel-btn-solid" onClick={() => handleNavClick('create')}>
                 <Plus className="h-3.5 w-3.5" />
                 <span>New Order</span>
@@ -250,45 +293,21 @@ export default function AdminOrdersTable({
                   </table>
                 </div>
               ) : (
-                /* MOTION GRAPHIC RADAR EMPTY STATE */
+                /* CLEAN CINEMATIC EMPTY STATE */
                 <div className="vel-empty-radar-pane">
-                  <div className="vel-radar-container">
-                    <div className="vel-radar-sweep" />
-                    <div className="vel-radar-ring-2" />
-                    <div className="vel-radar-ring-3" />
-                    <Clapperboard className="h-7 w-7 text-white/80 relative z-10" />
+                  <div className="vel-empty-icon-wrap">
+                    <Clapperboard className="h-7 w-7 text-white/80" />
                   </div>
 
                   <div style={{ textAlign: 'center', maxWidth: '380px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
-                      <span className="vel-studio-pill">
-                        <span className="vel-rec-dot" style={{ background: '#F59E0B', boxShadow: '0 0 8px #F59E0B' }} />
-                        <span>STANDBY MODE</span>
-                      </span>
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>BUFFER: 0 ACTIVE</span>
-                    </div>
-                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#FFFFFF', marginBottom: '8px', fontFamily: "'Space Grotesk', sans-serif" }}>
-                      Pipeline Standing By
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#FFFFFF', marginBottom: '8px', fontFamily: "'Space Grotesk', sans-serif" }}>
+                      {statusFilter !== 'ALL' ? 'No Matching Orders' : 'Pipeline Standing By'}
                     </h3>
-                    <p style={{ fontSize: '0.82rem', color: 'var(--vel-text-secondary)', lineHeight: 1.5, marginBottom: '20px' }}>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--vel-text-secondary)', lineHeight: 1.5, marginBottom: '22px' }}>
                       {statusFilter !== 'ALL'
-                        ? `No active projects currently match status filter "${statusFilter}". Reset filter or create a new order.`
-                        : 'All studio editor workstations and GPU render farms are on standby. Launch a new project to start production.'}
+                        ? `No active projects currently match status "${statusFilter}". Reset your filter or create a new order.`
+                        : 'There are currently no projects in the active pipeline. Create an order to begin production.'}
                     </p>
-
-                    {/* Equalizer animation */}
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '3px', height: '30px', marginBottom: '24px' }}>
-                      {[14, 22, 10, 26, 18, 28, 12, 24, 8, 20, 16, 26, 14, 20].map((h, i) => (
-                        <span
-                          key={i}
-                          className="vel-eq-bar"
-                          style={{
-                            height: `${h}px`,
-                            animationDelay: `${i * 0.08}s`
-                          }}
-                        />
-                      ))}
-                    </div>
 
                     <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
                       <button className="vel-btn-solid" onClick={() => handleNavClick('create')}>
@@ -332,7 +351,7 @@ export default function AdminOrdersTable({
                       border: '1px solid rgba(255, 255, 255, 0.1)',
                       color: '#94a3b8'
                     }}>
-                      4K PRORES
+                      {selectedOrder.type || 'Standard Format'}
                     </span>
                     {selectedOrder.dbStatus === 'delivered' ? (
                       (() => {

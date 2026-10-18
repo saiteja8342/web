@@ -44,6 +44,19 @@
   letter-spacing: -0.03em;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .vel-skeleton {
+    animation: none !important;
+    background: #14151D !important;
+  }
+}
+
 /* Shimmer Skeleton Animation */
 @keyframes vel-shimmer {
   0% { background-position: -200% 0; }
@@ -1201,15 +1214,9 @@ input:checked + .vel-slider:before {
 .vel-step-dot.active::before {
   content: '';
   position: absolute;
-  inset: -6px;
+  inset: -4px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
-  animation: velRadarPing 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
-
-@keyframes velRadarPing {
-  0% { transform: scale(0.9); opacity: 0.9; }
-  100% { transform: scale(1.6); opacity: 0; }
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
 .vel-step-label {
@@ -1236,95 +1243,127 @@ input:checked + .vel-slider:before {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
 }
 
 .vel-rec-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #EF4444;
-  box-shadow: 0 0 8px #EF4444;
+  background: #22C55E;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
   display: inline-block;
-  animation: velRecBlink 1.4s ease-in-out infinite;
 }
 
-@keyframes velRecBlink {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.25; transform: scale(0.75); }
-}
-
-/* Motion Graphic Radar Empty State */
+/* Clean Cinematic Empty State */
 .vel-empty-radar-pane {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 60px 24px;
+  padding: 64px 24px;
   text-align: center;
 }
 
-.vel-radar-container {
-  position: relative;
-  width: 140px;
-  height: 140px;
-  margin: 0 auto 28px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+.vel-empty-icon-wrap {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.04) 0%, transparent 70%);
+  color: var(--vel-text-secondary);
+  margin-bottom: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
-.vel-radar-ring-2 {
+/* Restored Topbar Notification Bell & Slide-Over Drawer */
+.vel-notif-btn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--vel-border);
+  color: var(--vel-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.vel-notif-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.vel-notif-badge-pill {
   position: absolute;
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  border: 1px dashed rgba(255, 255, 255, 0.18);
-  animation: velRotateSlow 25s linear infinite;
-}
-
-.vel-radar-ring-3 {
-  position: absolute;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.vel-radar-sweep {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, rgba(255, 255, 255, 0.25) 0deg, transparent 65deg, transparent 360deg);
-  animation: velRadarSweep 4s linear infinite;
-}
-
-@keyframes velRadarSweep {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes velRotateSlow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* Equalizer Visualizer Bars */
-.vel-eq-bar {
-  width: 3px;
-  background: linear-gradient(180deg, #FFFFFF 0%, #94A3B8 100%);
+  top: -4px;
+  right: -4px;
+  min-width: 17px;
+  height: 17px;
   border-radius: 9999px;
-  display: inline-block;
-  animation: velEqBounce 1.2s ease-in-out infinite alternate;
+  background: #F59E0B;
+  color: #050507;
+  font-size: 0.62rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid var(--vel-bg-base);
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
 }
 
-@keyframes velEqBounce {
-  0% { transform: scaleY(0.25); opacity: 0.35; }
-  100% { transform: scaleY(1); opacity: 1; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.5)); }
+.vel-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  z-index: 90;
+  animation: vel-fadein 0.2s ease;
+}
+
+.vel-drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: 420px;
+  background: #0A0B10;
+  border-left: 1px solid var(--vel-border);
+  z-index: 91;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -10px 0 35px rgba(0, 0, 0, 0.7);
+  animation: vel-drawer-slidein 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes vel-drawer-slidein {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.vel-drawer-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--vel-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vel-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* Telemetry Grid for Standby Console */

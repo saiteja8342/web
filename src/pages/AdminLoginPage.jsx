@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User, KeyRound, Eye, EyeOff, Loader2, Shield, ArrowLeft, RefreshCw, Check } from 'lucide-react';
-import CustomCursor from '../components/CustomCursor';
 import { supabase } from '../supabaseClient';
 import { isAdmin } from '../lib/auth/authUtils';
 import {
@@ -357,8 +356,6 @@ export default function AdminLoginPage() {
 
   return (
     <div className="admin-login-root">
-      <CustomCursor />
-
       {/* Ambient background glow */}
       <div className="admin-bg-glow-radial" />
 
@@ -371,6 +368,15 @@ export default function AdminLoginPage() {
       >
         {/* Inner Card Container */}
         <div className="admin-inner-card">
+          {/* Brand Header */}
+          <div className="admin-card-brand-header">
+            <img src="/image/mne_logo.png" alt="MotionNodeEdits" className="admin-brand-logo" />
+            <div className="admin-brand-info">
+              <h2 className="admin-brand-title">MotionNodeEdits</h2>
+              <span className="admin-brand-badge">Studio Gateway</span>
+            </div>
+          </div>
+
           {/* Alerts */}
           <AnimatePresence>
             {errorMessage && (
@@ -517,8 +523,8 @@ export default function AdminLoginPage() {
                   </>
                 ) : (
                   <>
-                    <span>Sign In as Admin</span>
-                    <span className="admin-btn-arrow">→</span>
+                    <Shield size={16} strokeWidth={2.2} />
+                    <span>Authenticate Portal</span>
                   </>
                 )}
               </button>
@@ -603,8 +609,8 @@ export default function AdminLoginPage() {
                   </>
                 ) : (
                   <>
+                    <Shield size={16} strokeWidth={2.2} />
                     <span>Verify & Authorize Device</span>
-                    <span className="admin-btn-arrow">→</span>
                   </>
                 )}
               </button>

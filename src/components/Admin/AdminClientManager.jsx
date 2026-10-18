@@ -78,6 +78,21 @@ export default function AdminClientManager({
   filteredFeedbacks = [],
   handleDeleteFeedback
 }) {
+  const [batchLoading, setBatchLoading] = React.useState(false);
+
+  const handleBatchApprove = async () => {
+    if (!filteredPendingUsers.length) return;
+    if (!window.confirm(`Approve all ${filteredPendingUsers.length} pending user(s)?`)) return;
+    setBatchLoading(true);
+    try {
+      for (const u of filteredPendingUsers) {
+        await handleApproveUser(u);
+      }
+    } finally {
+      setBatchLoading(false);
+    }
+  };
+
   return (
     <>
       {/* ============================================================== */}
@@ -87,8 +102,8 @@ export default function AdminClientManager({
         <>
           <div className="vel-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
             <div>
-              <h1 className="vel-page-h1">Management</h1>
-              <p className="vel-page-sub">Oversee editor workloads, track specialities, and manage studio resource allocation.</p>
+              <h1 className="vel-page-h1">Client Directory & Approvals</h1>
+              <p className="vel-page-sub">Manage client accounts, review registration requests, and oversee client profiles.</p>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -374,7 +389,7 @@ export default function AdminClientManager({
           </div>
 
           {/* Filter & Search Bar */}
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
               <Search className="h-4 w-4" style={{ position: 'absolute', left: '14px', top: '12px', color: 'var(--vel-text-tertiary)' }} />
               <input
@@ -394,6 +409,19 @@ export default function AdminClientManager({
                 </button>
               )}
             </div>
+
+            {filteredPendingUsers.length > 1 && (
+              <button
+                type="button"
+                className="vel-btn-solid"
+                onClick={handleBatchApprove}
+                disabled={batchLoading}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+              >
+                <Check className="h-4 w-4" />
+                <span>{batchLoading ? 'Approving...' : `Approve All (${filteredPendingUsers.length})`}</span>
+              </button>
+            )}
           </div>
 
           {/* Pending Users List */}

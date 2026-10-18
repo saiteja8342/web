@@ -51,7 +51,7 @@ import {
   MessageSquareQuote,
   Laptop
 } from 'lucide-react';
-import CustomCursor from '../components/CustomCursor';
+import NotificationDrawer from '../components/Admin/NotificationDrawer';
 import AdminOverview from '../components/Admin/AdminOverview';
 import AdminOrdersTable from '../components/Admin/AdminOrdersTable';
 import AdminClientManager from '../components/Admin/AdminClientManager';
@@ -461,6 +461,8 @@ export default function AdminPage() {
   const [feedbackRatingFilter, setFeedbackRatingFilter] = useState('ALL');
   const [isCopiedFeedbackLink, setIsCopiedFeedbackLink] = useState(false);
 
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const markAllRead = async () => {
@@ -470,6 +472,11 @@ export default function AdminPage() {
     showToast('All notifications marked as read.');
   };
 
+  const handleMarkNotificationRead = async (notifId) => {
+    setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n));
+    await markNotificationAsRead(notifId);
+  };
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
@@ -477,12 +484,11 @@ export default function AdminPage() {
 
   const handleNavClick = (nav) => {
     if (nav !== activeNav) {
-      setIsLoading(true);
       setActiveNav(nav);
       if (nav === 'link-feedback') {
-        fetchLinkFeedbacks();
+        setIsLoading(true);
+        fetchLinkFeedbacks().finally(() => setIsLoading(false));
       }
-      setTimeout(() => setIsLoading(false), 300);
     }
     setSidebarOpen(false);
   };
@@ -1919,12 +1925,30 @@ export default function AdminPage() {
   };
 
   const filteredOrders = activePipelineOrders.filter(o => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = !q ||
-      o.title.toLowerCase().includes(q) ||
-      o.client.toLowerCase().includes(q) ||
-      o.id.toLowerCase().includes(q);
+    const q = searchQuery.toLowerCase().trim();
     const matchesStatus = statusFilter === 'ALL' || o.status === statusFilter;
+    if (!q) {
+      return matchesStatus;
+    }
+    const title = (o.title || '').toLowerCase();
+    const client = (o.client || o.client_name || '').toLowerCase();
+    const clientEmail = (o.client_email || '').toLowerCase();
+    const id = (o.id || '').toLowerCase();
+    const displayId = (o.displayId || '').toLowerCase();
+    const orderCode = (o.order_code || '').toLowerCase();
+    const editorName = (o.editor?.name || o.editor_name || '').toLowerCase();
+    const type = (o.type || '').toLowerCase();
+
+    const matchesSearch =
+      title.includes(q) ||
+      client.includes(q) ||
+      clientEmail.includes(q) ||
+      id.includes(q) ||
+      displayId.includes(q) ||
+      orderCode.includes(q) ||
+      editorName.includes(q) ||
+      type.includes(q);
+
     return matchesSearch && matchesStatus;
   });
 
@@ -2033,7 +2057,15 @@ export default function AdminPage() {
 
   return (
     <div className="vel-admin-layout">
-      <CustomCursor />
+      {/* Notifications Drawer */}
+      <NotificationDrawer
+        isOpen={isNotifOpen}
+        onClose={() => setIsNotifOpen(false)}
+        notifications={notifications}
+        onMarkAllRead={markAllRead}
+        onMarkRead={handleMarkNotificationRead}
+      />
+
       {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div className="vel-sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
@@ -2264,13 +2296,37 @@ export default function AdminPage() {
                     ? "Search orders, clients, editors..."
                     : activeNav === 'contact-requests'
                     ? "Search inquiries..."
+                    : activeNav === 'history'
+                    ? "Search order history..."
                     : "Search projects, clients..."
                 }
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSearchQuery(val);
+                  if (activeNav === 'history') setHistorySearch(val);
+                  if (activeNav === 'contact-requests') setContactSearch(val);
+                  if (activeNav === 'link-feedback') setFeedbackSearch(val);
+                }}
                 className="vel-search-input"
               />
             </div>
+
+            {/* Notification Bell Button */}
+            <button
+              type="button"
+              className="vel-notif-btn"
+              onClick={() => setIsNotifOpen(prev => !prev)}
+              aria-label={`Notifications (${unreadCount} unread)`}
+              title="Notifications"
+            >
+              <Bell className="h-4 w-4" />
+              {unreadCount > 0 && (
+                <span className="vel-notif-badge-pill">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
 
 
 
@@ -2349,6 +2405,7 @@ export default function AdminPage() {
                   handleNavClick={handleNavClick}
                   metrics={metrics}
                   contactRequests={contactRequests}
+                  orders={orders}
                 />
               )}
 

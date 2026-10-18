@@ -47,105 +47,6 @@ export default function AdminEditorManager({
   expandedEditor,
   setExpandedEditor
 }) {
-  const selectedClientObj = clientsList.find(
-    (cl) => cl.name === createForm?.existingClient || cl.company === createForm?.existingClient
-  );
-
-  const clientExistingOrders = selectedClientObj
-    ? orders.filter((o) => {
-        if (selectedClientObj.id && o.clientId === selectedClientObj.id) return true;
-        if (
-          o.client &&
-          (o.client === selectedClientObj.name ||
-            o.client === selectedClientObj.company ||
-            o.client === selectedClientObj.company_name)
-        )
-          return true;
-        if (
-          o.clientContact &&
-          (o.clientContact.name === selectedClientObj.name ||
-            o.clientContact.company === selectedClientObj.company)
-        )
-          return true;
-        return false;
-      })
-    : [];
-
-  const applyOrderToCreateForm = (order, clientName) => {
-    let matchedFormat = order.type || 'YouTube Longform (16:9)';
-    if (matchedFormat.includes('YouTube Longform') || matchedFormat.includes('16:9')) {
-      matchedFormat = 'YouTube Longform (16:9)';
-    } else if (
-      matchedFormat.includes('Reel') ||
-      matchedFormat.includes('TikTok') ||
-      matchedFormat.includes('9:16') ||
-      matchedFormat.includes('Short')
-    ) {
-      matchedFormat = 'Instagram / TikTok Reel (9:16)';
-    } else if (
-      matchedFormat.includes('Commercial') ||
-      matchedFormat.includes('Broadcast') ||
-      matchedFormat.includes('4K')
-    ) {
-      matchedFormat = 'Commercial 4K Broadcast';
-    } else if (matchedFormat.includes('Square') || matchedFormat.includes('1:1')) {
-      matchedFormat = 'Square Social Ad (1:1)';
-    }
-
-    const rawNotes = order.rawAdminNotes || order.notes || '';
-    let editorReq = order.editorRequirements || '';
-    if (!editorReq && rawNotes) {
-      const m = rawNotes.match(/\[EDITOR_REQUIREMENTS:([^\]]*)\]/);
-      if (m && m[1]) {
-        try {
-          editorReq = decodeURIComponent(m[1]);
-        } catch {
-          editorReq = m[1];
-        }
-      }
-    }
-
-    let customTitle = order.customSectionTitle || '';
-    let customContent = order.customSectionContent || '';
-    let hasCustom = Boolean(order.hasCustomSection || order.customSection?.hasCustomSection);
-
-    if (rawNotes) {
-      const tm = rawNotes.match(/\[CUSTOM_SECTION_TITLE:([^\]]*)\]/);
-      if (tm && tm[1]) {
-        try {
-          customTitle = decodeURIComponent(tm[1]);
-        } catch {
-          customTitle = tm[1];
-        }
-        hasCustom = true;
-      }
-      const cm = rawNotes.match(/\[CUSTOM_SECTION_CONTENT:([^\]]*)\]/);
-      if (cm && cm[1]) {
-        try {
-          customContent = decodeURIComponent(cm[1]);
-        } catch {
-          customContent = cm[1];
-        }
-        hasCustom = true;
-      }
-    }
-
-    setCreateForm((prev) => ({
-      ...prev,
-      existingClient: clientName || prev.existingClient,
-      nomenclature: order.title || order.order_name || '',
-      format: matchedFormat,
-      brief: order.brief || '',
-      rawFootageLink: order.driveLink || order.drive_link || prev.rawFootageLink || '',
-      brandAssetsLink: order.dropboxLink || order.dropbox_link || prev.brandAssetsLink || '',
-      editorRequirements: editorReq,
-      hasCustomSection: hasCustom,
-      customSectionTitle: customTitle,
-      customSectionContent: customContent,
-      selectedProjectId: order.id || '',
-    }));
-  };
-
   const handleClientSelectionChange = (clientName) => {
     if (!clientName) {
       setCreateForm((prev) => ({
@@ -160,48 +61,17 @@ export default function AdminEditorManager({
       (cl) => cl.name === clientName || cl.company === clientName
     );
 
-    const clientOrders = orders.filter((o) => {
-      if (foundClient?.id && o.clientId === foundClient.id) return true;
-      if (
-        o.client &&
-        (o.client === clientName ||
-          (foundClient?.name && o.client === foundClient.name) ||
-          (foundClient?.company && o.client === foundClient.company))
-      )
-        return true;
-      if (
-        o.clientContact &&
-        ((foundClient?.name && o.clientContact.name === foundClient.name) ||
-          (foundClient?.company && o.clientContact.company === foundClient.company))
-      )
-        return true;
-      return false;
-    });
+    const defaultName = foundClient?.company
+      ? `${foundClient.company} Video Project`
+      : foundClient?.name
+      ? `${foundClient.name}'s Project`
+      : '';
 
-    const latestOrder = clientOrders.length > 0 ? clientOrders[0] : null;
-
-    if (latestOrder) {
-      applyOrderToCreateForm(latestOrder, clientName);
-    } else {
-      const defaultName = foundClient?.company
-        ? `${foundClient.company} Video Project`
-        : foundClient?.name
-        ? `${foundClient.name}'s Project`
-        : '';
-
-      setCreateForm((prev) => ({
-        ...prev,
-        existingClient: clientName,
-        nomenclature: defaultName || prev.nomenclature,
-        format: prev.format || 'YouTube Longform (16:9)',
-        brief: '',
-        editorRequirements: '',
-        hasCustomSection: false,
-        customSectionTitle: '',
-        customSectionContent: '',
-        selectedProjectId: '',
-      }));
-    }
+    setCreateForm((prev) => ({
+      ...prev,
+      existingClient: clientName,
+      nomenclature: prev.nomenclature || defaultName,
+    }));
   };
 
   return (
@@ -226,16 +96,15 @@ export default function AdminEditorManager({
                 </div>
 
                 {(() => {
-                  const clientEligibleProjects = orders
-                    .filter(o => o.dbStatus !== 'delivered')
-                    .filter(o => {
-                      if (!assignForm.client) return false;
-                      const selectedClientObj = clientsList.find(c => c.name === assignForm.client);
-                      if (selectedClientObj && o.clientId && o.clientId === selectedClientObj.id) {
-                        return true;
-                      }
-                      return (o.client || '').toLowerCase() === assignForm.client.toLowerCase();
-                    });
+                  const allActiveProjects = orders.filter(o => o.dbStatus !== 'delivered');
+                  const clientEligibleProjects = allActiveProjects.filter(o => {
+                    if (!assignForm.client) return true;
+                    const selectedClientObj = clientsList.find(c => c.name === assignForm.client);
+                    if (selectedClientObj && o.clientId && o.clientId === selectedClientObj.id) {
+                      return true;
+                    }
+                    return (o.client || '').toLowerCase() === assignForm.client.toLowerCase();
+                  });
 
                   return (
                     <div className="vel-form-grid-2">
@@ -257,7 +126,7 @@ export default function AdminEditorManager({
                             }));
                           }}
                         >
-                          <option value="">-- Choose Client --</option>
+                          <option value="">-- Choose Client (or select Project directly) --</option>
                           {clientsList.map((cl) => (
                             <option key={cl.id} value={cl.name}>
                               {cl.name} {cl.company ? `(${cl.company})` : ''}
@@ -273,7 +142,7 @@ export default function AdminEditorManager({
                           value={assignForm.project}
                           onChange={(e) => {
                             const selectedTitle = e.target.value;
-                            const matched = clientEligibleProjects.find(o => o.title === selectedTitle);
+                            const matched = allActiveProjects.find(o => o.title === selectedTitle);
                             setAssignForm(prev => ({
                               ...prev,
                               project: selectedTitle,
@@ -284,22 +153,19 @@ export default function AdminEditorManager({
                               brief: matched?.notes || prev.brief,
                             }));
                           }}
-                          disabled={!assignForm.client}
-                          style={{
-                            opacity: !assignForm.client ? 0.6 : 1,
-                            cursor: !assignForm.client ? 'not-allowed' : 'pointer'
-                          }}
                         >
-                          {!assignForm.client ? (
-                            <option value="">-- Select Client First --</option>
-                          ) : clientEligibleProjects.length === 0 ? (
-                            <option value="">-- No Active Projects for this Client --</option>
+                          {clientEligibleProjects.length === 0 ? (
+                            <option value="">-- No Active Projects Found --</option>
                           ) : (
                             <>
-                              <option value="">-- Choose Project ({clientEligibleProjects.length} available) --</option>
+                              <option value="">
+                                {assignForm.client
+                                  ? `-- Choose Project (${clientEligibleProjects.length} for ${assignForm.client}) --`
+                                  : `-- Choose Any Active Project (${clientEligibleProjects.length} available) --`}
+                              </option>
                               {clientEligibleProjects.map((ord) => (
                                 <option key={ord.id} value={ord.title}>
-                                  [{ord.displayId}] {ord.title} {ord.type ? `(${ord.type})` : ''} {ord.editor.name !== 'Unassigned' ? `• Assigned: ${ord.editor.name}` : '• Unassigned'}
+                                  [{ord.displayId}] {ord.title} {ord.type ? `(${ord.type})` : ''} {ord.editor?.name && ord.editor.name !== 'Unassigned' ? `• Assigned: ${ord.editor.name}` : '• Unassigned'}
                                 </option>
                               ))}
                             </>
@@ -325,12 +191,41 @@ export default function AdminEditorManager({
                       <input
                         type="checkbox"
                         checked={assignForm.autoSuggest}
-                        onChange={(e) => setAssignForm({ ...assignForm, autoSuggest: e.target.checked })}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          let nextEditorId = assignForm.editorId;
+                          let nextEditorName = assignForm.editor;
+                          if (checked && (!nextEditorId || nextEditorId === '')) {
+                            const sorted = [...editorsList].sort((a, b) => {
+                              const aAvail = (a.maxOrders || 5) - (a.activeOrders || 0);
+                              const bAvail = (b.maxOrders || 5) - (b.activeOrders || 0);
+                              return bAvail - aAvail;
+                            });
+                            const best = sorted.find(ed => (ed.activeOrders || 0) < (ed.maxOrders || 5)) || sorted[0];
+                            if (best) {
+                              nextEditorId = best.id;
+                              nextEditorName = best.name;
+                            }
+                          }
+                          setAssignForm(prev => ({
+                            ...prev,
+                            autoSuggest: checked,
+                            editorId: nextEditorId,
+                            editor: nextEditorName,
+                          }));
+                        }}
                       />
                       <span className="vel-slider"></span>
                     </label>
                   </div>
                 </div>
+
+                {assignForm.autoSuggest && (
+                  <div style={{ fontSize: '0.72rem', color: '#34D399', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Check className="h-3.5 w-3.5" />
+                    <span>Auto-suggest active: Editors ranked by available workload & turnaround capacity</span>
+                  </div>
+                )}
 
                 <div className="vel-field-group">
                   <label className="vel-label">Assigned Editor</label>
@@ -348,11 +243,24 @@ export default function AdminEditorManager({
                     }}
                   >
                     <option value="">-- Select Editor --</option>
-                    {editorsList.map((ed) => (
-                      <option key={ed.id} value={ed.id}>
-                        {ed.name} ({ed.role || ed.category}) — {ed.activeOrders}/{ed.maxOrders} Active
-                      </option>
-                    ))}
+                    {(() => {
+                      const displayList = assignForm.autoSuggest
+                        ? [...editorsList].sort((a, b) => {
+                            const aAvail = (a.maxOrders || 5) - (a.activeOrders || 0);
+                            const bAvail = (b.maxOrders || 5) - (b.activeOrders || 0);
+                            return bAvail - aAvail;
+                          })
+                        : editorsList;
+
+                      return displayList.map((ed, idx) => {
+                        const isRecommended = assignForm.autoSuggest && idx === 0 && (ed.activeOrders || 0) < (ed.maxOrders || 5);
+                        return (
+                          <option key={ed.id} value={ed.id}>
+                            {isRecommended ? '★ [RECOMMENDED] ' : ''}{ed.name} ({ed.role || ed.category || 'Editor'}) — {ed.activeOrders || 0}/{ed.maxOrders || 5} Active
+                          </option>
+                        );
+                      });
+                    })()}
                   </select>
                 </div>
 
@@ -474,44 +382,6 @@ export default function AdminEditorManager({
                   ))}
                 </select>
               </div>
-
-              {/* Client Auto-Copy Feedback & Project Selector */}
-              {clientExistingOrders.length > 0 && (
-                <div style={{ marginTop: '14px', padding: '12px 14px', background: 'rgba(34, 197, 94, 0.05)', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Check className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <div>
-                      <div style={{ fontSize: '0.78rem', color: '#4ADE80', fontWeight: 700 }}>
-                        Client Requirements Synchronized
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--vel-text-secondary)' }}>
-                        Project Name, Size & Quality, and Video Description copied into this order.
-                      </div>
-                    </div>
-                  </div>
-
-                  {clientExistingOrders.length > 1 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', whiteSpace: 'nowrap' }}>Copy from Project:</span>
-                      <select
-                        className="vel-select"
-                        style={{ padding: '4px 8px', fontSize: '0.72rem', width: 'auto' }}
-                        value={createForm.selectedProjectId || clientExistingOrders[0]?.id}
-                        onChange={(e) => {
-                          const found = clientExistingOrders.find((o) => o.id === e.target.value);
-                          if (found) applyOrderToCreateForm(found, createForm.existingClient);
-                        }}
-                      >
-                        {clientExistingOrders.map((ord) => (
-                          <option key={ord.id} value={ord.id}>
-                            {ord.title} ({ord.displayId || ord.type})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* 2. CLIENT REQUIREMENTS */}
