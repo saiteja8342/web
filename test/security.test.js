@@ -627,15 +627,17 @@ describe('Section 49: Login Devices & 30-Day Remember Device Security Tests', ()
       this.otps = [];
     }
 
-    registerDevice(callerUid, rawToken, meta = {}) {
+    registerDevice(callerUid, rawToken, meta = {}, isTrusted = true) {
       const hash = computeHash(rawToken);
       const now = Date.now();
-      const expiresAt = new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const expiresAt = isTrusted ? new Date(now + 30 * 24 * 60 * 60 * 1000).toISOString() : null;
 
-      const existing = this.devices.find(d => d.device_token_hash === hash);
+      const existing = this.devices.find(d => d.device_token_hash === hash && d.user_id === callerUid);
       if (existing) {
         existing.last_active_at = new Date(now).toISOString();
         existing.status = 'active';
+        existing.is_trusted = isTrusted;
+        existing.expires_at = expiresAt;
         return existing;
       }
 
@@ -648,6 +650,7 @@ describe('Section 49: Login Devices & 30-Day Remember Device Security Tests', ()
         browser: meta.browser || 'Google Chrome',
         os: meta.os || 'macOS',
         status: 'active',
+        is_trusted: isTrusted,
         created_at: new Date(now).toISOString(),
         expires_at: expiresAt,
         last_active_at: new Date(now).toISOString(),
@@ -669,12 +672,17 @@ describe('Section 49: Login Devices & 30-Day Remember Device Security Tests', ()
         return { valid: false, reason: 'cross_user_forbidden' };
       }
 
+      // Normal logins cannot bypass OTP
+      if (device.is_trusted !== true) {
+        return { valid: false, reason: 'not_trusted' };
+      }
+
       if (device.status === 'revoked') {
         return { valid: false, reason: 'revoked' };
       }
 
       const now = Date.now();
-      if (new Date(device.expires_at).getTime() <= now || device.status === 'expired') {
+      if (device.expires_at && (new Date(device.expires_at).getTime() <= now || device.status === 'expired')) {
         device.status = 'expired';
         return { valid: false, reason: 'expired' };
       }
@@ -713,7 +721,13 @@ describe('Section 49: Login Devices & 30-Day Remember Device Security Tests', ()
 
     listDevices(callerUid) {
       // RLS: Only select where user_id = callerUid
-      return this.devices.filter(d => d.user_id === callerUid);
+      return this.devices.filter(d => d.user_id === callerUid).map(d => {
+        let displayStatus = 'normal';
+        if (d.status === 'revoked') displayStatus = 'revoked';
+        else if (d.is_trusted && (d.status === 'expired' || (d.expires_at && new Date(d.expires_at) <= new Date()))) displayStatus = 'expired';
+        else if (d.is_trusted) displayStatus = 'trusted';
+        return { ...d, displayStatus };
+      });
     }
 
     // OTP Generation with 60s cooldown
@@ -766,39 +780,73 @@ describe('Section 49: Login Devices & 30-Day Remember Device Security Tests', ()
   it('1. TOKEN HASHING: Raw token is never stored in plaintext', () => {
     const store = new MockAdminDeviceStore();
     const rawToken = '7f8a9b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4';
-    const device = store.registerDevice('admin-001', rawToken);
+    const device = store.registerDevice('admin-001', rawToken, {}, true);
 
     assert.notEqual(device.device_token_hash, rawToken, 'Raw token must not equal stored hash');
     assert.equal(device.device_token_hash.length, 64, 'SHA-256 hash must be 64 hexadecimal characters');
     assert.equal(device.device_token_hash, computeHash(rawToken), 'Stored value must be SHA-256 hash');
   });
 
-  it('2. 30-DAY ABSOLUTE EXPIRATION: Token expires after 30 days and visits do NOT extend it', () => {
+  it('2. CHECKBOX UNCHECKED: Registers device as Normal Login and DENIES 30-day OTP exemption', () => {
     const store = new MockAdminDeviceStore();
-    const rawToken = 'token_test_30_days_validity';
-    const device = store.registerDevice('admin-001', rawToken);
+    const normalToken = 'token_normal_login_session';
+
+    // User logs in with rememberDevice = false
+    const normalDevice = store.registerDevice('admin-001', normalToken, { deviceName: 'Firefox Workstation' }, false);
+
+    assert.equal(normalDevice.is_trusted, false, 'Must be marked as untrusted');
+    assert.equal(normalDevice.expires_at, null, 'Normal login must have no 30-day expiry');
+
+    // Appears in login history
+    const listed = store.listDevices('admin-001');
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].displayStatus, 'normal', 'Dashboard status must be "normal"');
+
+    // On future visits, normal login CANNOT bypass OTP
+    const validation = store.validateDevice('admin-001', normalToken);
+    assert.equal(validation.valid, false);
+    assert.equal(validation.reason, 'not_trusted', 'Must require OTP on subsequent logins');
+  });
+
+  it('3. CHECKBOX CHECKED: Registers device as Trusted with 30-day absolute expiration', () => {
+    const store = new MockAdminDeviceStore();
+    const trustedToken = 'token_trusted_30_days_validity';
+
+    // User logs in with rememberDevice = true
+    const trustedDevice = store.registerDevice('admin-001', trustedToken, { deviceName: 'Studio Mac' }, true);
+
+    assert.equal(trustedDevice.is_trusted, true);
+    assert.ok(trustedDevice.expires_at);
 
     // Initial validation passes (< 30 days)
-    const validCheck = store.validateDevice('admin-001', rawToken);
+    const validCheck = store.validateDevice('admin-001', trustedToken);
     assert.equal(validCheck.valid, true);
     assert.equal(validCheck.daysRemaining, 30);
 
-    // Simulate 15 days passing: active check passes, last_active_at updates, but expires_at is UNCHANGED
-    const originalExpiry = device.expires_at;
-    const initialActive = device.last_active_at;
-
-    // Simulate visit 10ms later
-    store.validateDevice('admin-001', rawToken);
-    assert.equal(device.expires_at, originalExpiry, 'Visit must NEVER extend absolute 30-day expires_at');
-
-    // Simulate 31 days passing (expired)
-    device.expires_at = new Date(Date.now() - 1000).toISOString();
-    const expiredCheck = store.validateDevice('admin-001', rawToken);
+    // After 31 days, status transitions to expired
+    trustedDevice.expires_at = new Date(Date.now() - 1000).toISOString();
+    const expiredCheck = store.validateDevice('admin-001', trustedToken);
     assert.equal(expiredCheck.valid, false);
     assert.equal(expiredCheck.reason, 'expired');
   });
 
-  it('3. DEVICE REVOCATION: Revoking a device immediately invalidates subsequent authentication', () => {
+  it('4. DUPLICATE PREVENTION: Repeated logins from the same browser update existing record', () => {
+    const store = new MockAdminDeviceStore();
+    const browserGuid = 'browser_guid_persisted_in_localstorage';
+
+    // First login (untrusted)
+    const dev1 = store.registerDevice('admin-001', browserGuid, { deviceName: 'Office Chrome' }, false);
+    assert.equal(store.listDevices('admin-001').length, 1);
+    assert.equal(dev1.is_trusted, false);
+
+    // Second login from the SAME browser (trusted this time)
+    const dev2 = store.registerDevice('admin-001', browserGuid, { deviceName: 'Office Chrome' }, true);
+    assert.equal(store.listDevices('admin-001').length, 1, 'Must NOT create duplicate rows for the same browser');
+    assert.equal(dev2.id, dev1.id, 'Must update existing device ID');
+    assert.equal(dev2.is_trusted, true, 'Upgrades trust status');
+  });
+
+  it('5. DEVICE REVOCATION: Revoking a device immediately invalidates subsequent authentication', () => {
     const store = new MockAdminDeviceStore();
     const rawToken = 'token_to_be_revoked_instantly';
     const device = store.registerDevice('admin-001', rawToken);
@@ -813,7 +861,7 @@ describe('Section 49: Login Devices & 30-Day Remember Device Security Tests', ()
     assert.equal(postRevoke.reason, 'revoked');
   });
 
-  it('4. BULK SIGN OUT OTHER DEVICES: Revokes all other devices while preserving current device', () => {
+  it('6. BULK SIGN OUT OTHER DEVICES: Revokes all other devices while preserving current device', () => {
     const store = new MockAdminDeviceStore();
     const tokenCurrent = 'token_current_workstation';
     const tokenLaptop = 'token_travel_laptop';
@@ -840,7 +888,7 @@ describe('Section 49: Login Devices & 30-Day Remember Device Security Tests', ()
     assert.equal(store.validateDevice('admin-001', tokenPhone).valid, false);
   });
 
-  it('5. CROSS-USER ISOLATION: User A cannot validate, list, or revoke User B\'s devices', () => {
+  it('7. CROSS-USER ISOLATION: User A cannot validate, list, or revoke User B\'s devices', () => {
     const store = new MockAdminDeviceStore();
     const tokenA = 'token_user_a_secret';
     const tokenB = 'token_user_b_secret';
@@ -865,7 +913,7 @@ describe('Section 49: Login Devices & 30-Day Remember Device Security Tests', ()
     assert.equal(devB.status, 'active');
   });
 
-  it('6. OTP RATE LIMITING: 60-second cooldown is enforced between OTP generation requests', () => {
+  it('8. OTP RATE LIMITING: 60-second cooldown is enforced between OTP generation requests', () => {
     const store = new MockAdminDeviceStore();
     const res1 = store.generateOtp('admin-001', 'admin@motionnodeedits.com');
     assert.equal(res1.success, true);
@@ -877,7 +925,7 @@ describe('Section 49: Login Devices & 30-Day Remember Device Security Tests', ()
     assert(res2.cooldown > 0 && res2.cooldown <= 60);
   });
 
-  it('7. OTP BRUTE FORCE DEFENSE: Maximum 5 invalid attempts locks out code', () => {
+  it('9. OTP BRUTE FORCE DEFENSE: Maximum 5 invalid attempts locks out code', () => {
     const store = new MockAdminDeviceStore();
     const otpGen = store.generateOtp('admin-001', 'admin@motionnodeedits.com');
     const realCode = otpGen.code;
@@ -894,7 +942,7 @@ describe('Section 49: Login Devices & 30-Day Remember Device Security Tests', ()
     assert.match(finalAttempt.error, /Too many attempts|Locked out/i);
   });
 
-  it('8. OTP REPLAY PROTECTION: Code cannot be reused after successful verification', () => {
+  it('10. OTP REPLAY PROTECTION: Code cannot be reused after successful verification', () => {
     const store = new MockAdminDeviceStore();
     const otpGen = store.generateOtp('admin-001', 'admin@motionnodeedits.com');
 

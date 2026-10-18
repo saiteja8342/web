@@ -1058,11 +1058,18 @@ CREATE TABLE IF NOT EXISTS public.admin_devices (
   os TEXT NOT NULL DEFAULT 'Unknown OS',
   ip_address TEXT,
   status TEXT NOT NULL DEFAULT 'active',
+  is_trusted BOOLEAN NOT NULL DEFAULT TRUE,
   last_active_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  expires_at TIMESTAMPTZ NOT NULL,
+  expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+DO $$ BEGIN
+  ALTER TABLE public.admin_devices ADD COLUMN IF NOT EXISTS is_trusted BOOLEAN NOT NULL DEFAULT TRUE;
+  ALTER TABLE public.admin_devices ALTER COLUMN expires_at DROP NOT NULL;
+EXCEPTION WHEN others THEN null;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_admin_devices_user_id ON public.admin_devices(user_id);
 CREATE INDEX IF NOT EXISTS idx_admin_devices_token_hash ON public.admin_devices(device_token_hash);
@@ -1143,7 +1150,8 @@ CREATE OR REPLACE FUNCTION public.register_admin_device(
   p_device_type TEXT,
   p_browser TEXT,
   p_os TEXT,
-  p_ip TEXT DEFAULT NULL
+  p_ip TEXT DEFAULT NULL,
+  p_is_trusted BOOLEAN DEFAULT TRUE
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -1154,26 +1162,32 @@ DECLARE
   v_user_id UUID := auth.uid();
   v_new_device RECORD;
   v_now TIMESTAMPTZ := NOW();
-  v_expires TIMESTAMPTZ := v_now + INTERVAL '30 days';
+  v_expires TIMESTAMPTZ := NULL;
 BEGIN
   IF v_user_id IS NULL OR NOT public.is_admin() THEN
     RAISE EXCEPTION 'Access Denied: Only authenticated administrators can register devices.';
   END IF;
 
-  IF p_device_token_hash IS NULL OR LENGTH(TRIM(p_device_token_hash)) < 32 THEN
+  IF p_device_token_hash IS NULL OR LENGTH(TRIM(p_device_token_hash)) < 16 THEN
     RAISE EXCEPTION 'Invalid device token hash.';
+  END IF;
+
+  IF COALESCE(p_is_trusted, TRUE) THEN
+    v_expires := v_now + INTERVAL '30 days';
+  ELSE
+    v_expires := NULL;
   END IF;
 
   INSERT INTO public.admin_devices (
     user_id, device_token_hash, device_name, device_type, browser, os, ip_address,
-    status, last_active_at, expires_at, created_at, updated_at
+    status, is_trusted, last_active_at, expires_at, created_at, updated_at
   ) VALUES (
     v_user_id, TRIM(p_device_token_hash),
     COALESCE(NULLIF(TRIM(p_device_name), ''), 'Admin Workstation'),
     COALESCE(NULLIF(TRIM(p_device_type), ''), 'desktop'),
     COALESCE(NULLIF(TRIM(p_browser), ''), 'Standard Browser'),
     COALESCE(NULLIF(TRIM(p_os), ''), 'Unknown OS'),
-    p_ip, 'active', v_now, v_expires, v_now, v_now
+    p_ip, 'active', COALESCE(p_is_trusted, TRUE), v_now, v_expires, v_now, v_now
   )
   ON CONFLICT (device_token_hash) DO UPDATE SET
     device_name = EXCLUDED.device_name,
@@ -1182,17 +1196,18 @@ BEGIN
     os = EXCLUDED.os,
     ip_address = COALESCE(EXCLUDED.ip_address, public.admin_devices.ip_address),
     status = 'active',
+    is_trusted = EXCLUDED.is_trusted,
     last_active_at = v_now,
-    expires_at = v_expires,
+    expires_at = EXCLUDED.expires_at,
     updated_at = v_now
-  RETURNING id, device_name, device_type, browser, os, status, last_active_at, expires_at, created_at
+  RETURNING id, device_name, device_type, browser, os, status, is_trusted, last_active_at, expires_at, created_at
   INTO v_new_device;
 
   RETURN jsonb_build_object('success', true, 'device', row_to_json(v_new_device));
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.register_admin_device(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.register_admin_device(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.validate_admin_device(
   p_user_id UUID,
@@ -1220,11 +1235,15 @@ BEGIN
     RETURN jsonb_build_object('valid', false, 'reason', 'not_found');
   END IF;
 
+  IF v_device.is_trusted IS NOT TRUE THEN
+    RETURN jsonb_build_object('valid', false, 'reason', 'not_trusted');
+  END IF;
+
   IF v_device.status = 'revoked' THEN
     RETURN jsonb_build_object('valid', false, 'reason', 'revoked');
   END IF;
 
-  IF v_device.expires_at <= v_now OR v_device.status = 'expired' THEN
+  IF (v_device.expires_at IS NOT NULL AND v_device.expires_at <= v_now) OR v_device.status = 'expired' THEN
     UPDATE public.admin_devices SET status = 'expired', updated_at = v_now WHERE id = v_device.id;
     RETURN jsonb_build_object('valid', false, 'reason', 'expired', 'expires_at', v_device.expires_at);
   END IF;
@@ -1237,6 +1256,7 @@ BEGIN
     'device_name', v_device.device_name,
     'browser', v_device.browser,
     'os', v_device.os,
+    'is_trusted', v_device.is_trusted,
     'expires_at', v_device.expires_at,
     'days_remaining', GREATEST(0, CEIL(EXTRACT(EPOCH FROM (v_device.expires_at - v_now)) / 86400))
   );
@@ -1315,7 +1335,11 @@ BEGIN
 
   UPDATE public.admin_devices
   SET status = 'expired', updated_at = NOW()
-  WHERE user_id = v_user_id AND expires_at <= NOW() AND status = 'active';
+  WHERE user_id = v_user_id
+    AND is_trusted = TRUE
+    AND expires_at IS NOT NULL
+    AND expires_at <= NOW()
+    AND status = 'active';
 
   SELECT jsonb_agg(
     jsonb_build_object(
@@ -1326,10 +1350,21 @@ BEGIN
       'os', d.os,
       'ip_address', d.ip_address,
       'status', d.status,
+      'is_trusted', d.is_trusted,
+      'display_status', CASE
+        WHEN d.status = 'revoked' THEN 'revoked'
+        WHEN d.is_trusted = TRUE AND (d.status = 'expired' OR (d.expires_at IS NOT NULL AND d.expires_at <= NOW())) THEN 'expired'
+        WHEN d.is_trusted = TRUE THEN 'trusted'
+        ELSE 'normal'
+      END,
       'last_active_at', d.last_active_at,
       'expires_at', d.expires_at,
       'created_at', d.created_at,
-      'days_remaining', GREATEST(0, CEIL(EXTRACT(EPOCH FROM (d.expires_at - NOW())) / 86400))
+      'days_remaining', CASE
+        WHEN d.is_trusted = TRUE AND d.expires_at IS NOT NULL AND d.expires_at > NOW()
+          THEN GREATEST(0, CEIL(EXTRACT(EPOCH FROM (d.expires_at - NOW())) / 86400))
+        ELSE NULL
+      END
     ) ORDER BY d.last_active_at DESC
   )
   INTO v_result

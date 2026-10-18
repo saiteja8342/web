@@ -3348,10 +3348,17 @@ input:checked + .vel-slider:before {
   letter-spacing: 0.02em;
 }
 
-.mne-dev-badge-active {
+.mne-dev-badge-active,
+.mne-dev-badge-trusted {
   background: rgba(16, 185, 129, 0.12);
   color: #34d399;
   border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.mne-dev-badge-normal {
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
 .mne-dev-status-dot {

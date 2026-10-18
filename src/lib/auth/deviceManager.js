@@ -2,6 +2,26 @@ import { supabase } from '../supabase/client';
 
 const DEVICE_COOKIE_NAME = 'mne_admin_dev_tk';
 const DEVICE_STORAGE_KEY = 'mne_admin_device_token';
+const DEVICE_GUID_KEY = 'mne_admin_device_guid';
+
+/**
+ * Get or create a persistent client-side identifier for this browser instance.
+ * Stored in localStorage so that repeated logins from the same browser update the
+ * same device record instead of creating duplicate records.
+ */
+export function getOrCreateDeviceGuid() {
+  if (typeof window === 'undefined') return 'admin_dev_' + Date.now();
+  try {
+    let guid = localStorage.getItem(DEVICE_GUID_KEY);
+    if (!guid || guid.length < 16) {
+      guid = generateDeviceToken();
+      localStorage.setItem(DEVICE_GUID_KEY, guid);
+    }
+    return guid;
+  } catch {
+    return 'admin_dev_' + Date.now();
+  }
+}
 
 /**
  * Detect client device, browser, and OS without collecting intrusive personal info.
@@ -204,6 +224,7 @@ export async function validateCurrentDevice(userId) {
 
   const rawToken = getStoredDeviceToken();
   if (!rawToken) {
+    // Normal logins do not have 30-day trusted tokens stored, requiring OTP
     return { valid: false, reason: 'no_device_token' };
   }
 
@@ -217,7 +238,7 @@ export async function validateCurrentDevice(userId) {
     });
 
     if (!error && data) {
-      if (data.valid === true) {
+      if (data.valid === true && data.is_trusted !== false) {
         return {
           valid: true,
           deviceId: data.device_id,
@@ -243,18 +264,21 @@ export async function validateCurrentDevice(userId) {
       .maybeSingle();
 
     if (!error && device) {
+      if (device.is_trusted === false) {
+        return { valid: false, reason: 'not_trusted' };
+      }
       if (device.status === 'revoked') {
         clearStoredDeviceToken();
         return { valid: false, reason: 'revoked' };
       }
 
-      const isExpired = new Date(device.expires_at) <= new Date() || device.status === 'expired';
+      const isExpired = device.expires_at && (new Date(device.expires_at) <= new Date() || device.status === 'expired');
       if (isExpired) {
         clearStoredDeviceToken();
         return { valid: false, reason: 'expired' };
       }
 
-      // Valid! Update last_active_at without extending expires_at
+      // Valid trusted device: update last_active_at without extending expires_at
       supabase
         .from('admin_devices')
         .update({ last_active_at: new Date().toISOString() })
@@ -280,21 +304,25 @@ export async function validateCurrentDevice(userId) {
 }
 
 /**
- * Register current device as trusted for 30 days.
- * Only called after successful password authentication AND required OTP verification.
+ * Register every successful login in the database.
+ * If rememberDevice === true: registers as trusted with a 30-day absolute expiration.
+ * If rememberDevice === false: registers as a normal login without 30-day trust clearance.
  */
 export async function registerCurrentDevice(userId, rememberDevice = true) {
   if (!userId) return { success: false, error: 'User ID is required' };
 
-  if (!rememberDevice) {
-    // If user did not check "Remember this device", do not persist a 30-day trusted token
-    clearStoredDeviceToken();
-    return { success: true, trusted: false };
-  }
-
-  const rawToken = generateDeviceToken();
-  const tokenHash = await hashDeviceToken(rawToken);
+  const isTrusted = Boolean(rememberDevice);
+  const deviceGuid = getOrCreateDeviceGuid();
+  const tokenHash = await hashDeviceToken(deviceGuid);
   const info = detectDeviceInfo();
+
+  if (isTrusted) {
+    // Save 30-day trusted token on this browser
+    setStoredDeviceToken(deviceGuid);
+  } else {
+    // Normal login: Clear trusted credential so future visits require OTP
+    clearStoredDeviceToken();
+  }
 
   const payload = {
     p_device_token_hash: tokenHash,
@@ -303,14 +331,14 @@ export async function registerCurrentDevice(userId, rememberDevice = true) {
     p_browser: info.browser,
     p_os: info.os,
     p_ip: null,
+    p_is_trusted: isTrusted,
   };
 
   // 1. Register via stored procedure
   try {
     const { data, error } = await supabase.rpc('register_admin_device', payload);
     if (!error && data?.success) {
-      setStoredDeviceToken(rawToken);
-      return { success: true, trusted: true, device: data.device };
+      return { success: true, trusted: isTrusted, device: data.device };
     }
   } catch (rpcErr) {
     console.warn('[DeviceManager] register_admin_device RPC notice:', rpcErr);
@@ -319,7 +347,9 @@ export async function registerCurrentDevice(userId, rememberDevice = true) {
   // 2. Direct table fallback
   try {
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = isTrusted
+      ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      : null;
 
     const { data, error } = await supabase
       .from('admin_devices')
@@ -331,6 +361,7 @@ export async function registerCurrentDevice(userId, rememberDevice = true) {
         browser: info.browser,
         os: info.os,
         status: 'active',
+        is_trusted: isTrusted,
         last_active_at: now.toISOString(),
         expires_at: expiresAt,
         created_at: now.toISOString(),
@@ -339,8 +370,7 @@ export async function registerCurrentDevice(userId, rememberDevice = true) {
       .maybeSingle();
 
     if (!error && data) {
-      setStoredDeviceToken(rawToken);
-      return { success: true, trusted: true, device: data };
+      return { success: true, trusted: isTrusted, device: data };
     }
     return { success: false, error: error?.message || 'Failed to save device record.' };
   } catch (err) {
@@ -351,10 +381,11 @@ export async function registerCurrentDevice(userId, rememberDevice = true) {
 
 /**
  * Fetch all devices registered to the current administrator.
+ * Displays both 30-day trusted devices and standard normal logins.
  */
 export async function getMyAdminDevices() {
-  const currentToken = getStoredDeviceToken();
-  const currentHash = currentToken ? await hashDeviceToken(currentToken) : null;
+  const currentGuid = getOrCreateDeviceGuid();
+  const currentHash = currentGuid ? await hashDeviceToken(currentGuid) : null;
 
   // 1. Try RPC
   try {
@@ -383,12 +414,26 @@ export async function getMyAdminDevices() {
     if (!error && data) {
       const now = Date.now();
       const enriched = data.map(d => {
-        const isExpired = new Date(d.expires_at).getTime() <= now;
-        const status = d.status === 'revoked' ? 'revoked' : (isExpired ? 'expired' : 'active');
-        const daysRemaining = Math.max(0, Math.ceil((new Date(d.expires_at).getTime() - now) / (1000 * 60 * 60 * 24)));
+        const isTrusted = d.is_trusted !== false;
+        const isExpired = isTrusted && d.expires_at && new Date(d.expires_at).getTime() <= now;
+        let displayStatus = 'normal';
+        if (d.status === 'revoked') {
+          displayStatus = 'revoked';
+        } else if (isTrusted && (d.status === 'expired' || isExpired)) {
+          displayStatus = 'expired';
+        } else if (isTrusted) {
+          displayStatus = 'trusted';
+        }
+
+        const daysRemaining = (isTrusted && d.expires_at)
+          ? Math.max(0, Math.ceil((new Date(d.expires_at).getTime() - now) / (1000 * 60 * 60 * 24)))
+          : null;
+
         return {
           ...d,
-          status,
+          is_trusted: isTrusted,
+          display_status: displayStatus,
+          status: d.status === 'revoked' ? 'revoked' : (isExpired ? 'expired' : 'active'),
           days_remaining: daysRemaining,
           isCurrent: currentHash ? d.device_token_hash === currentHash : false,
         };

@@ -152,7 +152,11 @@ export default function AdminLoginDevices({ showToast }) {
   };
 
   const renderStatusBadge = (device) => {
-    if (device.status === 'revoked') {
+    const isRevoked = device.status === 'revoked';
+    const isTrusted = device.is_trusted !== false;
+    const isExpired = isTrusted && (device.status === 'expired' || (device.expires_at && new Date(device.expires_at) <= new Date()));
+
+    if (isRevoked) {
       return (
         <span className="mne-dev-badge mne-dev-badge-revoked">
           <ShieldAlert className="h-3 w-3" />
@@ -160,7 +164,7 @@ export default function AdminLoginDevices({ showToast }) {
         </span>
       );
     }
-    if (device.status === 'expired') {
+    if (isExpired) {
       return (
         <span className="mne-dev-badge mne-dev-badge-expired">
           <Clock className="h-3 w-3" />
@@ -168,13 +172,23 @@ export default function AdminLoginDevices({ showToast }) {
         </span>
       );
     }
+    if (isTrusted) {
+      return (
+        <span className="mne-dev-badge mne-dev-badge-trusted">
+          <ShieldCheck className="h-3 w-3" />
+          <span>Trusted (30-day Trust)</span>
+        </span>
+      );
+    }
     return (
-      <span className="mne-dev-badge mne-dev-badge-active">
-        <span className="mne-dev-status-dot" />
-        <span>Active (30-day Trust)</span>
+      <span className="mne-dev-badge mne-dev-badge-normal">
+        <KeyRound className="h-3 w-3" />
+        <span>Normal Login</span>
       </span>
     );
   };
+
+  const trustedCount = devices.filter((d) => d.status === 'active' && d.is_trusted !== false).length;
 
   return (
     <div className="vel-content-pane mne-devices-pane">
@@ -186,11 +200,11 @@ export default function AdminLoginDevices({ showToast }) {
           <div className="mne-dev-title-row">
             <h2 className="mne-dev-title">Login Devices</h2>
             <span className="mne-dev-count-pill">
-              {activeCount} Active {activeCount === 1 ? 'Device' : 'Devices'}
+              {activeCount} Active ({trustedCount} Trusted)
             </span>
           </div>
           <p className="mne-dev-subtitle">
-            Manage authenticated browsers and workstations. Active devices retain 30-day trusted clearance before requiring email OTP re-verification.
+            Manage authenticated browsers and workstations. Displays both 30-day trusted devices and standard single-session logins.
           </p>
         </div>
 
@@ -258,17 +272,29 @@ export default function AdminLoginDevices({ showToast }) {
             </div>
 
             <div className="mne-dev-current-right">
-              <div className="mne-dev-expiry-box">
-                <div className="mne-dev-expiry-label">TRUST EXPIRATION</div>
-                <div className="mne-dev-expiry-value">
-                  {currentDevice.days_remaining !== undefined
-                    ? `${currentDevice.days_remaining} Days Remaining`
-                    : 'Active 30 Days'}
+              {currentDevice.is_trusted !== false ? (
+                <div className="mne-dev-expiry-box">
+                  <div className="mne-dev-expiry-label">TRUST EXPIRATION</div>
+                  <div className="mne-dev-expiry-value">
+                    {currentDevice.days_remaining !== undefined && currentDevice.days_remaining !== null
+                      ? `${currentDevice.days_remaining} Days Remaining`
+                      : 'Active 30 Days'}
+                  </div>
+                  <div className="mne-dev-expiry-sub">
+                    Expires {formatDateTime(currentDevice.expires_at)}
+                  </div>
                 </div>
-                <div className="mne-dev-expiry-sub">
-                  Expires {formatDateTime(currentDevice.expires_at)}
+              ) : (
+                <div className="mne-dev-expiry-box">
+                  <div className="mne-dev-expiry-label">TRUST STATUS</div>
+                  <div className="mne-dev-expiry-value" style={{ color: '#93c5fd' }}>
+                    Normal Login
+                  </div>
+                  <div className="mne-dev-expiry-sub">
+                    Single Session (OTP required on next login)
+                  </div>
                 </div>
-              </div>
+              )}
               <button
                 onClick={() => setDeviceToRevoke(currentDevice)}
                 className="mne-dev-revoke-btn"
@@ -290,7 +316,7 @@ export default function AdminLoginDevices({ showToast }) {
           All Registered Devices ({devices.length})
         </h3>
         <span className="mne-dev-section-sub">
-          Devices are authenticated via SHA-256 token hashing with strict 30-day absolute expiration.
+          Authenticated devices tracked with server-side authorization and strict RLS.
         </span>
       </div>
 
@@ -304,7 +330,7 @@ export default function AdminLoginDevices({ showToast }) {
           <ShieldCheck className="h-10 w-10 text-emerald-400 mb-2" />
           <h4 className="mne-dev-empty-title">No Devices Registered</h4>
           <p className="mne-dev-empty-text">
-            When you sign in as an admin through the portal, your authenticated workstation will be registered here with 30-day trust clearance.
+            When you sign in as an admin through the portal, your authenticated workstation will be registered here.
           </p>
         </div>
       ) : (
@@ -312,7 +338,8 @@ export default function AdminLoginDevices({ showToast }) {
           {devices.map((device) => {
             const isCurr = Boolean(device.isCurrent);
             const isRevoked = device.status === 'revoked';
-            const isExpired = device.status === 'expired';
+            const isTrusted = device.is_trusted !== false;
+            const isExpired = isTrusted && (device.status === 'expired' || (device.expires_at && new Date(device.expires_at) <= new Date()));
 
             return (
               <div
@@ -368,16 +395,23 @@ export default function AdminLoginDevices({ showToast }) {
                   </div>
                   <div className="mne-dev-date-row">
                     <span className="mne-dev-date-label">
-                      <ShieldCheck className="h-3 w-3" /> 30-Day Expiry:
+                      <ShieldCheck className="h-3 w-3" /> {isTrusted ? '30-Day Expiry:' : 'Trust Status:'}
                     </span>
                     <span className={`mne-dev-date-val ${isExpired ? 'text-amber-400' : ''}`}>
-                      {formatDateTime(device.expires_at)}
-                      {device.days_remaining !== undefined && !isExpired && !isRevoked && (
-                        <span className="text-sky-400 ml-1">({device.days_remaining}d left)</span>
+                      {isTrusted ? (
+                        <>
+                          {formatDateTime(device.expires_at)}
+                          {device.days_remaining !== undefined && device.days_remaining !== null && !isExpired && !isRevoked && (
+                            <span className="text-sky-400 ml-1">({device.days_remaining}d left)</span>
+                          )}
+                        </>
+                      ) : (
+                        <span style={{ color: '#93c5fd' }}>Normal Login (Requires OTP)</span>
                       )}
                     </span>
                   </div>
                 </div>
+
 
                 <div className="mne-dev-card-footer">
                   {isRevoked ? (

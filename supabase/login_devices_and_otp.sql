@@ -24,11 +24,19 @@ CREATE TABLE IF NOT EXISTS public.admin_devices (
   os TEXT NOT NULL DEFAULT 'Unknown OS',
   ip_address TEXT,
   status TEXT NOT NULL DEFAULT 'active',       -- 'active' | 'revoked' | 'expired'
+  is_trusted BOOLEAN NOT NULL DEFAULT TRUE,    -- TRUE: 30-day Remember Device; FALSE: Normal login
   last_active_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  expires_at TIMESTAMPTZ NOT NULL,             -- Absolute 30-day expiration limit
+  expires_at TIMESTAMPTZ,                      -- Absolute 30-day expiry for trusted devices; NULL for normal logins
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Backward-compatibility idempotent migrations for existing tables
+DO $$ BEGIN
+  ALTER TABLE public.admin_devices ADD COLUMN IF NOT EXISTS is_trusted BOOLEAN NOT NULL DEFAULT TRUE;
+  ALTER TABLE public.admin_devices ALTER COLUMN expires_at DROP NOT NULL;
+EXCEPTION WHEN others THEN null;
+END $$;
 
 -- Performance & Lookup Indexes
 CREATE INDEX IF NOT EXISTS idx_admin_devices_user_id ON public.admin_devices(user_id);
@@ -116,14 +124,15 @@ CREATE POLICY "Admins can update own OTP records"
 -- 4. PROCEDURES / RPCs: DEVICE REGISTRATION, VALIDATION & REVOCATION
 -- ------------------------------------------------------------------------------
 
--- 4.1: Register a new trusted device (Absolute 30-day limit)
+-- 4.1: Register a new device (Trusted with 30-day limit or Normal Login)
 CREATE OR REPLACE FUNCTION public.register_admin_device(
   p_device_token_hash TEXT,
   p_device_name TEXT,
   p_device_type TEXT,
   p_browser TEXT,
   p_os TEXT,
-  p_ip TEXT DEFAULT NULL
+  p_ip TEXT DEFAULT NULL,
+  p_is_trusted BOOLEAN DEFAULT TRUE
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -134,15 +143,22 @@ DECLARE
   v_user_id UUID;
   v_new_device RECORD;
   v_now TIMESTAMPTZ := NOW();
-  v_expires TIMESTAMPTZ := v_now + INTERVAL '30 days';
+  v_expires TIMESTAMPTZ := NULL;
 BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL OR NOT public.is_admin() THEN
     RAISE EXCEPTION 'Access Denied: Only authenticated administrators can register devices.';
   END IF;
 
-  IF p_device_token_hash IS NULL OR LENGTH(TRIM(p_device_token_hash)) < 32 THEN
+  IF p_device_token_hash IS NULL OR LENGTH(TRIM(p_device_token_hash)) < 16 THEN
     RAISE EXCEPTION 'Invalid device token hash.';
+  END IF;
+
+  -- Trusted devices receive 30-day absolute expiration; normal logins have NULL expiry
+  IF COALESCE(p_is_trusted, TRUE) THEN
+    v_expires := v_now + INTERVAL '30 days';
+  ELSE
+    v_expires := NULL;
   END IF;
 
   -- Upsert device record by token hash
@@ -155,6 +171,7 @@ BEGIN
     os,
     ip_address,
     status,
+    is_trusted,
     last_active_at,
     expires_at,
     created_at,
@@ -168,6 +185,7 @@ BEGIN
     COALESCE(NULLIF(TRIM(p_os), ''), 'Unknown OS'),
     p_ip,
     'active',
+    COALESCE(p_is_trusted, TRUE),
     v_now,
     v_expires,
     v_now,
@@ -180,10 +198,11 @@ BEGIN
     os = EXCLUDED.os,
     ip_address = COALESCE(EXCLUDED.ip_address, public.admin_devices.ip_address),
     status = 'active',
+    is_trusted = EXCLUDED.is_trusted,
     last_active_at = v_now,
-    expires_at = v_expires,
+    expires_at = EXCLUDED.expires_at,
     updated_at = v_now
-  RETURNING id, device_name, device_type, browser, os, status, last_active_at, expires_at, created_at
+  RETURNING id, device_name, device_type, browser, os, status, is_trusted, last_active_at, expires_at, created_at
   INTO v_new_device;
 
   RETURN jsonb_build_object(
@@ -193,9 +212,9 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.register_admin_device(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.register_admin_device(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN) TO authenticated, service_role;
 
--- 4.2: Validate current device token (Checks status & 30-day limit without extending it)
+-- 4.2: Validate current device token (Checks status, is_trusted & 30-day limit without extending it)
 CREATE OR REPLACE FUNCTION public.validate_admin_device(
   p_user_id UUID,
   p_device_token_hash TEXT
@@ -224,13 +243,18 @@ BEGIN
     RETURN jsonb_build_object('valid', false, 'reason', 'not_found');
   END IF;
 
+  -- Enforce that normal (non-trusted) logins do not receive 30-day OTP bypass
+  IF v_device.is_trusted IS NOT TRUE THEN
+    RETURN jsonb_build_object('valid', false, 'reason', 'not_trusted');
+  END IF;
+
   -- Check if revoked
   IF v_device.status = 'revoked' THEN
     RETURN jsonb_build_object('valid', false, 'reason', 'revoked');
   END IF;
 
   -- Check if expired (> 30 days)
-  IF v_device.expires_at <= v_now OR v_device.status = 'expired' THEN
+  IF (v_device.expires_at IS NOT NULL AND v_device.expires_at <= v_now) OR v_device.status = 'expired' THEN
     UPDATE public.admin_devices
     SET status = 'expired', updated_at = v_now
     WHERE id = v_device.id;
@@ -248,6 +272,7 @@ BEGIN
     'device_name', v_device.device_name,
     'browser', v_device.browser,
     'os', v_device.os,
+    'is_trusted', v_device.is_trusted,
     'expires_at', v_device.expires_at,
     'days_remaining', GREATEST(0, CEIL(EXTRACT(EPOCH FROM (v_device.expires_at - v_now)) / 86400))
   );
@@ -317,7 +342,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.revoke_other_admin_devices(UUID) TO authenticated, service_role;
 
--- 4.5: Fetch all devices for current admin (Auto-tags expired status)
+-- 4.5: Fetch all devices for current admin (Auto-tags expired status & distinguishes trusted vs normal logins)
 CREATE OR REPLACE FUNCTION public.get_my_admin_devices()
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -332,10 +357,12 @@ BEGIN
     RAISE EXCEPTION 'Access Denied: Only authenticated administrators can query devices.';
   END IF;
 
-  -- Automatically update expired status
+  -- Automatically update expired status for trusted devices
   UPDATE public.admin_devices
   SET status = 'expired', updated_at = NOW()
   WHERE user_id = v_user_id
+    AND is_trusted = TRUE
+    AND expires_at IS NOT NULL
     AND expires_at <= NOW()
     AND status = 'active';
 
@@ -348,10 +375,21 @@ BEGIN
       'os', d.os,
       'ip_address', d.ip_address,
       'status', d.status,
+      'is_trusted', d.is_trusted,
+      'display_status', CASE
+        WHEN d.status = 'revoked' THEN 'revoked'
+        WHEN d.is_trusted = TRUE AND (d.status = 'expired' OR (d.expires_at IS NOT NULL AND d.expires_at <= NOW())) THEN 'expired'
+        WHEN d.is_trusted = TRUE THEN 'trusted'
+        ELSE 'normal'
+      END,
       'last_active_at', d.last_active_at,
       'expires_at', d.expires_at,
       'created_at', d.created_at,
-      'days_remaining', GREATEST(0, CEIL(EXTRACT(EPOCH FROM (d.expires_at - NOW())) / 86400))
+      'days_remaining', CASE
+        WHEN d.is_trusted = TRUE AND d.expires_at IS NOT NULL AND d.expires_at > NOW()
+          THEN GREATEST(0, CEIL(EXTRACT(EPOCH FROM (d.expires_at - NOW())) / 86400))
+        ELSE NULL
+      END
     ) ORDER BY d.last_active_at DESC
   )
   INTO v_result
