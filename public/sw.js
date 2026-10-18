@@ -1,5 +1,5 @@
 // MotionNodeEdits Service Worker - PWA & Web Notifications
-const CACHE_NAME = 'mne-cache-v1.3';
+const CACHE_NAME = 'mne-cache-v1.4';
 const STATIC_ASSETS = [
   '/',
   '/manifest.webmanifest',

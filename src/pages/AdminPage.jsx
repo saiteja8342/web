@@ -48,7 +48,8 @@ import {
   Ban,
   Globe,
   Copy,
-  MessageSquareQuote
+  MessageSquareQuote,
+  Laptop
 } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import AdminOverview from '../components/Admin/AdminOverview';
@@ -56,6 +57,8 @@ import AdminOrdersTable from '../components/Admin/AdminOrdersTable';
 import AdminClientManager from '../components/Admin/AdminClientManager';
 import AdminEditorManager from '../components/Admin/AdminEditorManager';
 import AdminSettings from '../components/Admin/AdminSettings';
+import AdminLoginDevices from '../components/Admin/AdminLoginDevices';
+import { clearStoredDeviceToken } from '../lib/auth/deviceManager';
 
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
@@ -91,6 +94,70 @@ function stripVisibilityTag(notes) {
   return notes.replace(/\[CLIENT_DELIVERABLE_VISIBLE:(true|false)\]/g, '').trim();
 }
 
+function parseEditorRequirements(notes) {
+  if (!notes || typeof notes !== 'string') return '';
+  const match = notes.match(/\[EDITOR_REQUIREMENTS:([^\]]*)\]/);
+  if (match && match[1]) {
+    try {
+      return decodeURIComponent(match[1]);
+    } catch {
+      return match[1];
+    }
+  }
+  return '';
+}
+
+function parseCustomSection(notes) {
+  if (!notes || typeof notes !== 'string') return { hasCustomSection: false, title: '', content: '' };
+  const titleMatch = notes.match(/\[CUSTOM_SECTION_TITLE:([^\]]*)\]/);
+  const contentMatch = notes.match(/\[CUSTOM_SECTION_CONTENT:([^\]]*)\]/);
+
+  let title = '';
+  let content = '';
+  if (titleMatch && titleMatch[1]) {
+    try {
+      title = decodeURIComponent(titleMatch[1]);
+    } catch {
+      title = titleMatch[1];
+    }
+  }
+  if (contentMatch && contentMatch[1]) {
+    try {
+      content = decodeURIComponent(contentMatch[1]);
+    } catch {
+      content = contentMatch[1];
+    }
+  }
+
+  const hasCustomSection = Boolean(title || content || titleMatch || contentMatch);
+  return { hasCustomSection, title, content };
+}
+
+function stripCustomTags(notes) {
+  if (!notes || typeof notes !== 'string') return '';
+  return notes
+    .replace(/\s*\[EDITOR_REQUIREMENTS:[^\]]*\]/g, '')
+    .replace(/\s*\[CUSTOM_SECTION_TITLE:[^\]]*\]/g, '')
+    .replace(/\s*\[CUSTOM_SECTION_CONTENT:[^\]]*\]/g, '')
+    .trim();
+}
+
+function preserveMetaTags(rawNotes, cleanNotes, extraTag) {
+  const metaTags = [];
+  if (typeof rawNotes === 'string') {
+    const editorMatch = rawNotes.match(/\[EDITOR_REQUIREMENTS:[^\]]*\]/);
+    if (editorMatch) metaTags.push(editorMatch[0]);
+    const titleMatch = rawNotes.match(/\[CUSTOM_SECTION_TITLE:[^\]]*\]/);
+    if (titleMatch) metaTags.push(titleMatch[0]);
+    const contentMatch = rawNotes.match(/\[CUSTOM_SECTION_CONTENT:[^\]]*\]/);
+    if (contentMatch) metaTags.push(contentMatch[0]);
+    const orderCodeMatch = rawNotes.match(/\[ORDER_CODE:[^\]]*\]/);
+    if (orderCodeMatch) metaTags.push(orderCodeMatch[0]);
+  }
+  const parts = [cleanNotes, ...metaTags, extraTag].filter(Boolean);
+  return parts.join(' ').trim();
+}
+
 function parseNotesVisibility(notes, clientLinkVisible) {
   if (typeof notes === 'string') {
     if (notes.includes('[CLIENT_DELIVERABLE_VISIBLE:true]')) return true;
@@ -111,6 +178,8 @@ function transformOrder(dbOrder) {
   const clientProfile = dbOrder.client;
 
   const displayCode = formatOrderCode(dbOrder);
+  const editorReq = parseEditorRequirements(dbOrder.admin_notes);
+  const customSec = parseCustomSection(dbOrder.admin_notes);
 
   return {
     id: dbOrder.id,
@@ -142,9 +211,14 @@ function transformOrder(dbOrder) {
     cancelledBy: dbOrder.cancelled_by || null,
     editorDeadline: dbOrder.editor_deadline ? dbOrder.editor_deadline.split('T')[0] : '',
     clientDeadline: dbOrder.client_deadline ? dbOrder.client_deadline.split('T')[0] : '',
-    notes: stripVisibilityTag(stripOrderCodeTag(stripCancellationTag(dbOrder.admin_notes))),
+    notes: stripCustomTags(stripVisibilityTag(stripOrderCodeTag(stripCancellationTag(dbOrder.admin_notes)))),
     rawAdminNotes: dbOrder.admin_notes || '',
     brief: dbOrder.brief || '',
+    editorRequirements: editorReq,
+    customSection: customSec,
+    customSectionTitle: customSec.title,
+    customSectionContent: customSec.content,
+    hasCustomSection: customSec.hasCustomSection,
     driveLink: dbOrder.drive_link || '',
     dropboxLink: dbOrder.dropbox_link || '',
     additionalLink: dbOrder.additional_link || '',
@@ -338,6 +412,7 @@ export default function AdminPage() {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('mne_admin_auth_origin');
       localStorage.removeItem('mne_admin_auth_origin');
+      clearStoredDeviceToken();
     }
     await supabase.auth.signOut();
     window.location.href = '/admin/login';
@@ -416,34 +491,8 @@ export default function AdminPage() {
   const fetchOrders = useCallback(async () => {
     const { data, error } = await getAdminAllOrders();
     if (!error && data) {
-      const localCompleted = new Set(JSON.parse(localStorage.getItem('mne_completed_order_ids') || '[]'));
-      const localCancelledMap = new Map(JSON.parse(localStorage.getItem('mne_cancelled_order_map') || '[]'));
-      const transformed = data.map(dbOrder => {
-        const item = transformOrder(dbOrder);
-        // Ensure locally cancelled order stays cancelled even if Supabase replication lags
-        if (localCancelledMap.has(item.id) && item.dbStatus !== 'cancelled') {
-          const cancelMeta = localCancelledMap.get(item.id) || {};
-          return {
-            ...item,
-            status: 'CANCELLED',
-            dbStatus: 'cancelled',
-            badgeClass: 'vel-badge-cancelled',
-            currentStep: -1,
-            cancellationReason: cancelMeta.reason || item.cancellationReason || '',
-          };
-        }
-        // Ensure locally completed order stays completed even if Supabase replication lags
-        if (localCompleted.has(item.id) && item.dbStatus !== 'delivered') {
-          return {
-            ...item,
-            status: 'COMPLETED',
-            dbStatus: 'delivered',
-            badgeClass: 'vel-badge-progress',
-            currentStep: 4,
-          };
-        }
-        return item;
-      });
+      // Authoritative database records: browser storage must never override database truth
+      const transformed = data.map(dbOrder => transformOrder(dbOrder));
       setOrders(transformed);
     }
     try {
@@ -1087,10 +1136,15 @@ export default function AdminPage() {
     nomenclature: '',
     format: 'YouTube Longform (16:9)',
     brief: '',
+    editorRequirements: '',
+    hasCustomSection: false,
+    customSectionTitle: '',
+    customSectionContent: '',
     rawFootageLink: '',
     brandAssetsLink: '',
     internalDeadline: '',
-    clientDeadline: ''
+    clientDeadline: '',
+    selectedProjectId: ''
   });
 
   const handleOrderFieldChange = (field, val) => {
@@ -1411,9 +1465,9 @@ export default function AdminPage() {
       );
 
       // 2. Commit notes, deadlines, visibility tag, and status directly
-      const cleanNotes = stripVisibilityTag(order.notes);
+      const cleanNotes = stripCustomTags(stripVisibilityTag(order.notes));
       const tag = `[CLIENT_DELIVERABLE_VISIBLE:${order.clientLinkVisible ? 'true' : 'false'}]`;
-      const notesWithTag = cleanNotes ? `${cleanNotes} ${tag}` : tag;
+      const notesWithTag = preserveMetaTags(order.rawAdminNotes, cleanNotes, tag);
 
       const safeEditorDeadline = safeIsoDate(order.editorDeadline);
       const safeClientDeadline = safeIsoDate(order.clientDeadline);
@@ -1604,29 +1658,44 @@ export default function AdminPage() {
 
   const handleCreateOrderSubmit = async (e) => {
     e.preventDefault();
-    if (!createForm.nomenclature) {
-      showToast('Please enter a project nomenclature.');
+    if (!createForm.nomenclature || !createForm.nomenclature.trim()) {
+      showToast('Please enter a project name.');
       return;
     }
 
     // Find the selected client
     const selectedClient = clientsList.find(cl =>
-      cl.name === createForm.existingClient
+      cl.name === createForm.existingClient || cl.company === createForm.existingClient
     );
 
     if (!selectedClient) {
-      showToast('Please select a client.');
+      showToast('Please select a client from Available Clients.');
       return;
     }
 
     const videoType = UI_TO_VIDEO_TYPE[createForm.format] || 'youtube_longform';
     const orderCode = generateOrderCode();
 
+    // Compile admin notes with tags for Editor's Requirements and Custom Section
+    let compiledNotes = '';
+    if (createForm.editorRequirements && createForm.editorRequirements.trim()) {
+      compiledNotes += `[EDITOR_REQUIREMENTS:${encodeURIComponent(createForm.editorRequirements.trim())}] `;
+    }
+    if (createForm.hasCustomSection) {
+      if (createForm.customSectionTitle && createForm.customSectionTitle.trim()) {
+        compiledNotes += `[CUSTOM_SECTION_TITLE:${encodeURIComponent(createForm.customSectionTitle.trim())}] `;
+      }
+      if (createForm.customSectionContent && createForm.customSectionContent.trim()) {
+        compiledNotes += `[CUSTOM_SECTION_CONTENT:${encodeURIComponent(createForm.customSectionContent.trim())}] `;
+      }
+    }
+
     const payload = {
-      order_name: createForm.nomenclature,
+      order_name: createForm.nomenclature.trim(),
       order_code: orderCode,
       video_type: videoType,
       brief: createForm.brief || '',
+      admin_notes: compiledNotes.trim() || null,
       drive_link: createForm.rawFootageLink || null,
       dropbox_link: createForm.brandAssetsLink || null,
       client_id: selectedClient?.id || adminProfile?.id,
@@ -1656,9 +1725,18 @@ export default function AdminPage() {
     // Reset form
     setCreateForm({
       existingClient: clientsList[0]?.name || '',
-      nomenclature: '', format: 'YouTube Longform (16:9)',
-      brief: '', rawFootageLink: '', brandAssetsLink: '',
-      internalDeadline: '', clientDeadline: '',
+      nomenclature: '',
+      format: 'YouTube Longform (16:9)',
+      brief: '',
+      editorRequirements: '',
+      hasCustomSection: false,
+      customSectionTitle: '',
+      customSectionContent: '',
+      rawFootageLink: '',
+      brandAssetsLink: '',
+      internalDeadline: '',
+      clientDeadline: '',
+      selectedProjectId: ''
     });
 
     await fetchOrders();
@@ -2111,6 +2189,14 @@ export default function AdminPage() {
         {/* Footer Nav */}
         <div className="vel-nav-footer">
           <button
+            className={`vel-nav-item ${activeNav === 'devices' ? 'active' : ''}`}
+            onClick={() => handleNavClick('devices')}
+          >
+            <Laptop className="h-4 w-4 shrink-0" />
+            <span>Login Devices</span>
+          </button>
+
+          <button
             className={`vel-nav-item ${activeNav === 'settings' ? 'active' : ''}`}
             onClick={() => handleNavClick('settings')}
           >
@@ -2142,6 +2228,8 @@ export default function AdminPage() {
             <span className="vel-page-title-top">
               {activeNav === 'cms'
                 ? 'Website Content Management (CMS)'
+                : activeNav === 'devices'
+                ? 'Login Devices'
                 : activeNav === 'link-feedback'
                 ? 'Link Feedback'
                 : activeNav === 'contact-requests'
@@ -2410,6 +2498,13 @@ export default function AdminPage() {
                 activeNav={activeNav}
                 showToast={showToast}
               />
+
+              {/* ============================================================== */}
+              {/* VIEW: LOGIN DEVICES MANAGEMENT                                 */}
+              {/* ============================================================== */}
+              {activeNav === 'devices' && (
+                <AdminLoginDevices showToast={showToast} />
+              )}
             </>
           )}
         </main>

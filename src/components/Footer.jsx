@@ -52,15 +52,7 @@ export default function Footer() {
     ScrollTrigger.refresh();
   }, []);
 
-  const handleOpenAiDemo = () => {
-    const waBtn = document.getElementById('waBtn');
-    if (waBtn) {
-      waBtn.click();
-    } else {
-      const num = settings.whatsapp_number || '918985351756';
-      window.open(`https://wa.me/${num}?text=Hi%20MotionNodeEdits,%20I%20would%20like%20to%20try%20an%20AI%20demo`, '_blank');
-    }
-  };
+
 
   const getCtaHref = () => {
     const link = settings.cta_link || '#contact';
@@ -247,14 +239,7 @@ export default function Footer() {
               <div className="footer-copyright-text">
                 {settings.copyright_text || '© 2026 MotionNodeEdits. All rights reserved.'}
               </div>
-              <button 
-                className="footer-ai-demo-pill" 
-                onClick={handleOpenAiDemo}
-                data-hover-type="link"
-                aria-label="Try an AI demo"
-              >
-                Try an AI demo
-              </button>
+
             </div>
             <div className="footer-legal-links">
               <a href="/privacy" data-hover-type="link">Privacy Policy</a>

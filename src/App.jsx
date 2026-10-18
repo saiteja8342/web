@@ -13,11 +13,19 @@ import Services from './components/Services';
 import Contact from './components/Contact';
 import WhatsAppWidget from './components/WhatsAppWidget';
 import Footer from './components/Footer';
+import AboutPage from './pages/AboutPage';
 
 gsap.registerPlugin(ScrollTrigger);
 
 export default function App() {
   const [isLoaded, setIsLoaded] = useState(true);
+
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const isAboutPage = pathname.includes('about');
+
+  if (isAboutPage) {
+    return <AboutPage />;
+  }
 
   useEffect(() => {
     // Initialize Lenis smooth scroll

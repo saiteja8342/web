@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, Mail, Phone, Clock, MessageSquare, Send, Globe } from 'lucide-react';
+import { ChevronDown, MessageSquare, Mail } from 'lucide-react';
 
 export default function AboutFAQ() {
   const faqs = [
@@ -24,11 +24,11 @@ export default function AboutFAQ() {
       a: 'You can easily share your brand assets, logo vectors, product guidelines, and footage through Google Drive, Dropbox, WeTransfer, or Frame.io. Upon project initiation, we set up a dedicated cloud folder for seamless asset management.'
     },
     {
-      q: 'I have a big project and it\'s a bit complex.',
+      q: "I have a big project and it's a bit complex.",
       a: 'We specialize in complex, high-scale productions. Whether you need multi-lingual AI localization in 30+ languages, custom digital twin avatars, full 3D environment generation, or 50+ ad variations per month, we build a dedicated workflow and assign specialized editors to your brand.'
     },
     {
-      q: 'What if I don\'t like my video and how do revisions work?',
+      q: "What if I don't like my video and how do revisions work?",
       a: 'Every project includes dedicated revision rounds. You can leave precise timestamped notes, and our creative team will refine the visuals, pacing, audio, color grading, and animations until the video perfectly aligns with your creative vision.'
     },
     {
@@ -44,274 +44,106 @@ export default function AboutFAQ() {
   };
 
   return (
-    <section className="about-section" id="faq" style={{ borderTop: '1px solid var(--about-border)', position: 'relative' }}>
+    <section className="about-section about-faq-section" id="faq" aria-label="Frequently Asked Questions">
       <div className="about-container">
         
-        {/* TOP TAGLINE / BANNER MATCHING REFERENCE */}
-        <div className="about-fade-up" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '36px' }}>
-          <span style={{ 
-            fontFamily: 'var(--about-font-heading)', 
-            fontSize: 'clamp(26px, 3.2vw, 42px)', 
-            fontWeight: 300, 
-            color: 'var(--about-text-primary)',
-            letterSpacing: '-0.02em',
-            textTransform: 'uppercase',
-            textAlign: 'right'
-          }}>
-            You have questions. We have answers.
+        {/* Top Tagline */}
+        <div className="about-faq-top-banner">
+          <span className="about-faq-top-quote">
+            YOU HAVE QUESTIONS. WE HAVE ANSWERS.
           </span>
         </div>
 
-        {/* TWO COLUMN GRID */}
-        <div className="faq-website-theme-grid">
+        {/* Two Column Grid */}
+        <div className="about-faq-grid">
           
-          {/* LEFT COLUMN: TITLE, DESCRIPTION & BRAND DETAILS CARD */}
-          <div className="about-fade-up faq-theme-left-col">
-            <div className="chrome-badge" style={{ marginBottom: '20px' }}>
-              FREQUENTLY ASKED QUESTIONS
+          {/* Left Column: Heading & Contact Details Card */}
+          <div className="about-faq-left-col">
+            <div className="chrome-badge" style={{ marginBottom: '22px' }}>
+              <span style={{ fontSize: '8px' }}>●</span> FREQUENTLY ASKED QUESTIONS
             </div>
 
-            <h2 style={{ 
-              fontFamily: 'var(--about-font-heading)',
-              fontSize: 'clamp(38px, 4.5vw, 62px)',
-              fontWeight: 300,
-              lineHeight: 1.05,
-              color: 'var(--about-text-primary)',
-              textTransform: 'uppercase',
-              letterSpacing: '-0.03em',
-              margin: '0 0 20px 0'
-            }}>
-              Frequently<br />
-              asked <span className="chrome-text" style={{ fontWeight: 400 }}>questions</span>
+            <h2 className="about-faq-main-title">
+              FREQUENTLY<br />
+              ASKED<br />
+              QUESTIONS
             </h2>
 
-            <p style={{
-              fontFamily: 'var(--about-font-sans)',
-              fontSize: '14.5px',
-              lineHeight: 1.75,
-              color: 'var(--about-text-secondary)',
-              fontWeight: 300,
-              margin: '0 0 32px 0',
-              maxWidth: '480px'
-            }}>
+            <p className="about-faq-lead-desc">
               (Find answers to frequently asked questions about MotionNodeEdits, our range of AI video production services, how we operate, and insights on maximizing the benefits of our agency services.)
             </p>
 
-            {/* BRAND DETAILS CARD (NO ADDRESS AS REQUESTED) */}
-            <div className="saas-card faq-theme-info-card">
-              {/* Card Header with Logo */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--about-border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <img 
-                    src="/image/mne_logo.png" 
-                    alt="MotionNodeEdits Logo" 
-                    style={{ 
-                      width: '40px', 
-                      height: '40px', 
-                      borderRadius: '50%', 
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      boxShadow: '0 2px 10px rgba(0,0,0,0.5)'
-                    }} 
-                  />
-                  <div>
-                    <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.16em', color: 'var(--about-silver-bright)', fontWeight: 600 }}>
-                      MOTIONNODEEDITS
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--about-text-tertiary)', letterSpacing: '0.08em' }}>
-                      AI VIDEO PRODUCTION
-                    </div>
-                  </div>
-                </div>
+            {/* Direct Contact Card */}
+            <div className="about-faq-contact-card">
+              <div className="faq-contact-phone">
+                +91 89853 51756
+              </div>
 
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '6px', 
-                  fontSize: '10px', 
-                  textTransform: 'uppercase', 
-                  letterSpacing: '0.12em', 
-                  color: '#FFFFFF',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  padding: '4px 10px',
-                  borderRadius: '100px',
-                  border: '1px solid rgba(255, 255, 255, 0.12)'
-                }}>
-                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#FFFFFF', boxShadow: '0 0 6px #FFFFFF' }}></span>
-                  ACTIVE
+              <div className="faq-contact-hours">
+                <div className="faq-hours-label">
+                  <span className="faq-clock-icon">🕒</span> BUSINESS HOURS
+                </div>
+                <div className="faq-hours-val">
+                  Monday – Saturday : 9:00 AM – 7:00 PM IST
                 </div>
               </div>
 
-              {/* Contact Details List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '22px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                  <Mail size={16} style={{ color: 'var(--about-silver-mid)', marginTop: '2px', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--about-text-tertiary)', marginBottom: '2px' }}>
-                      EMAIL
-                    </div>
-                    <a 
-                      href="mailto:hello@motionnodeedits.com" 
-                      style={{ 
-                        fontFamily: 'var(--about-font-sans)', 
-                        fontSize: '13.5px', 
-                        color: 'var(--about-silver-bright)', 
-                        textDecoration: 'none',
-                        transition: 'color 0.2s'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.color = '#FFFFFF'}
-                      onMouseLeave={(e) => e.currentTarget.style.color = 'var(--about-silver-bright)'}
-                    >
-                      hello@motionnodeedits.com
-                    </a>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                  <Phone size={16} style={{ color: 'var(--about-silver-mid)', marginTop: '2px', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--about-text-tertiary)', marginBottom: '2px' }}>
-                      PHONE & WHATSAPP
-                    </div>
-                    <a 
-                      href="tel:+918985351756" 
-                      style={{ 
-                        fontFamily: 'var(--about-font-sans)', 
-                        fontSize: '13.5px', 
-                        color: 'var(--about-silver-bright)', 
-                        textDecoration: 'none',
-                        transition: 'color 0.2s'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.color = '#FFFFFF'}
-                      onMouseLeave={(e) => e.currentTarget.style.color = 'var(--about-silver-bright)'}
-                    >
-                      +91 89853 51756
-                    </a>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                  <Clock size={16} style={{ color: 'var(--about-silver-mid)', marginTop: '2px', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--about-text-tertiary)', marginBottom: '2px' }}>
-                      BUSINESS HOURS
-                    </div>
-                    <div style={{ fontFamily: 'var(--about-font-sans)', fontSize: '13px', color: 'var(--about-text-secondary)', fontWeight: 300 }}>
-                      Monday – Saturday : 9:00 AM – 7:00 PM IST
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons using Website Theme Tokens */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', paddingTop: '16px', borderTop: '1px solid var(--about-border)' }}>
+              <div className="faq-contact-buttons">
                 <a 
                   href="https://wa.me/918985351756?text=Hi%20MotionNodeEdits,%20I%20have%20a%20question%20about%20your%20services" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="about-btn-primary"
-                  style={{ height: '42px', fontSize: '11px', padding: '0 16px', gap: '6px' }}
+                  className="faq-btn-whatsapp"
+                  data-hover-type="link"
                 >
-                  <MessageSquare size={13} />
-                  <span>WhatsApp</span>
+                  <MessageSquare size={14} />
+                  <span>WHATSAPP</span>
                 </a>
+
                 <a 
-                  href="mailto:hello@motionnodeedits.com?subject=Project%20Inquiry%20-%20MotionNodeEdits" 
-                  className="about-btn-secondary"
-                  style={{ height: '42px', fontSize: '11px', padding: '0 16px', gap: '6px' }}
+                  href="mailto:hello@motionnodeedits.com" 
+                  className="faq-btn-email"
+                  data-hover-type="link"
                 >
-                  <Send size={13} />
-                  <span>Email Us</span>
+                  <Mail size={14} />
+                  <span>EMAIL US</span>
                 </a>
               </div>
             </div>
+
           </div>
 
-          {/* RIGHT COLUMN: ACCORDION PILLS (WEBSITE THEME OBSIDIAN CAPSULES) */}
-          <div className="about-fade-up faq-theme-right-col">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Right Column: Accordion */}
+          <div className="about-faq-right-col">
+            <div className="about-accordion-list">
               {faqs.map((faq, idx) => {
                 const isOpen = openIndex === idx;
                 return (
                   <div 
                     key={idx} 
-                    className={`faq-theme-pill-card ${isOpen ? 'is-open' : ''}`}
-                    style={{
-                      background: isOpen ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.025)',
-                      border: isOpen ? '1px solid rgba(255, 255, 255, 0.35)' : '1px solid var(--about-border)',
-                      borderRadius: '16px',
-                      overflow: 'hidden',
-                      transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
-                      boxShadow: isOpen 
-                        ? '0 12px 30px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.15)' 
-                        : '0 4px 16px rgba(0, 0, 0, 0.3)'
-                    }}
+                    className={`about-accordion-item ${isOpen ? 'is-open' : ''}`}
                   >
                     <button 
+                      className="about-accordion-header"
                       onClick={() => toggleFAQ(idx)}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '22px 26px',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        fontFamily: 'var(--about-font-sans)',
-                        gap: '16px'
-                      }}
-                      className="faq-theme-btn"
                       aria-expanded={isOpen}
+                      data-hover-type="link"
                     >
-                      <span style={{
-                        fontSize: '15.5px',
-                        fontWeight: 500,
-                        color: isOpen ? '#FFFFFF' : 'var(--about-silver-bright)',
-                        letterSpacing: '-0.01em',
-                        transition: 'color 0.2s ease',
-                        lineHeight: 1.4
-                      }}>
+                      <span className="about-accordion-question">
                         {faq.q}
                       </span>
-                      <div style={{
-                        color: isOpen ? '#FFFFFF' : 'var(--about-silver-dark)',
-                        flexShrink: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                        transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s'
-                      }}>
+                      <div className={`about-accordion-icon ${isOpen ? 'rotated' : ''}`}>
                         <ChevronDown size={18} />
                       </div>
                     </button>
-                    
-                    <div 
-                      style={{
-                        maxHeight: isOpen ? '360px' : '0px',
-                        opacity: isOpen ? 1 : 0,
-                        transition: 'max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease',
-                        overflow: 'hidden'
-                      }}
-                    >
-                      <div style={{
-                        padding: '0 26px 22px 26px',
-                        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-                        paddingTop: '14px'
-                      }}>
-                        <p style={{
-                          fontFamily: 'var(--about-font-sans)',
-                          fontSize: '14px',
-                          lineHeight: 1.8,
-                          color: 'var(--about-text-secondary)',
-                          margin: 0,
-                          fontWeight: 300
-                        }}>
+
+                    {isOpen && (
+                      <div className="about-accordion-collapse">
+                        <p className="about-accordion-answer">
                           {faq.a}
                         </p>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
@@ -322,55 +154,282 @@ export default function AboutFAQ() {
 
       </div>
 
+      {/* COMPONENT STYLES */}
       <style dangerouslySetInnerHTML={{__html: `
-        .faq-website-theme-grid {
+        .about-faq-section {
+          padding: 120px 0 140px 0;
+          background-color: #050507;
+          border-top: 1px solid rgba(255, 255, 255, 0.07);
+          position: relative;
+        }
+
+        .about-faq-top-banner {
+          display: flex;
+          justify-content: flex-end;
+          margin-bottom: 44px;
+        }
+
+        .about-faq-top-quote {
+          font-family: var(--about-font-heading, 'Cormorant Garamond', serif) !important;
+          font-size: clamp(26px, 3.2vw, 42px) !important;
+          font-weight: 300 !important;
+          color: #FFFFFF !important;
+          letter-spacing: -0.015em;
+          text-transform: uppercase;
+          text-align: right;
+        }
+
+        .about-faq-grid {
           display: grid;
           grid-template-columns: 1fr 1.35fr;
-          gap: 56px;
-          align-items: start;
+          gap: 72px;
+          align-items: flex-start;
         }
 
-        .faq-theme-left-col {
+        .about-faq-left-col {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
           position: sticky;
-          top: 100px;
+          top: 110px;
         }
 
-        .faq-theme-info-card {
-          padding: 24px 26px;
-        }
-
-        .faq-theme-pill-card:hover {
-          background: rgba(255, 255, 255, 0.05) !important;
-          border-color: rgba(255, 255, 255, 0.25) !important;
-          transform: translateY(-2px);
-        }
-
-        .faq-theme-btn:hover span {
+        .about-faq-main-title {
+          font-family: var(--about-font-heading, 'Cormorant Garamond', serif) !important;
+          font-size: clamp(38px, 4.2vw, 54px) !important;
+          font-weight: 300 !important;
+          line-height: 1.08;
           color: #FFFFFF !important;
+          text-transform: uppercase;
+          letter-spacing: -0.015em;
+          margin: 0 0 20px 0;
         }
 
-        @media (max-width: 960px) {
-          .faq-website-theme-grid {
+        .about-faq-lead-desc {
+          font-family: var(--about-font-sans, 'Plus Jakarta Sans', sans-serif);
+          font-size: 14px;
+          line-height: 1.7;
+          color: rgba(255, 255, 255, 0.55);
+          font-weight: 300;
+          margin: 0 0 32px 0;
+          max-width: 440px;
+        }
+
+        .about-faq-contact-card {
+          width: 100%;
+          background: rgba(14, 14, 22, 0.75);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 18px;
+          padding: 30px 26px;
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          gap: 22px;
+          transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                      border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                      box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+        }
+
+        .about-faq-contact-card:hover {
+          transform: translateY(-4px);
+          border-color: rgba(255, 255, 255, 0.22);
+          box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6), 0 0 25px rgba(255, 255, 255, 0.05);
+        }
+
+        .faq-contact-phone {
+          font-family: var(--about-font-sans, 'Plus Jakarta Sans', sans-serif);
+          font-size: 16px;
+          font-weight: 500;
+          color: #FFFFFF;
+          letter-spacing: 0.02em;
+        }
+
+        .faq-contact-hours {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .faq-hours-label {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-family: var(--about-font-sans, 'Plus Jakarta Sans', sans-serif);
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.14em;
+          color: rgba(255, 255, 255, 0.5);
+          text-transform: uppercase;
+        }
+
+        .faq-clock-icon {
+          font-size: 12px;
+        }
+
+        .faq-hours-val {
+          font-family: var(--about-font-sans, 'Plus Jakarta Sans', sans-serif);
+          font-size: 13.5px;
+          color: rgba(255, 255, 255, 0.75);
+          font-weight: 400;
+        }
+
+        .faq-contact-buttons {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-top: 4px;
+        }
+
+        .faq-btn-whatsapp {
+          flex: 1;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 10px 18px;
+          background: #E5E5EA;
+          color: #0A0A0E;
+          border-radius: 100px;
+          font-family: var(--about-font-sans, 'Plus Jakarta Sans', sans-serif);
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          text-decoration: none;
+          transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .faq-btn-whatsapp:hover {
+          background: #FFFFFF;
+          transform: translateY(-1px);
+        }
+
+        .faq-btn-email {
+          flex: 1;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 10px 18px;
+          background: rgba(255, 255, 255, 0.04);
+          color: #FFFFFF;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 100px;
+          font-family: var(--about-font-sans, 'Plus Jakarta Sans', sans-serif);
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          text-decoration: none;
+          transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .faq-btn-email:hover {
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Right Column Accordion */
+        .about-faq-right-col {
+          width: 100%;
+        }
+
+        .about-accordion-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .about-accordion-item {
+          background: rgba(14, 14, 22, 0.6);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 16px;
+          overflow: hidden;
+          transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .about-accordion-item:hover {
+          border-color: rgba(255, 255, 255, 0.22);
+          background: rgba(18, 18, 28, 0.75);
+          transform: translateY(-2px);
+          box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+        }
+
+        .about-accordion-item.is-open {
+          border-color: rgba(255, 255, 255, 0.25);
+          background: rgba(20, 20, 32, 0.85);
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 24px rgba(255, 255, 255, 0.04);
+        }
+
+        .about-accordion-header {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 22px 24px;
+          background: transparent;
+          border: none;
+          color: #FFFFFF;
+          cursor: pointer;
+          text-align: left;
+          gap: 20px;
+          box-sizing: border-box;
+        }
+
+        .about-accordion-question {
+          font-family: var(--about-font-sans, 'Plus Jakarta Sans', sans-serif);
+          font-size: 16px;
+          font-weight: 500;
+          color: #FFFFFF;
+          line-height: 1.4;
+        }
+
+        .about-accordion-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: rgba(255, 255, 255, 0.6);
+          transition: transform 0.3s ease;
+          flex-shrink: 0;
+        }
+
+        .about-accordion-icon.rotated {
+          transform: rotate(180deg);
+          color: #FFFFFF;
+        }
+
+        .about-accordion-collapse {
+          padding: 0 24px 22px 24px;
+          box-sizing: border-box;
+        }
+
+        .about-accordion-answer {
+          font-family: var(--about-font-sans, 'Plus Jakarta Sans', sans-serif);
+          font-size: 14.5px;
+          line-height: 1.7;
+          color: rgba(255, 255, 255, 0.65);
+          margin: 0;
+          font-weight: 300;
+        }
+
+        @media (max-width: 900px) {
+          .about-faq-grid {
             grid-template-columns: 1fr;
             gap: 48px;
           }
-
-          .faq-theme-left-col {
+          .about-faq-left-col {
             position: static;
           }
-        }
-
-        @media (max-width: 600px) {
-          .faq-theme-pill-card button {
-            padding: 16px 18px !important;
+          .about-faq-section {
+            padding: 80px 0 100px 0;
           }
-
-          .faq-theme-pill-card div[style*="padding: 0 26px"] {
-            padding: 0 18px 18px 18px !important;
+          .about-faq-top-banner {
+            justify-content: flex-start;
           }
-
-          .faq-theme-info-card {
-            padding: 20px 18px !important;
+          .about-faq-top-quote {
+            text-align: left;
           }
         }
       `}} />

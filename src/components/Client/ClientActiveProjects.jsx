@@ -35,14 +35,38 @@ export default function ClientActiveProjects({
 }) {
   if (!activeOrder && runningOrders.length === 0) {
     return (
-      <div className="cp-empty-state">
-        <Film className="h-12 w-12 text-white/30" />
-        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#FFFFFF', marginTop: '14px' }}>
+      <div className="cp-card" style={{ padding: '60px 24px', textAlign: 'center', alignItems: 'center' }}>
+        <div className="cp-radar-container">
+          <div className="cp-radar-sweep" />
+          <div className="cp-radar-ring-2" />
+          <div className="cp-radar-ring-3" />
+          <Film className="h-7 w-7 text-white/80 relative z-10" />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
+          <span className="cp-studio-pill">
+            <span className="cp-rec-dot" style={{ background: '#F59E0B', boxShadow: '0 0 8px #F59E0B' }} />
+            <span>STUDIO STANDBY</span>
+          </span>
+          <span style={{ fontSize: '0.68rem', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>PIPELINE READY</span>
+        </div>
+
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#FFFFFF', marginBottom: '6px' }}>
           No Projects Currently in Production
         </h3>
-        <p style={{ color: 'var(--cp-text-secondary)', fontSize: '0.88rem', maxWidth: '420px', margin: '8px auto 0' }}>
-          When our studio team initializes your video project, its milestone stages, editor notes, and live video previews will display here.
+        <p style={{ color: 'var(--cp-text-secondary)', fontSize: '0.84rem', maxWidth: '420px', margin: '0 auto 20px', lineHeight: 1.5 }}>
+          When our studio team initializes your video project, its milestone stages, editor notes, and live video previews will sync here automatically.
         </p>
+
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '3px', height: '24px' }}>
+          {[12, 18, 8, 22, 14, 24, 10, 20, 16, 22, 12, 18].map((h, i) => (
+            <span
+              key={i}
+              className="cp-eq-bar"
+              style={{ height: `${h}px`, animationDelay: `${i * 0.08}s` }}
+            />
+          ))}
+        </div>
       </div>
     );
   }
@@ -64,7 +88,7 @@ export default function ClientActiveProjects({
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Film className="h-4 w-4 text-[#00F0FF]" />
+              <Film className="h-4 w-4 text-white" />
               <span style={{ fontSize: '0.8rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#FFFFFF' }}>
                 Your Active Projects in Production ({runningOrders.length})
               </span>
@@ -91,18 +115,18 @@ export default function ClientActiveProjects({
                   style={{
                     padding: '12px 14px',
                     borderRadius: '8px',
-                    background: isSelected ? 'rgba(0, 240, 255, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                    border: isSelected ? '1.5px solid #00F0FF' : '1px solid rgba(255, 255, 255, 0.07)',
+                    background: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+                    border: isSelected ? '1.5px solid #FFFFFF' : '1px solid rgba(255, 255, 255, 0.07)',
                     cursor: 'pointer',
                     transition: 'all 0.2s ease',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '6px',
-                    boxShadow: isSelected ? '0 0 16px rgba(0, 240, 255, 0.25)' : 'none'
+                    boxShadow: isSelected ? '0 0 16px rgba(255, 255, 255, 0.15)' : 'none'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: isSelected ? '#00F0FF' : 'var(--cp-text-tertiary)', fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 800, color: isSelected ? '#FFFFFF' : 'var(--cp-text-tertiary)', fontFamily: 'monospace' }}>
                       {itemCode}
                     </span>
                     <span className={`cp-badge ${itemSm.badgeClass}`} style={{ fontSize: '0.65rem', padding: '2px 8px' }}>
@@ -198,8 +222,8 @@ export default function ClientActiveProjects({
           flexWrap: 'wrap'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(0, 240, 255, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Sparkles className="h-5 w-5 text-[#00F0FF]" />
+            <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Sparkles className="h-5 w-5 text-amber-400" />
             </div>
             <div>
               <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#FFFFFF' }}>Deliverable Cut Under Studio QA</div>
@@ -208,7 +232,7 @@ export default function ClientActiveProjects({
               </div>
             </div>
           </div>
-          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#00F0FF', background: 'rgba(0, 240, 255, 0.08)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(0, 240, 255, 0.3)', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#F59E0B', background: 'rgba(245, 158, 11, 0.08)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.3)', whiteSpace: 'nowrap' }}>
             QA Review In Progress
           </span>
         </div>

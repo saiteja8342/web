@@ -302,7 +302,7 @@ BEGIN
       RAISE EXCEPTION 'Access Denied: Editors can only update status to in_editing or in_review.';
     END IF;
 
-    -- Strict immutability of all other columns for editor
+    -- Strict immutability of administrative and client columns for editor
     NEW.order_name := OLD.order_name;
     NEW.client_id := OLD.client_id;
     NEW.editor_id := OLD.editor_id;
@@ -310,7 +310,21 @@ BEGIN
     NEW.brief := OLD.brief;
     NEW.drive_link := OLD.drive_link;
     NEW.dropbox_link := OLD.dropbox_link;
-    NEW.additional_link := OLD.additional_link;
+
+    -- Editors can only submit export link (additional_link) when transitioning to in_review for QC
+    IF NEW.status = 'in_review' AND NEW.additional_link IS DISTINCT FROM OLD.additional_link THEN
+      NEW.additional_link := NEW.additional_link;
+    ELSE
+      NEW.additional_link := OLD.additional_link;
+    END IF;
+
+    -- Deliverable visibility is strictly admin-controlled; editors cannot publish deliverables to clients
+    BEGIN
+      NEW.client_link_visible := OLD.client_link_visible;
+    EXCEPTION WHEN undefined_column THEN
+      NULL;
+    END;
+
     NEW.editor_deadline := OLD.editor_deadline;
     NEW.client_deadline := OLD.client_deadline;
     NEW.admin_notes := OLD.admin_notes;
@@ -746,6 +760,587 @@ CREATE POLICY "Admin full access on contact_requests"
 
 REVOKE SELECT, UPDATE, DELETE ON public.contact_requests FROM anon;
 GRANT SELECT, UPDATE, DELETE ON public.contact_requests TO authenticated;
+
+-- ─── ORDERS ───────────────────────────────────────────────────────────────────
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Admin full access on orders" ON public.orders;
+  DROP POLICY IF EXISTS "Editors can select assigned orders" ON public.orders;
+  DROP POLICY IF EXISTS "Editors can update assigned orders status" ON public.orders;
+  DROP POLICY IF EXISTS "Clients can select own orders" ON public.orders;
+EXCEPTION WHEN undefined_object THEN null;
+END $$;
+
+CREATE POLICY "Admin full access on orders"
+  ON public.orders FOR ALL
+  TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY "Editors can select assigned orders"
+  ON public.orders FOR SELECT
+  TO authenticated
+  USING (editor_id = auth.uid());
+
+CREATE POLICY "Editors can update assigned orders status"
+  ON public.orders FOR UPDATE
+  TO authenticated
+  USING (editor_id = auth.uid())
+  WITH CHECK (editor_id = auth.uid());
+
+CREATE POLICY "Clients can select own orders"
+  ON public.orders FOR SELECT
+  TO authenticated
+  USING (client_id = auth.uid());
+
+-- ─── ORDER STATUS HISTORY ─────────────────────────────────────────────────────
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Admin full access on order_status_history" ON public.order_status_history;
+  DROP POLICY IF EXISTS "Editors can read history of assigned orders" ON public.order_status_history;
+  DROP POLICY IF EXISTS "Clients can read history of own orders" ON public.order_status_history;
+  DROP POLICY IF EXISTS "Editors and clients can insert history for own orders" ON public.order_status_history;
+EXCEPTION WHEN undefined_object THEN null;
+END $$;
+
+CREATE POLICY "Admin full access on order_status_history"
+  ON public.order_status_history FOR ALL
+  TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY "Editors can read history of assigned orders"
+  ON public.order_status_history FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.orders
+      WHERE orders.id = order_status_history.order_id
+      AND orders.editor_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Clients can read history of own orders"
+  ON public.order_status_history FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.orders
+      WHERE orders.id = order_status_history.order_id
+      AND orders.client_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Editors and clients can insert history for own orders"
+  ON public.order_status_history FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    changed_by = auth.uid() AND
+    EXISTS (
+      SELECT 1 FROM public.orders
+      WHERE orders.id = order_status_history.order_id
+      AND (orders.client_id = auth.uid() OR orders.editor_id = auth.uid())
+    )
+  );
+
+-- ─── REVISION REQUESTS ────────────────────────────────────────────────────────
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Admin full access on revision_requests" ON public.revision_requests;
+  DROP POLICY IF EXISTS "Clients can insert revisions for own orders" ON public.revision_requests;
+  DROP POLICY IF EXISTS "Clients can select own revision requests" ON public.revision_requests;
+  DROP POLICY IF EXISTS "Editors can read revisions for assigned orders" ON public.revision_requests;
+EXCEPTION WHEN undefined_object THEN null;
+END $$;
+
+CREATE POLICY "Admin full access on revision_requests"
+  ON public.revision_requests FOR ALL
+  TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY "Clients can select own revision requests"
+  ON public.revision_requests FOR SELECT
+  TO authenticated
+  USING (
+    requested_by = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM public.orders
+      WHERE orders.id = revision_requests.order_id
+      AND orders.client_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Clients can insert revisions for own orders"
+  ON public.revision_requests FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    requested_by = auth.uid() AND
+    EXISTS (
+      SELECT 1 FROM public.orders
+      WHERE orders.id = revision_requests.order_id
+      AND orders.client_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Editors can read revisions for assigned orders"
+  ON public.revision_requests FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.orders
+      WHERE orders.id = revision_requests.order_id
+      AND orders.editor_id = auth.uid()
+    )
+  );
+
+-- ─── RATINGS ──────────────────────────────────────────────────────────────────
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Admin full access on ratings" ON public.ratings;
+  DROP POLICY IF EXISTS "Clients can select own ratings" ON public.ratings;
+  DROP POLICY IF EXISTS "Clients can insert rating for delivered orders" ON public.ratings;
+  DROP POLICY IF EXISTS "Clients can update own ratings" ON public.ratings;
+  DROP POLICY IF EXISTS "Editors can select own ratings" ON public.ratings;
+  DROP POLICY IF EXISTS "Public can view approved testimonials" ON public.ratings;
+EXCEPTION WHEN undefined_object THEN null;
+END $$;
+
+CREATE POLICY "Admin full access on ratings"
+  ON public.ratings FOR ALL
+  TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY "Clients can select own ratings"
+  ON public.ratings FOR SELECT
+  TO authenticated
+  USING (client_id = auth.uid());
+
+CREATE POLICY "Clients can insert rating for delivered orders"
+  ON public.ratings FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    client_id = auth.uid() AND
+    EXISTS (
+      SELECT 1 FROM public.orders
+      WHERE orders.id = ratings.order_id
+      AND orders.client_id = auth.uid()
+      AND orders.status = 'delivered'
+    )
+  );
+
+CREATE POLICY "Clients can update own ratings"
+  ON public.ratings FOR UPDATE
+  TO authenticated
+  USING (client_id = auth.uid())
+  WITH CHECK (client_id = auth.uid());
+
+CREATE POLICY "Editors can select own ratings"
+  ON public.ratings FOR SELECT
+  TO authenticated
+  USING (editor_id = auth.uid());
+
+CREATE POLICY "Public can view approved testimonials"
+  ON public.ratings FOR SELECT
+  TO anon, authenticated
+  USING (is_testimonial = TRUE);
+
+-- ─── LINK FEEDBACK ────────────────────────────────────────────────────────────
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Admin full access on link_feedback" ON public.link_feedback;
+  DROP POLICY IF EXISTS "Allow public anonymous submissions on link_feedback" ON public.link_feedback;
+EXCEPTION WHEN undefined_object THEN null;
+END $$;
+
+CREATE POLICY "Admin full access on link_feedback"
+  ON public.link_feedback FOR ALL
+  TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY "Allow public anonymous submissions on link_feedback"
+  ON public.link_feedback FOR INSERT
+  TO anon, authenticated
+  WITH CHECK (true);
+
+-- ─── TESTIMONIALS & PORTFOLIO ─────────────────────────────────────────────────
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Admin full access on testimonials" ON public.testimonials;
+  DROP POLICY IF EXISTS "Public can view testimonials" ON public.testimonials;
+  DROP POLICY IF EXISTS "Admin full access on portfolio_videos" ON public.portfolio_videos;
+  DROP POLICY IF EXISTS "Public can view portfolio_videos" ON public.portfolio_videos;
+EXCEPTION WHEN undefined_object THEN null;
+END $$;
+
+CREATE POLICY "Admin full access on testimonials"
+  ON public.testimonials FOR ALL
+  TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY "Public can view testimonials"
+  ON public.testimonials FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+CREATE POLICY "Admin full access on portfolio_videos"
+  ON public.portfolio_videos FOR ALL
+  TO authenticated
+  USING (public.is_admin())
+  WITH CHECK (public.is_admin());
+
+CREATE POLICY "Public can view portfolio_videos"
+  ON public.portfolio_videos FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+-- ─── STORAGE SECURITY POLICIES (storage.objects) ──────────────────────────────
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'storage' AND tablename = 'objects') THEN
+    ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+    DROP POLICY IF EXISTS "Public can view avatar objects" ON storage.objects;
+    DROP POLICY IF EXISTS "Authenticated users can upload own avatar" ON storage.objects;
+    DROP POLICY IF EXISTS "Authenticated users can update own avatar" ON storage.objects;
+    DROP POLICY IF EXISTS "Authenticated users can delete own avatar" ON storage.objects;
+    DROP POLICY IF EXISTS "Admin full access on storage objects" ON storage.objects;
+
+    CREATE POLICY "Public can view avatar objects"
+      ON storage.objects FOR SELECT
+      TO anon, authenticated
+      USING (bucket_id IN ('avatars', 'portfolio'));
+
+    CREATE POLICY "Authenticated users can upload own avatar"
+      ON storage.objects FOR INSERT
+      TO authenticated
+      WITH CHECK (
+        bucket_id = 'avatars'
+        AND (name LIKE auth.uid()::text || '/%' OR name LIKE 'avatar-' || auth.uid()::text || '%')
+      );
+
+    CREATE POLICY "Authenticated users can update own avatar"
+      ON storage.objects FOR UPDATE
+      TO authenticated
+      USING (
+        bucket_id = 'avatars'
+        AND (name LIKE auth.uid()::text || '/%' OR name LIKE 'avatar-' || auth.uid()::text || '%')
+      )
+      WITH CHECK (
+        bucket_id = 'avatars'
+        AND (name LIKE auth.uid()::text || '/%' OR name LIKE 'avatar-' || auth.uid()::text || '%')
+      );
+
+    CREATE POLICY "Authenticated users can delete own avatar"
+      ON storage.objects FOR DELETE
+      TO authenticated
+      USING (
+        bucket_id = 'avatars'
+        AND (name LIKE auth.uid()::text || '/%' OR name LIKE 'avatar-' || auth.uid()::text || '%')
+      );
+
+    CREATE POLICY "Admin full access on storage objects"
+      ON storage.objects FOR ALL
+      TO authenticated
+      USING (public.is_admin())
+      WITH CHECK (public.is_admin());
+  END IF;
+EXCEPTION WHEN undefined_table THEN null;
+WHEN OTHERS THEN null;
+END $$;
+
+-- ------------------------------------------------------------------------------
+-- 13. LOGIN DEVICES & ADMIN 30-DAY REMEMBER-DEVICE OTP TABLES
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.admin_devices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  device_token_hash TEXT NOT NULL UNIQUE,
+  device_name TEXT NOT NULL,
+  device_type TEXT NOT NULL DEFAULT 'desktop',
+  browser TEXT NOT NULL DEFAULT 'Unknown Browser',
+  os TEXT NOT NULL DEFAULT 'Unknown OS',
+  ip_address TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  last_active_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_devices_user_id ON public.admin_devices(user_id);
+CREATE INDEX IF NOT EXISTS idx_admin_devices_token_hash ON public.admin_devices(device_token_hash);
+CREATE INDEX IF NOT EXISTS idx_admin_devices_status_expires ON public.admin_devices(status, expires_at);
+
+CREATE TABLE IF NOT EXISTS public.admin_login_otps (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  otp_hash TEXT NOT NULL,
+  attempts INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL DEFAULT 5,
+  expires_at TIMESTAMPTZ NOT NULL,
+  resend_available_at TIMESTAMPTZ NOT NULL,
+  consumed BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_otps_user_expires ON public.admin_login_otps(user_id, expires_at, consumed);
+CREATE INDEX IF NOT EXISTS idx_admin_otps_email ON public.admin_login_otps(email);
+
+ALTER TABLE public.admin_devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.admin_login_otps ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Admins can view own devices" ON public.admin_devices;
+  DROP POLICY IF EXISTS "Admins can insert own devices" ON public.admin_devices;
+  DROP POLICY IF EXISTS "Admins can update own devices" ON public.admin_devices;
+  DROP POLICY IF EXISTS "Admins can delete own devices" ON public.admin_devices;
+
+  DROP POLICY IF EXISTS "Admins can view own OTP records" ON public.admin_login_otps;
+  DROP POLICY IF EXISTS "Admins can insert own OTP records" ON public.admin_login_otps;
+  DROP POLICY IF EXISTS "Admins can update own OTP records" ON public.admin_login_otps;
+EXCEPTION WHEN undefined_object THEN null;
+END $$;
+
+CREATE POLICY "Admins can view own devices"
+  ON public.admin_devices FOR SELECT
+  TO authenticated
+  USING (user_id = auth.uid() AND public.is_admin());
+
+CREATE POLICY "Admins can insert own devices"
+  ON public.admin_devices FOR INSERT
+  TO authenticated
+  WITH CHECK (user_id = auth.uid() AND public.is_admin());
+
+CREATE POLICY "Admins can update own devices"
+  ON public.admin_devices FOR UPDATE
+  TO authenticated
+  USING (user_id = auth.uid() AND public.is_admin())
+  WITH CHECK (user_id = auth.uid() AND public.is_admin());
+
+CREATE POLICY "Admins can delete own devices"
+  ON public.admin_devices FOR DELETE
+  TO authenticated
+  USING (user_id = auth.uid() AND public.is_admin());
+
+CREATE POLICY "Admins can view own OTP records"
+  ON public.admin_login_otps FOR SELECT
+  TO authenticated
+  USING (user_id = auth.uid() AND public.is_admin());
+
+CREATE POLICY "Admins can insert own OTP records"
+  ON public.admin_login_otps FOR INSERT
+  TO authenticated
+  WITH CHECK (user_id = auth.uid() AND public.is_admin());
+
+CREATE POLICY "Admins can update own OTP records"
+  ON public.admin_login_otps FOR UPDATE
+  TO authenticated
+  USING (user_id = auth.uid() AND public.is_admin())
+  WITH CHECK (user_id = auth.uid() AND public.is_admin());
+
+-- Stored Procedures: register_admin_device, validate_admin_device, revoke_admin_device, revoke_other_admin_devices, get_my_admin_devices
+CREATE OR REPLACE FUNCTION public.register_admin_device(
+  p_device_token_hash TEXT,
+  p_device_name TEXT,
+  p_device_type TEXT,
+  p_browser TEXT,
+  p_os TEXT,
+  p_ip TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_new_device RECORD;
+  v_now TIMESTAMPTZ := NOW();
+  v_expires TIMESTAMPTZ := v_now + INTERVAL '30 days';
+BEGIN
+  IF v_user_id IS NULL OR NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Access Denied: Only authenticated administrators can register devices.';
+  END IF;
+
+  IF p_device_token_hash IS NULL OR LENGTH(TRIM(p_device_token_hash)) < 32 THEN
+    RAISE EXCEPTION 'Invalid device token hash.';
+  END IF;
+
+  INSERT INTO public.admin_devices (
+    user_id, device_token_hash, device_name, device_type, browser, os, ip_address,
+    status, last_active_at, expires_at, created_at, updated_at
+  ) VALUES (
+    v_user_id, TRIM(p_device_token_hash),
+    COALESCE(NULLIF(TRIM(p_device_name), ''), 'Admin Workstation'),
+    COALESCE(NULLIF(TRIM(p_device_type), ''), 'desktop'),
+    COALESCE(NULLIF(TRIM(p_browser), ''), 'Standard Browser'),
+    COALESCE(NULLIF(TRIM(p_os), ''), 'Unknown OS'),
+    p_ip, 'active', v_now, v_expires, v_now, v_now
+  )
+  ON CONFLICT (device_token_hash) DO UPDATE SET
+    device_name = EXCLUDED.device_name,
+    device_type = EXCLUDED.device_type,
+    browser = EXCLUDED.browser,
+    os = EXCLUDED.os,
+    ip_address = COALESCE(EXCLUDED.ip_address, public.admin_devices.ip_address),
+    status = 'active',
+    last_active_at = v_now,
+    expires_at = v_expires,
+    updated_at = v_now
+  RETURNING id, device_name, device_type, browser, os, status, last_active_at, expires_at, created_at
+  INTO v_new_device;
+
+  RETURN jsonb_build_object('success', true, 'device', row_to_json(v_new_device));
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.register_admin_device(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.validate_admin_device(
+  p_user_id UUID,
+  p_device_token_hash TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  v_device RECORD;
+  v_now TIMESTAMPTZ := NOW();
+BEGIN
+  IF p_user_id IS NULL OR p_device_token_hash IS NULL THEN
+    RETURN jsonb_build_object('valid', false, 'reason', 'missing_credentials');
+  END IF;
+
+  SELECT * INTO v_device
+  FROM public.admin_devices
+  WHERE user_id = p_user_id AND device_token_hash = TRIM(p_device_token_hash)
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('valid', false, 'reason', 'not_found');
+  END IF;
+
+  IF v_device.status = 'revoked' THEN
+    RETURN jsonb_build_object('valid', false, 'reason', 'revoked');
+  END IF;
+
+  IF v_device.expires_at <= v_now OR v_device.status = 'expired' THEN
+    UPDATE public.admin_devices SET status = 'expired', updated_at = v_now WHERE id = v_device.id;
+    RETURN jsonb_build_object('valid', false, 'reason', 'expired', 'expires_at', v_device.expires_at);
+  END IF;
+
+  UPDATE public.admin_devices SET last_active_at = v_now, updated_at = v_now WHERE id = v_device.id;
+
+  RETURN jsonb_build_object(
+    'valid', true,
+    'device_id', v_device.id,
+    'device_name', v_device.device_name,
+    'browser', v_device.browser,
+    'os', v_device.os,
+    'expires_at', v_device.expires_at,
+    'days_remaining', GREATEST(0, CEIL(EXTRACT(EPOCH FROM (v_device.expires_at - v_now)) / 86400))
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.validate_admin_device(UUID, TEXT) TO anon, authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.revoke_admin_device(p_device_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+BEGIN
+  IF v_user_id IS NULL OR NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Access Denied: Only authenticated administrators can revoke devices.';
+  END IF;
+
+  UPDATE public.admin_devices
+  SET status = 'revoked', updated_at = NOW()
+  WHERE id = p_device_id AND user_id = v_user_id;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Device not found or not owned by you');
+  END IF;
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.revoke_admin_device(UUID) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.revoke_other_admin_devices(p_current_device_id UUID DEFAULT NULL)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_count INT := 0;
+BEGIN
+  IF v_user_id IS NULL OR NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Access Denied: Only authenticated administrators can revoke devices.';
+  END IF;
+
+  UPDATE public.admin_devices
+  SET status = 'revoked', updated_at = NOW()
+  WHERE user_id = v_user_id
+    AND (p_current_device_id IS NULL OR id <> p_current_device_id)
+    AND status = 'active';
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN jsonb_build_object('success', true, 'revoked_count', v_count);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.revoke_other_admin_devices(UUID) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.get_my_admin_devices()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_result JSONB;
+BEGIN
+  IF v_user_id IS NULL OR NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Access Denied: Only authenticated administrators can query devices.';
+  END IF;
+
+  UPDATE public.admin_devices
+  SET status = 'expired', updated_at = NOW()
+  WHERE user_id = v_user_id AND expires_at <= NOW() AND status = 'active';
+
+  SELECT jsonb_agg(
+    jsonb_build_object(
+      'id', d.id,
+      'device_name', d.device_name,
+      'device_type', d.device_type,
+      'browser', d.browser,
+      'os', d.os,
+      'ip_address', d.ip_address,
+      'status', d.status,
+      'last_active_at', d.last_active_at,
+      'expires_at', d.expires_at,
+      'created_at', d.created_at,
+      'days_remaining', GREATEST(0, CEIL(EXTRACT(EPOCH FROM (d.expires_at - NOW())) / 86400))
+    ) ORDER BY d.last_active_at DESC
+  )
+  INTO v_result
+  FROM public.admin_devices d
+  WHERE d.user_id = v_user_id;
+
+  RETURN COALESCE(v_result, '[]'::jsonb);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_my_admin_devices() TO authenticated, service_role;
 
 -- ------------------------------------------------------------------------------
 -- SCRIPT COMPLETION NOTICE

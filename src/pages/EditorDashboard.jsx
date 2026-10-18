@@ -200,24 +200,30 @@ export default function EditorDashboard() {
 
   const [activeNav, setActiveNav] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('mne_editor_sidebar_collapsed') === 'true';
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const hoverTimeoutRef = useRef(null);
+
+  const handleSidebarMouseEnter = () => {
+    if (window.innerWidth >= 900) {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+      setSidebarCollapsed(false);
     }
-    return false;
-  });
+  };
+
+  const handleSidebarMouseLeave = () => {
+    if (window.innerWidth >= 900) {
+      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = setTimeout(() => {
+        setSidebarCollapsed(true);
+      }, 200);
+    }
+  };
 
   const toggleSidebarCollapse = () => {
     if (window.innerWidth < 900) {
       setSidebarOpen((prev) => !prev);
     } else {
-      setSidebarCollapsed((prev) => {
-        const next = !prev;
-        try {
-          localStorage.setItem('mne_editor_sidebar_collapsed', String(next));
-        } catch (_) {}
-        return next;
-      });
+      setSidebarCollapsed((prev) => !prev);
     }
   };
 
@@ -511,6 +517,9 @@ export default function EditorDashboard() {
       setTimeout(() => setIsLoading(false), 300);
     }
     setSidebarOpen(false);
+    if (window.innerWidth >= 900) {
+      setSidebarCollapsed(true);
+    }
   };
 
   // ─── Data Fetching ────────────────────────────────────────────────
@@ -752,9 +761,13 @@ export default function EditorDashboard() {
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* SIDEBAR NAVIGATION (Collapsible matching client design)            */}
+      {/* SIDEBAR NAVIGATION (Auto-Opens on Hover, Auto-Closes on Leave)     */}
       {/* ------------------------------------------------------------------ */}
-      <aside className={`cp-sidebar ${sidebarOpen ? 'open' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}>
+      <aside
+        className={`cp-sidebar ${sidebarOpen ? 'open' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}
+        onMouseEnter={handleSidebarMouseEnter}
+        onMouseLeave={handleSidebarMouseLeave}
+      >
         <div>
           {/* Brand Header */}
           <div className="cp-brand-header-wrapper">
@@ -934,7 +947,7 @@ export default function EditorDashboard() {
                   width: '32px',
                   height: '32px',
                   borderRadius: '50%',
-                  background: '#1E1E28',
+                  background: 'var(--ed-bg-card-inner)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1129,13 +1142,29 @@ export default function EditorDashboard() {
                         </div>
                       </div>
 
-                      <button
-                        className="ed-btn-goto"
-                        onClick={() => handleNavClick('present')}
-                      >
-                        <span>Go to Project</span>
-                        <span>→</span>
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '18px', flexWrap: 'wrap', gap: '10px' }}>
+                        <button
+                          className="ed-btn-goto"
+                          onClick={() => handleNavClick('present')}
+                          style={{ marginTop: 0 }}
+                        >
+                          <span>Go to Project</span>
+                          <span>→</span>
+                        </button>
+                        {activeProject && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="ed-studio-pill">
+                              <span className="ed-rec-dot" />
+                              <span>LIVE CUT</span>
+                            </span>
+                            <div className="ed-eq-wrap" title="Studio Render Stream Active">
+                              {[10, 16, 8, 20, 14, 22, 12].map((h, i) => (
+                                <span key={i} className="ed-eq-bar" style={{ height: `${h}px`, animationDelay: `${i * 0.08}s` }} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* 2. Total Projects Card */}
@@ -1143,7 +1172,7 @@ export default function EditorDashboard() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                           <span className="ed-badge-category">TOTAL PROJECTS</span>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#FFFFFF', background: '#181822', padding: '3px 8px', borderRadius: '9999px', border: '1px solid var(--ed-border)' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#FFFFFF', background: 'var(--ed-bg-card-inner)', padding: '3px 8px', borderRadius: '9999px', border: '1px solid var(--ed-border)' }}>
                             🏆 Top Editor
                           </span>
                         </div>
@@ -1229,9 +1258,20 @@ export default function EditorDashboard() {
                           <Clock className="h-4 w-4" />
                           <span>Editor Deadline</span>
                         </div>
-                        <div className="ed-deadline-badge">
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#EF4444' }} />
-                          <span>{calculateDaysLeft().toUpperCase()}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <span className="ed-studio-pill">
+                            <span className="ed-rec-dot" />
+                            <span>TIMELINE ACTIVE</span>
+                          </span>
+                          <div className="ed-eq-wrap" title="Audio/Video Stream">
+                            {[10, 18, 8, 22, 14, 24, 12, 16].map((h, i) => (
+                              <span key={i} className="ed-eq-bar" style={{ height: `${h}px`, animationDelay: `${i * 0.09}s` }} />
+                            ))}
+                          </div>
+                          <div className="ed-deadline-badge">
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#EF4444' }} />
+                            <span>{calculateDaysLeft().toUpperCase()}</span>
+                          </div>
                         </div>
                       </div>
 
@@ -1239,7 +1279,7 @@ export default function EditorDashboard() {
                       <div className="ed-project-hero-card">
                         <div>
                           <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                            <span className="ed-tag-pill" style={{ fontFamily: 'monospace', color: '#60A5FA' }}>{formatOrderCode(activeProject)}</span>
+                            <span className="ed-tag-pill" style={{ fontFamily: 'monospace', color: 'var(--ed-accent-silver)' }}>{formatOrderCode(activeProject)}</span>
                             <span className="ed-tag-pill">EDIT</span>
                             <span className="ed-tag-pill">{activeProject.client?.company_name || activeProject.client?.full_name || 'Client'}</span>
                           </div>
@@ -1286,7 +1326,7 @@ export default function EditorDashboard() {
                               .trim();
 
                             return cleanNotes ? (
-                              <div style={{ marginTop: '12px', padding: '12px', background: '#121218', borderRadius: '8px', border: '1px solid var(--ed-border)' }}>
+                              <div style={{ marginTop: '12px', padding: '12px', background: 'var(--ed-bg-card-inner)', borderRadius: '8px', border: '1px solid var(--ed-border)' }}>
                                 <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#F59E0B', display: 'block', marginBottom: '4px' }}>
                                   Admin Instructions:
                                 </span>
@@ -1327,7 +1367,7 @@ export default function EditorDashboard() {
                                 </button>
                               </div>
                             ) : (
-                              <div style={{ padding: '14px', background: '#121218', borderRadius: '8px', border: '1px dashed var(--ed-border)', textAlign: 'center', color: 'var(--ed-text-secondary)', fontSize: '0.8rem' }}>
+                              <div style={{ padding: '14px', background: 'var(--ed-bg-card-inner)', borderRadius: '8px', border: '1px dashed var(--ed-border)', textAlign: 'center', color: 'var(--ed-text-secondary)', fontSize: '0.8rem' }}>
                                 No raw footage link provided
                               </div>
                             )}
@@ -1414,7 +1454,7 @@ export default function EditorDashboard() {
                             value="Editing in Process"
                             onChange={(e) => setProjectStatus(e.target.value)}
                             disabled={isStatusLocked}
-                            style={isStatusLocked ? { opacity: 0.8, cursor: 'not-allowed', background: '#161622', borderColor: 'rgba(255, 255, 255, 0.08)' } : {}}
+                            style={isStatusLocked ? { opacity: 0.8, cursor: 'not-allowed', background: 'var(--ed-bg-card-inner)', borderColor: 'rgba(255, 255, 255, 0.08)' } : {}}
                           >
                             <option value="Editing in Process">Editing in Process</option>
                           </select>
@@ -1432,7 +1472,7 @@ export default function EditorDashboard() {
                           className="ed-btn-update-status"
                           onClick={handleUpdateStatus}
                           disabled={isStatusLocked}
-                          style={isStatusLocked ? { opacity: 0.5, cursor: 'not-allowed', background: '#22222E', borderColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--ed-text-secondary)' } : {}}
+                          style={isStatusLocked ? { opacity: 0.5, cursor: 'not-allowed', background: 'var(--ed-bg-card-hover)', borderColor: 'rgba(255, 255, 255, 0.08)', color: 'var(--ed-text-secondary)' } : {}}
                         >
                           {isStatusLocked ? (
                             <>
@@ -1449,12 +1489,36 @@ export default function EditorDashboard() {
                       </div>
                     </>
                   ) : (
-                    <div className="ed-card" style={{ padding: '60px 20px', textAlign: 'center', alignItems: 'center', gap: '14px' }}>
-                      <Tv2 className="h-10 w-10 text-white/30" />
-                      <h2 style={{ fontSize: '1.2rem', fontWeight: 700 }}>No Active Project</h2>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--ed-text-secondary)', maxWidth: '420px' }}>
-                        You currently have no project in active editing. When the admin assigns you a new editing task, it will appear here instantly.
+                    <div className="ed-card" style={{ padding: '50px 24px', textAlign: 'center', alignItems: 'center' }}>
+                      <div className="ed-radar-container">
+                        <div className="ed-radar-sweep" />
+                        <div className="ed-radar-ring-2" />
+                        <div className="ed-radar-ring-3" />
+                        <Tv2 className="h-7 w-7 text-white/80 relative z-10" />
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
+                        <span className="ed-studio-pill">
+                          <span className="ed-rec-dot" style={{ background: '#F59E0B', boxShadow: '0 0 8px #F59E0B' }} />
+                          <span>EDITOR STANDBY</span>
+                        </span>
+                        <span style={{ fontSize: '0.68rem', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>BUFFER: 0 ACTIVE</span>
+                      </div>
+
+                      <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#FFFFFF', marginBottom: '6px' }}>Workstation Standing By</h2>
+                      <p style={{ fontSize: '0.84rem', color: 'var(--ed-text-secondary)', maxWidth: '440px', lineHeight: 1.5, marginBottom: '20px' }}>
+                        You currently have no project allocated in your editing queue. When production assigns a new project cut, its creative brief, raw assets, and milestone deadlines will sync here automatically.
                       </p>
+
+                      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '3px', height: '24px', marginBottom: '10px' }}>
+                        {[12, 18, 8, 22, 14, 24, 10, 20, 16, 22, 12, 18].map((h, i) => (
+                          <span
+                            key={i}
+                            className="ed-eq-bar"
+                            style={{ height: `${h}px`, animationDelay: `${i * 0.08}s` }}
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
                 </>
@@ -1469,13 +1533,13 @@ export default function EditorDashboard() {
                     <h1 className="ed-title-h1">Project History</h1>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ display: 'flex', background: '#14141B', padding: '3px', borderRadius: '8px', border: '1px solid var(--ed-border)' }}>
+                      <div style={{ display: 'flex', background: 'var(--ed-bg-card-inner)', padding: '3px', borderRadius: '8px', border: '1px solid var(--ed-border)' }}>
                         <button
                           onClick={() => setHistoryFilter('all')}
                           style={{
                             padding: '6px 14px',
                             borderRadius: '6px',
-                            background: historyFilter === 'all' ? '#262633' : 'transparent',
+                            background: historyFilter === 'all' ? 'var(--ed-bg-card-hover)' : 'transparent',
                             color: historyFilter === 'all' ? '#FFFFFF' : 'var(--ed-text-secondary)',
                             fontSize: '0.78rem',
                             fontWeight: 600,
@@ -1490,7 +1554,7 @@ export default function EditorDashboard() {
                           style={{
                             padding: '6px 14px',
                             borderRadius: '6px',
-                            background: historyFilter === 'ontime' ? '#262633' : 'transparent',
+                            background: historyFilter === 'ontime' ? 'var(--ed-bg-card-hover)' : 'transparent',
                             color: historyFilter === 'ontime' ? '#FFFFFF' : 'var(--ed-text-secondary)',
                             fontSize: '0.78rem',
                             fontWeight: 600,
@@ -1505,7 +1569,7 @@ export default function EditorDashboard() {
                           style={{
                             padding: '6px 14px',
                             borderRadius: '6px',
-                            background: historyFilter === 'delayed' ? '#262633' : 'transparent',
+                            background: historyFilter === 'delayed' ? 'var(--ed-bg-card-hover)' : 'transparent',
                             color: historyFilter === 'delayed' ? '#FFFFFF' : 'var(--ed-text-secondary)',
                             fontSize: '0.78rem',
                             fontWeight: 600,
@@ -1546,7 +1610,7 @@ export default function EditorDashboard() {
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                     <span style={{ fontWeight: 700 }}>{row.name}</span>
                                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                      <span style={{ fontSize: '0.68rem', color: '#60A5FA', fontFamily: 'monospace' }}>{row.code}</span>
+                                      <span style={{ fontSize: '0.68rem', color: 'var(--ed-accent-silver)', fontFamily: 'monospace' }}>{row.code}</span>
                                       <span style={{ fontSize: '0.68rem', color: 'var(--ed-text-tertiary)' }}>•</span>
                                       <span style={{ fontSize: '0.72rem', color: 'var(--ed-text-secondary)' }}>{row.client}</span>
                                     </div>

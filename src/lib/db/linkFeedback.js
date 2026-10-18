@@ -111,20 +111,8 @@ export async function getLinkFeedbacks() {
       return { data: localList, error: null };
     }
 
-    // Merge Supabase items and any local-only items
-    const mergedMap = new Map();
-    (data || []).forEach(item => mergedMap.set(item.id, item));
-    localList.forEach(item => {
-      if (!mergedMap.has(item.id)) {
-        mergedMap.set(item.id, item);
-      }
-    });
-
-    const sortedList = Array.from(mergedMap.values()).sort(
-      (a, b) => new Date(b.created_at) - new Date(a.created_at)
-    );
-
-    return { data: sortedList, error: null };
+    // Database is authoritative: return database feedback records
+    return { data: data || [], error: null };
   } catch (err) {
     console.warn('[LinkFeedback] Fetch exception, using local fallback:', err);
     return { data: localList, error: null };

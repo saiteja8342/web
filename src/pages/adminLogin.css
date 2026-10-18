@@ -286,3 +286,178 @@ html, body {
   pointer-events: none;
   z-index: 10;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Remember This Device Checkbox                                              */
+/* -------------------------------------------------------------------------- */
+.admin-remember-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0 2px;
+}
+
+.admin-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.admin-checkbox-input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background-color: var(--admin-input-bg);
+  border: 1.5px solid var(--admin-input-border);
+  outline: none;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  display: grid;
+  place-content: center;
+}
+
+.admin-checkbox-input:checked {
+  background-color: var(--admin-btn-blue);
+  border-color: var(--admin-btn-blue);
+}
+
+.admin-checkbox-input:checked::before {
+  content: "";
+  width: 10px;
+  height: 6px;
+  border-left: 2px solid #060a12;
+  border-bottom: 2px solid #060a12;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.admin-checkbox-input:focus-visible {
+  box-shadow: 0 0 0 2px rgba(91, 139, 247, 0.35);
+}
+
+.admin-checkbox-text {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #d1d5db;
+}
+
+.admin-checkbox-hint {
+  font-size: 0.72rem;
+  color: #64748b;
+  padding-left: 28px;
+  line-height: 1.35;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Email OTP Verification Screen                                              */
+/* -------------------------------------------------------------------------- */
+.admin-otp-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.admin-otp-badge {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  background: rgba(91, 139, 247, 0.12);
+  border: 1px solid rgba(91, 139, 247, 0.3);
+  color: #93c5fd;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-otp-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+}
+
+.admin-otp-subtitle {
+  font-size: 0.82rem;
+  color: var(--admin-label-text);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.admin-otp-email-chip {
+  color: #93c5fd;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.admin-otp-input-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0;
+}
+
+.admin-otp-code-input {
+  width: 100%;
+  max-width: 280px;
+  height: 56px;
+  background-color: #000000;
+  border: 1.5px solid var(--admin-input-border);
+  border-radius: 12px;
+  color: #60a5fa;
+  font-size: 1.8rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-weight: 800;
+  letter-spacing: 0.4em;
+  text-align: center;
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.admin-otp-code-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25), 0 4px 20px rgba(59, 130, 246, 0.2);
+}
+
+.admin-otp-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.admin-otp-text-btn {
+  background: transparent;
+  border: none;
+  color: var(--admin-label-text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-otp-text-btn:hover:not(:disabled) {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.admin-otp-text-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

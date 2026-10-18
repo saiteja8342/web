@@ -60,7 +60,7 @@ export default function ClientProjectHistory({
                     <span className="cp-badge-pill" style={{ fontSize: '0.65rem', padding: '2px 7px' }}>{proj.type}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                    <span style={{ fontSize: '0.68rem', color: '#00F0FF', fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--cp-accent-silver)', fontFamily: 'monospace' }}>
                       {proj.orderCode}
                     </span>
                     <span style={{ fontSize: '0.68rem', color: 'var(--cp-text-tertiary)' }}>•</span>
@@ -80,7 +80,7 @@ export default function ClientProjectHistory({
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                   <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Delivery Status</h3>
-                  <span style={{ fontSize: '0.74rem', color: '#00F0FF', fontFamily: 'monospace', fontWeight: 700, background: 'rgba(0, 240, 255, 0.12)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(0, 240, 255, 0.3)' }}>
+                  <span style={{ fontSize: '0.74rem', color: '#FFFFFF', fontFamily: 'monospace', fontWeight: 700, background: 'rgba(255, 255, 255, 0.08)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.18)' }}>
                     {selectedProject.orderCode}
                   </span>
                 </div>

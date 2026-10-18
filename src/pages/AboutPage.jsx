@@ -44,25 +44,6 @@ export default function AboutPage() {
     gsap.ticker.add(tickerCallback);
     gsap.ticker.lagSmoothing(0);
 
-    // Fade up animations for sections
-    const fadeElements = gsap.utils.toArray('.about-fade-up');
-    fadeElements.forEach((el) => {
-      gsap.fromTo(el,
-        { opacity: 0, y: 28 },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.7,
-          ease: 'power3.out',
-          scrollTrigger: {
-            trigger: el,
-            start: 'top 88%',
-            toggleActions: 'play none none none'
-          }
-        }
-      );
-    });
-
     return () => {
       lenis.destroy();
       gsap.ticker.remove(tickerCallback);
@@ -78,12 +59,25 @@ export default function AboutPage() {
       <Navbar />
 
       <main id="main" className="about-page-wrapper">
+        {/* Section 1: Cinematic Studio Hero */}
         <AboutHero />
+
+        {/* Section 2: Agency Introduction */}
         <AboutWhoWeAre />
+
+        {/* Section 3: Why MotionNodeEdits */}
         <AboutWhyUs />
+
+        {/* Section 4: Our Quality Benchmark */}
         <AboutQualityStandard />
+
+        {/* Section 5: Directorial Leadership */}
         <AboutTeam />
+
+        {/* Section 6: Verified Client Endorsements */}
         <AboutTestimonials />
+
+        {/* Section 7: Frequently Asked Questions */}
         <AboutFAQ />
       </main>
 

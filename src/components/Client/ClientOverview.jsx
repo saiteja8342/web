@@ -52,37 +52,42 @@ export default function ClientOverview({
           <div
             className="cp-card"
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
+              padding: '50px 24px',
               textAlign: 'center',
-              padding: '48px 24px',
-              border: '1px dashed var(--cp-border)',
-              background: 'rgba(255, 255, 255, 0.02)',
-              borderRadius: '12px'
+              alignItems: 'center'
             }}
           >
-            <div
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
-                background: 'rgba(255, 255, 255, 0.05)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '14px'
-              }}
-            >
-              <Film className="h-6 w-6 text-white/40" />
+            <div className="cp-radar-container">
+              <div className="cp-radar-sweep" />
+              <div className="cp-radar-ring-2" />
+              <div className="cp-radar-ring-3" />
+              <Film className="h-7 w-7 text-white/80 relative z-10" />
             </div>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#FFFFFF', marginBottom: '6px' }}>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
+              <span className="cp-studio-pill">
+                <span className="cp-rec-dot" style={{ background: '#22C55E', boxShadow: '0 0 8px #22C55E' }} />
+                <span>STUDIO READY</span>
+              </span>
+              <span style={{ fontSize: '0.68rem', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>BUFFER: READY</span>
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#FFFFFF', marginBottom: '6px' }}>
               Welcome! You have no orders yet.
             </h3>
-            <p style={{ fontSize: '0.84rem', color: 'var(--cp-text-secondary)', maxWidth: '420px', lineHeight: 1.5, margin: 0 }}>
-              When a video production or editing brief is placed, your project milestones and status will appear here in real-time.
+            <p style={{ fontSize: '0.84rem', color: 'var(--cp-text-secondary)', maxWidth: '420px', lineHeight: 1.5, margin: '0 auto 20px' }}>
+              When a video production or editing brief is placed, your project milestones, live render telemetry, and deliverable cuts will appear here in real-time.
             </p>
+
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '3px', height: '24px' }}>
+              {[12, 18, 8, 22, 14, 24, 10, 20, 16, 22, 12, 18].map((h, i) => (
+                <span
+                  key={i}
+                  className="cp-eq-bar"
+                  style={{ height: `${h}px`, animationDelay: `${i * 0.08}s` }}
+                />
+              ))}
+            </div>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
@@ -112,7 +117,7 @@ export default function ClientOverview({
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
                     <div>
-                      <span style={{ fontSize: '0.68rem', color: '#00F0FF', fontFamily: 'monospace', letterSpacing: '0.03em', display: 'block', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--cp-accent-silver)', fontFamily: 'monospace', letterSpacing: '0.03em', display: 'block', marginBottom: '4px' }}>
                         {formatOrderCode(order)}
                       </span>
                       <h3 style={{ fontSize: '1.02rem', fontWeight: 700, color: '#FFFFFF', margin: 0, lineHeight: 1.3 }}>
@@ -166,7 +171,7 @@ export default function ClientOverview({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#FFFFFF' }}>Current Project Status</h3>
                   {runningOrders.length > 1 && (
-                    <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: 'rgba(0, 240, 255, 0.12)', color: '#00F0FF', border: '1px solid rgba(0, 240, 255, 0.3)' }}>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.08)', color: '#FFFFFF', border: '1px solid rgba(255, 255, 255, 0.22)' }}>
                       {runningOrders.length} Running
                     </span>
                   )}
@@ -206,10 +211,10 @@ export default function ClientOverview({
                         borderRadius: '6px',
                         fontSize: '0.72rem',
                         fontWeight: 700,
-                        background: isSelected ? 'rgba(0, 240, 255, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                        color: isSelected ? '#00F0FF' : 'var(--cp-text-secondary)',
-                        border: isSelected ? '1px solid #00F0FF' : '1px solid rgba(255, 255, 255, 0.1)',
-                        boxShadow: isSelected ? '0 0 12px rgba(0, 240, 255, 0.25)' : 'none',
+                        background: isSelected ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                        color: isSelected ? '#FFFFFF' : 'var(--cp-text-secondary)',
+                        border: isSelected ? '1px solid #FFFFFF' : '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: isSelected ? '0 0 12px rgba(255, 255, 255, 0.2)' : 'none',
                         cursor: 'pointer',
                         display: 'inline-flex',
                         alignItems: 'center',

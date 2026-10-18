@@ -50,28 +50,28 @@ import './client.css';
 const getStatusColor = (status) => {
   const s = (status || '').toLowerCase();
   if (s.includes('completed') || s.includes('delivered')) return '#4ADE80';
-  if (s.includes('review')) return '#C084FC';
-  if (s.includes('editing') || s.includes('progress') || s.includes('accepted')) return '#00F0FF';
+  if (s.includes('review')) return '#F59E0B';
+  if (s.includes('editing') || s.includes('progress') || s.includes('accepted')) return '#FFFFFF';
   if (s.includes('cancelled') || s.includes('rejected')) return '#F87171';
-  return '#FCD34D';
+  return '#E6E6E6';
 };
 
 const getStatusBadgeBg = (status) => {
   const s = (status || '').toLowerCase();
   if (s.includes('completed') || s.includes('delivered')) return 'rgba(34, 197, 94, 0.12)';
-  if (s.includes('review')) return 'rgba(168, 85, 247, 0.12)';
-  if (s.includes('editing') || s.includes('progress') || s.includes('accepted')) return 'rgba(0, 240, 255, 0.12)';
+  if (s.includes('review')) return 'rgba(245, 158, 11, 0.12)';
+  if (s.includes('editing') || s.includes('progress') || s.includes('accepted')) return 'rgba(255, 255, 255, 0.08)';
   if (s.includes('cancelled') || s.includes('rejected')) return 'rgba(239, 68, 68, 0.12)';
-  return 'rgba(245, 158, 11, 0.12)';
+  return 'rgba(255, 255, 255, 0.06)';
 };
 
 const getStatusBorder = (status) => {
   const s = (status || '').toLowerCase();
   if (s.includes('completed') || s.includes('delivered')) return 'rgba(34, 197, 94, 0.35)';
-  if (s.includes('review')) return 'rgba(168, 85, 247, 0.35)';
-  if (s.includes('editing') || s.includes('progress') || s.includes('accepted')) return 'rgba(0, 240, 255, 0.35)';
+  if (s.includes('review')) return 'rgba(245, 158, 11, 0.35)';
+  if (s.includes('editing') || s.includes('progress') || s.includes('accepted')) return 'rgba(255, 255, 255, 0.25)';
   if (s.includes('cancelled') || s.includes('rejected')) return 'rgba(239, 68, 68, 0.35)';
-  return 'rgba(245, 158, 11, 0.25)';
+  return 'rgba(255, 255, 255, 0.15)';
 };
 
 // SECURITY FIX: Protect against reverse tabnabbing and untrusted protocols (e.g. javascript:)
@@ -451,19 +451,11 @@ export default function ClientDashboard() {
       }
 
       if (!ordersRes.error && ordersRes.data) {
-        let localCancelled = new Map();
-        try {
-          localCancelled = new Map(JSON.parse(localStorage.getItem('mne_cancelled_order_map') || '[]'));
-        } catch (_) {}
-
         const transformedOrders = ordersRes.data.map(ord => {
           let effStatus = (ord.status || 'received').toLowerCase();
           let cancelReason = ord.cancellation_reason || '';
 
-          if (localCancelled.has(ord.id)) {
-            effStatus = 'cancelled';
-            cancelReason = cancelReason || localCancelled.get(ord.id)?.reason;
-          } else if (ord.admin_notes && (ord.admin_notes.includes('[ORDER_CANCELLED:true]') || ord.admin_notes.includes('[CANCELLATION_REASON:'))) {
+          if (ord.admin_notes && (ord.admin_notes.includes('[ORDER_CANCELLED:true]') || ord.admin_notes.includes('[CANCELLATION_REASON:'))) {
             effStatus = 'cancelled';
             cancelReason = cancelReason || parseCancellationReason(ord.admin_notes);
           }
@@ -482,18 +474,18 @@ export default function ClientDashboard() {
         }
       }
 
-      // Fetch client ratings with local storage fallback
+      // Fetch client ratings with database as authoritative source
       try {
         const localKey = `mne_ratings_${userId}`;
         const localRatings = JSON.parse(localStorage.getItem(localKey) || '{}');
 
-        const { data: ratingsData } = await supabase
+        const { data: ratingsData, error: ratingsErr } = await supabase
           .from('ratings')
           .select('*')
           .eq('client_id', userId);
 
-        const map = { ...localRatings };
-        if (ratingsData) {
+        const map = {};
+        if (!ratingsErr && ratingsData) {
           ratingsData.forEach((r) => {
             map[r.order_id] = {
               ...r,
@@ -501,6 +493,8 @@ export default function ClientDashboard() {
               isTestimonial: parseIsTestimonial(r.feedback_note, r.is_testimonial),
             };
           });
+        } else if (localRatings) {
+          Object.assign(map, localRatings);
         }
         setRatingsMap(map);
       } catch (rateErr) {
@@ -789,31 +783,24 @@ export default function ClientDashboard() {
     }
   };
 
-  // Deliverable permission check: visible whenever admin grants access, or when order is delivered
+  // Deliverable permission check: strictly authoritative database check (admin notes tag, column, or delivered status)
   const isOrderDeliverablePermitted = (order) => {
     if (!order) return false;
 
-    // 1. Check local storage cache (immediate sync across tabs)
-    try {
-      const visibleMap = JSON.parse(localStorage.getItem('mne_client_visible_orders') || '{}');
-      if (visibleMap[order.id] === true) return true;
-      if (visibleMap[order.id] === false) return false;
-    } catch (e) {}
-
-    // 2. Check explicit admin notes tag
+    // 1. Check explicit admin notes tag
     if (typeof order.admin_notes === 'string') {
       if (order.admin_notes.includes('[CLIENT_DELIVERABLE_VISIBLE:true]')) return true;
       if (order.admin_notes.includes('[CLIENT_DELIVERABLE_VISIBLE:false]')) return false;
     }
 
-    // 3. Check client_link_visible column
+    // 2. Check client_link_visible database column
     if (order.client_link_visible === true) return true;
     if (order.client_link_visible === false) return false;
 
-    // 4. If order status is delivered, deliverable is accessible to client by default
+    // 3. If order status is delivered, deliverable is accessible to client by default
     if (order.status === 'delivered') return true;
 
-    // 5. Fallback: by default before admin gives access, keep hidden
+    // 4. Default: keep hidden until admin explicitly grants visibility or delivers
     return false;
   };
 

@@ -139,7 +139,12 @@ export default function ClientProjectStatusStepper({
             <span className="cp-stepper-live-dot" />
             LIVE PIPELINE
           </span>
-          <span className="cp-stepper-stage-title">
+          <div className="cp-eq-wrap" title="Production Render Engine Active" style={{ marginLeft: '4px' }}>
+            {[10, 18, 8, 22, 14, 20, 12].map((h, i) => (
+              <span key={i} className="cp-eq-bar" style={{ height: `${h}px`, animationDelay: `${i * 0.08}s` }} />
+            ))}
+          </div>
+          <span className="cp-stepper-stage-title" style={{ marginLeft: '6px' }}>
             Stage {currentStep + 1} of 5: {STAGES[currentStep]?.label}
           </span>
         </div>
@@ -183,7 +188,7 @@ export default function ClientProjectStatusStepper({
                   {isCompleted ? (
                     <Check className="h-3.5 w-3.5 text-black stroke-[3]" />
                   ) : isCurrent ? (
-                    <StageIcon className="h-4 w-4 text-[#00F0FF] animate-spin-slow" />
+                    <StageIcon className="h-4 w-4 text-white animate-spin-slow" />
                   ) : (
                     <span className="cp-stepper-node-num">{st.step + 1}</span>
                   )}

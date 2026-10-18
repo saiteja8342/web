@@ -46,10 +46,33 @@
   background-color: var(--about-bg-primary);
   color: var(--about-text-primary);
   font-family: var(--about-font-sans);
-  overflow-x: hidden;
+  overflow-x: clip;
   line-height: 1.6;
   font-weight: 300;
   position: relative;
+}
+
+/* Chrome Beam & Ambient Motion Graphic Utility */
+.about-ambient-beam {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(80px);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, rgba(200, 200, 215, 0.02) 60%, transparent 80%);
+  z-index: 1;
+}
+
+@keyframes chromeShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.chrome-shimmer-text {
+  background: linear-gradient(90deg, #FFFFFF 0%, #A0A0AB 25%, #FFFFFF 50%, #A0A0AB 75%, #FFFFFF 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: chromeShimmer 6s linear infinite;
 }
 
 /* Background Ambient Grid & Glows */
