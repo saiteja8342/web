@@ -186,7 +186,10 @@ h1, h2, h3, h4, .font-serif {
 /* Custom Cursor - Desktop Only */
 @media (min-width: 1025px) and (hover: hover) and (pointer: fine) {
   body { cursor: none; }
-  a, button, input, textarea, select, .interactive { cursor: none; }
+  a, button, .interactive { cursor: none; }
+  input, textarea, select, [contenteditable="true"] {
+    cursor: text !important;
+  }
   
   .cursor-ring {
     position: fixed;

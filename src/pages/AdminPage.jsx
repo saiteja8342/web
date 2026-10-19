@@ -10,44 +10,12 @@ import {
   LogOut,
   Search,
   Bell,
-  TrendingUp,
-  CheckSquare,
-  AlertTriangle,
-  Send,
-  Calendar,
-  ChevronDown,
-  ChevronRight,
-  SlidersHorizontal,
-  ArrowUpDown,
-  FileText,
-  Paperclip,
-  Check,
-  Plus,
-  Save,
-  MessageSquare,
-  Mail,
-  Clapperboard,
   Menu,
   X,
-  CheckCircle2,
-  Sparkles,
-  Cloud,
-  ExternalLink,
-  Clock,
-  Lock,
-  Eye,
-  EyeOff,
   Archive,
-  Star,
-  Award,
-  Quote,
   ShieldCheck,
-  Phone,
-  Trash2,
-  RefreshCw,
-  Ban,
+  Mail,
   Globe,
-  Copy,
   MessageSquareQuote,
   Laptop
 } from 'lucide-react';
@@ -58,317 +26,39 @@ import AdminClientManager from '../components/Admin/AdminClientManager';
 import AdminEditorManager from '../components/Admin/AdminEditorManager';
 import AdminSettings from '../components/Admin/AdminSettings';
 import AdminLoginDevices from '../components/Admin/AdminLoginDevices';
+import AddEditorModal from '../components/Admin/modals/AddEditorModal';
+import ContactRequestModal from '../components/Admin/modals/ContactRequestModal';
+import ClientDetailsModal from '../components/Admin/modals/ClientDetailsModal';
+import {
+  safeHref,
+  safeIsoDate,
+  stripVisibilityTag,
+  parseEditorRequirements,
+  parseCustomSection,
+  stripCustomTags,
+  preserveMetaTags,
+  parseNotesVisibility,
+  transformOrder,
+  getExpectedDeliveryDate,
+  DEFAULT_STUDIO_EDITORS,
+  transformEditor,
+  transformClient,
+  getWhatsAppUrl,
+  getOrderAcceptedDate,
+  getDeliveryPerformance,
+  getOrderStageDate
+} from '../components/Admin/adminHelpers';
 import { clearStoredDeviceToken } from '../lib/auth/deviceManager';
 
 import { supabase } from '../supabaseClient';
-import { checkRouteAuth } from '../lib/middleware/authGuard';
-import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, cancelOrder, assignEditorToOrder, getEditorActiveOrderCounts, generateOrderCode, formatOrderCode, stripOrderCodeTag, stripCancellationTag, parseCancellationReason, STATUS_MAP, VIDEO_TYPE_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
+import { getAdminAllOrders, getAdminOrderCounts, createOrder, updateOrder, updateOrderStatus, cancelOrder, assignEditorToOrder, getEditorActiveOrderCounts, generateOrderCode, STATUS_MAP, UI_TO_DB_STATUS, UI_TO_VIDEO_TYPE } from '../lib/db/orders';
 import { getApprovedEditors, getAllClientsForAdmin, getPendingProfiles, updateProfileStatus, blockClient, unblockClient, deleteClient } from '../lib/db/profiles';
-import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, formatNotificationTime } from '../lib/db/notifications';
+import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification } from '../lib/db/notifications';
 import { getEditorRatingStats, getAllDeliveredOrdersRatingsMap } from '../lib/db/ratings';
-import { getContactRequests, updateContactRequestStatus, updateContactRequestNotes, deleteContactRequest, PROJECT_TYPE_LABELS, STATUS_CONFIG as CONTACT_STATUS_CONFIG } from '../lib/db/contactRequests';
+import { getContactRequests, updateContactRequestStatus, updateContactRequestNotes, deleteContactRequest, STATUS_CONFIG as CONTACT_STATUS_CONFIG } from '../lib/db/contactRequests';
 import { getLinkFeedbacks, deleteLinkFeedback } from '../lib/db/linkFeedback';
 import { subscribeToOrders, subscribeToProfiles, subscribeToUserNotifications, subscribeToContactRequests, unsubscribeChannel } from '../lib/supabase/realtime';
 import './admin.css';
-
-// ─── Helpers ────────────────────────────────────────────────────────
-function safeHref(url) {
-  if (!url || typeof url !== 'string') return '#';
-  const trimmed = url.trim();
-  if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed;
-  }
-  return '#';
-}
-
-function safeIsoDate(val) {
-  if (!val || typeof val !== 'string') return null;
-  const trimmed = val.trim();
-  if (!trimmed || trimmed === 'No deadline' || trimmed === '—') return null;
-  const d = new Date(trimmed);
-  return isNaN(d.getTime()) ? null : d.toISOString();
-}
-
-function stripVisibilityTag(notes) {
-  if (!notes || typeof notes !== 'string') return '';
-  return notes.replace(/\[CLIENT_DELIVERABLE_VISIBLE:(true|false)\]/g, '').trim();
-}
-
-function parseEditorRequirements(notes) {
-  if (!notes || typeof notes !== 'string') return '';
-  const match = notes.match(/\[EDITOR_REQUIREMENTS:([^\]]*)\]/);
-  if (match && match[1]) {
-    try {
-      return decodeURIComponent(match[1]);
-    } catch {
-      return match[1];
-    }
-  }
-  return '';
-}
-
-function parseCustomSection(notes) {
-  if (!notes || typeof notes !== 'string') return { hasCustomSection: false, title: '', content: '' };
-  const titleMatch = notes.match(/\[CUSTOM_SECTION_TITLE:([^\]]*)\]/);
-  const contentMatch = notes.match(/\[CUSTOM_SECTION_CONTENT:([^\]]*)\]/);
-
-  let title = '';
-  let content = '';
-  if (titleMatch && titleMatch[1]) {
-    try {
-      title = decodeURIComponent(titleMatch[1]);
-    } catch {
-      title = titleMatch[1];
-    }
-  }
-  if (contentMatch && contentMatch[1]) {
-    try {
-      content = decodeURIComponent(contentMatch[1]);
-    } catch {
-      content = contentMatch[1];
-    }
-  }
-
-  const hasCustomSection = Boolean(title || content || titleMatch || contentMatch);
-  return { hasCustomSection, title, content };
-}
-
-function stripCustomTags(notes) {
-  if (!notes || typeof notes !== 'string') return '';
-  return notes
-    .replace(/\s*\[EDITOR_REQUIREMENTS:[^\]]*\]/g, '')
-    .replace(/\s*\[CUSTOM_SECTION_TITLE:[^\]]*\]/g, '')
-    .replace(/\s*\[CUSTOM_SECTION_CONTENT:[^\]]*\]/g, '')
-    .trim();
-}
-
-function preserveMetaTags(rawNotes, cleanNotes, extraTag) {
-  const metaTags = [];
-  if (typeof rawNotes === 'string') {
-    const editorMatch = rawNotes.match(/\[EDITOR_REQUIREMENTS:[^\]]*\]/);
-    if (editorMatch) metaTags.push(editorMatch[0]);
-    const titleMatch = rawNotes.match(/\[CUSTOM_SECTION_TITLE:[^\]]*\]/);
-    if (titleMatch) metaTags.push(titleMatch[0]);
-    const contentMatch = rawNotes.match(/\[CUSTOM_SECTION_CONTENT:[^\]]*\]/);
-    if (contentMatch) metaTags.push(contentMatch[0]);
-    const orderCodeMatch = rawNotes.match(/\[ORDER_CODE:[^\]]*\]/);
-    if (orderCodeMatch) metaTags.push(orderCodeMatch[0]);
-  }
-  const parts = [cleanNotes, ...metaTags, extraTag].filter(Boolean);
-  return parts.join(' ').trim();
-}
-
-function parseNotesVisibility(notes, clientLinkVisible) {
-  if (typeof notes === 'string') {
-    if (notes.includes('[CLIENT_DELIVERABLE_VISIBLE:true]')) return true;
-    if (notes.includes('[CLIENT_DELIVERABLE_VISIBLE:false]')) return false;
-  }
-  if (clientLinkVisible === true) return true;
-  if (clientLinkVisible === false) return false;
-  return false;
-}
-
-/** Transform a Supabase order row into the shape the existing UI expects. */
-function transformOrder(dbOrder) {
-  const isCancelledByTag = (typeof dbOrder.admin_notes === 'string') && (dbOrder.admin_notes.includes('[ORDER_CANCELLED:true]') || dbOrder.admin_notes.includes('[CANCELLATION_REASON:'));
-  const effectiveStatus = (isCancelledByTag || dbOrder.status === 'cancelled') ? 'cancelled' : dbOrder.status;
-  const sm = STATUS_MAP[effectiveStatus] || STATUS_MAP.received;
-  const cancellationReason = dbOrder.cancellation_reason || parseCancellationReason(dbOrder.admin_notes) || '';
-  const editorProfile = dbOrder.editor;
-  const clientProfile = dbOrder.client;
-
-  const displayCode = formatOrderCode(dbOrder);
-  const editorReq = parseEditorRequirements(dbOrder.admin_notes);
-  const customSec = parseCustomSection(dbOrder.admin_notes);
-
-  return {
-    id: dbOrder.id,
-    dbId: dbOrder.id,
-    displayId: displayCode,
-    orderCode: displayCode,
-    title: dbOrder.order_name,
-    client: clientProfile?.company_name || clientProfile?.full_name || 'Unknown',
-    type: VIDEO_TYPE_MAP[dbOrder.video_type] || dbOrder.video_type,
-    editor: {
-      id: editorProfile?.id || null,
-      name: editorProfile?.full_name || 'Unassigned',
-      role: editorProfile?.editor_title || 'Pending Assignment',
-      avatar: editorProfile?.avatar_url || '',
-    },
-    clientContact: {
-      name: clientProfile?.full_name || 'Client',
-      company: clientProfile?.company_name || '',
-    },
-    deadline: dbOrder.client_deadline
-      ? new Date(dbOrder.client_deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-      : 'No deadline',
-    status: sm.label,
-    dbStatus: effectiveStatus,
-    badgeClass: sm.badgeClass,
-    currentStep: sm.step,
-    cancellationReason: cancellationReason,
-    cancelledAt: dbOrder.cancelled_at || null,
-    cancelledBy: dbOrder.cancelled_by || null,
-    editorDeadline: dbOrder.editor_deadline ? dbOrder.editor_deadline.split('T')[0] : '',
-    clientDeadline: dbOrder.client_deadline ? dbOrder.client_deadline.split('T')[0] : '',
-    notes: stripCustomTags(stripVisibilityTag(stripOrderCodeTag(stripCancellationTag(dbOrder.admin_notes)))),
-    rawAdminNotes: dbOrder.admin_notes || '',
-    brief: dbOrder.brief || '',
-    editorRequirements: editorReq,
-    customSection: customSec,
-    customSectionTitle: customSec.title,
-    customSectionContent: customSec.content,
-    hasCustomSection: customSec.hasCustomSection,
-    driveLink: dbOrder.drive_link || '',
-    dropboxLink: dbOrder.dropbox_link || '',
-    additionalLink: dbOrder.additional_link || '',
-    clientLinkVisible: parseNotesVisibility(dbOrder.admin_notes, dbOrder.client_link_visible),
-    clientId: dbOrder.client_id,
-    editorId: dbOrder.editor_id,
-    adminId: dbOrder.admin_id,
-    createdAt: dbOrder.created_at,
-    updatedAt: dbOrder.updated_at,
-  };
-}
-
-function getExpectedDeliveryDate(order) {
-  if (!order) return 'Pending';
-  if (order.clientDeadline) {
-    try {
-      const d = new Date(order.clientDeadline);
-      if (!isNaN(d.getTime())) {
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      }
-    } catch {}
-  }
-  if (order.editorDeadline) {
-    try {
-      const d = new Date(order.editorDeadline);
-      if (!isNaN(d.getTime())) {
-        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      }
-    } catch {}
-  }
-  if (order.createdAt) {
-    try {
-      const created = new Date(order.createdAt);
-      if (!isNaN(created.getTime())) {
-        const exp = new Date(created.getTime() + 3 * 24 * 60 * 60 * 1000);
-        return exp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      }
-    } catch {}
-  }
-  return 'Flexible';
-}
-
-const DEFAULT_STUDIO_EDITORS = [
-  {
-    id: 'ed_studio_1',
-    full_name: 'Alex Rivera',
-    username: 'alexrivera',
-    email: 'alex@motionnodeedits.com',
-    editor_title: 'AI Video Editor & VFX Lead',
-    role: 'editor',
-    status: 'approved',
-    avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-    skills: ['Runway Gen-3', 'Midjourney', 'After Effects', 'Topaz AI'],
-  },
-  {
-    id: 'ed_studio_2',
-    full_name: 'Marcus Chen',
-    username: 'marcuschen',
-    email: 'marcus@motionnodeedits.com',
-    editor_title: 'Motion Graphics Specialist',
-    role: 'editor',
-    status: 'approved',
-    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
-    skills: ['Cinema 4D', 'Blender', 'Unreal Engine 5', 'Motion Design'],
-  },
-  {
-    id: 'ed_studio_3',
-    full_name: 'Elena Rostova',
-    username: 'elenarostova',
-    email: 'elena@motionnodeedits.com',
-    editor_title: 'Short-Form Specialist',
-    role: 'editor',
-    status: 'approved',
-    avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
-    skills: ['Premiere Pro', 'CapCut Pro', 'Sound Design', 'Reels / TikTok Pacing'],
-  }
-];
-
-/** Transform editor profile + stats into shape the UI expects. */
-function transformEditor(profile, activeCount = 0, avgRating = 0) {
-  const maxOrders = 5; // default capacity
-  const isAtCapacity = activeCount >= maxOrders;
-  const name = profile?.full_name || profile?.username || profile?.email || 'Video Editor';
-  const role = profile?.editor_title || profile?.role || 'AI Video Editor';
-  const category = profile?.editor_title || 'AI Video Editor';
-  const isPending = (profile?.status || '').toLowerCase() === 'pending';
-
-  const status = isPending
-    ? 'PENDING'
-    : isAtCapacity
-      ? 'AT CAPACITY'
-      : 'AVAILABLE';
-
-  const statusColor = isPending
-    ? '#F59E0B'
-    : isAtCapacity
-      ? '#EF4444'
-      : '#22C55E';
-
-  const skillsList = Array.isArray(profile?.skills) && profile.skills.length > 0
-    ? profile.skills
-    : ['AI Video', 'After Effects', 'Colorist'];
-
-  return {
-    id: profile?.id || `ed_${Date.now()}`,
-    name,
-    email: profile?.email || '',
-    phone: profile?.phone || '',
-    avatar: profile?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
-    status,
-    statusColor,
-    activeOrders: activeCount,
-    maxOrders,
-    category,
-    role,
-    tagline: profile?.tagline || profile?.editor_title || `${category} Specialist`,
-    skills: skillsList,
-    rating: avgRating || 5.0,
-    created_at: profile?.created_at,
-  };
-}
-
-/** Transform client profile into shape the UI expects. */
-function transformClient(profile, activeCount = 0) {
-  const isGoogle = Boolean(
-    (profile.avatar_url && (profile.avatar_url.includes('googleusercontent.com') || profile.avatar_url.includes('google'))) ||
-    profile.editor_title === 'Google User' ||
-    profile.company_name === 'Google Client'
-  );
-
-  const status = (profile.status || 'approved').toLowerCase().trim();
-
-  return {
-    id: profile.id,
-    name: profile.full_name || profile.company_name || profile.email || 'Client',
-    previous_name: profile.previous_name || '',
-    company: profile.company_name || '',
-    company_name: profile.company_name || '',
-    phone: profile.phone || '',
-    tier: 'Client',
-    activeProjects: activeCount,
-    spend: '—',
-    contact: profile.full_name || profile.email || 'Client',
-    email: profile.email || '',
-    status: status,
-    isGoogle: isGoogle,
-    created_at: profile.created_at,
-    updated_at: profile.updated_at,
-  };
-}
 
 
 export default function AdminPage() {
@@ -423,7 +113,6 @@ export default function AdminPage() {
   const [mgmtTab, setMgmtTab] = useState('editors');
   const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
-  const [notifOpen, setNotifOpen] = useState(false);
 
   // ─── Live Data State ──────────────────────────────────────────────
   const [notifications, setNotifications] = useState([]);
@@ -885,15 +574,6 @@ export default function AdminPage() {
     }
   };
 
-  const getWhatsAppUrl = (phone, name, projectType) => {
-    if (!phone) return null;
-    const cleanPhone = phone.replace(/[^\d+]/g, '').replace(/^0+/, '');
-    const finalPhone = cleanPhone.startsWith('+') ? cleanPhone.slice(1) : cleanPhone;
-    const projectLabel = PROJECT_TYPE_LABELS[projectType] || 'video editing';
-    const greeting = encodeURIComponent(`Hi ${name || 'there'}, thanks for reaching out to MotionNodeEdits regarding your ${projectLabel} project!`);
-    return `https://wa.me/${finalPhone}?text=${greeting}`;
-  };
-
   useEffect(() => {
     if (!adminProfile) return;
 
@@ -933,10 +613,9 @@ export default function AdminPage() {
 
   const [expandedEditor, setExpandedEditor] = useState(null);
 
-  // Active pipeline orders (excluding completed/delivered and cancelled) vs Delivered vs Cancelled
+  // Active pipeline orders (excluding completed/delivered and cancelled) vs Delivered
   const activePipelineOrders = orders.filter(o => o.dbStatus !== 'delivered' && o.dbStatus !== 'cancelled');
   const deliveredHistoryOrders = orders.filter(o => o.dbStatus === 'delivered');
-  const cancelledOrders = orders.filter(o => o.dbStatus === 'cancelled');
 
   // Cancel Order Modal State (Admin Exclusive)
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
@@ -988,139 +667,8 @@ export default function AdminPage() {
     return () => { active = false; };
   }, [selectedOrderId]);
 
-  const getOrderStageDate = (order, statusKey, stepIndex) => {
-    if (!order || !order.id) return 'Pending';
-    const currentStep = order.currentStep ?? 0;
-
-    // If delivered stage is not yet completed, show expected delivery date
-    if (statusKey === 'delivered' && currentStep < 4) {
-      const expDate = getExpectedDeliveryDate(order);
-      return `Exp: ${expDate}`;
-    }
-
-    // If step hasn't been reached yet
-    if (currentStep < stepIndex) {
-      return 'Pending';
-    }
-
-    // Step 0: Received
-    if (stepIndex === 0) {
-      if (order.createdAt) {
-        try {
-          const d = new Date(order.createdAt);
-          if (!isNaN(d.getTime())) {
-            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-          }
-        } catch {}
-      }
-      return 'Received';
-    }
-
-    // Check status history for this step
-    const history = statusHistoryMap[order.id] || [];
-    const match = history.find(h => h.new_status === statusKey);
-    if (match && match.changed_at) {
-      try {
-        const d = new Date(match.changed_at);
-        if (!isNaN(d.getTime())) {
-          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        }
-      } catch {}
-    }
-
-    // Active step timestamp
-    if (currentStep === stepIndex && order.updatedAt) {
-      try {
-        const d = new Date(order.updatedAt);
-        if (!isNaN(d.getTime())) {
-          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        }
-      } catch {}
-    }
-
-    // Completed step fallback
-    if (currentStep > stepIndex) {
-      const fallbackDate = order.updatedAt || order.createdAt;
-      if (fallbackDate) {
-        try {
-          const d = new Date(fallbackDate);
-          if (!isNaN(d.getTime())) {
-            return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-          }
-        } catch {}
-      }
-    }
-
-    return 'Pending';
-  };
-
-  const getOrderAcceptedDate = (order, historyMap) => {
-    if (!order) return '—';
-    const history = (historyMap && historyMap[order.id]) || [];
-    const match = history.find(h => h.new_status === 'accepted');
-    if (match && match.changed_at) {
-      try {
-        const d = new Date(match.changed_at);
-        if (!isNaN(d.getTime())) {
-          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        }
-      } catch {}
-    }
-    // Fallback to order createdAt
-    if (order.createdAt) {
-      try {
-        const d = new Date(order.createdAt);
-        if (!isNaN(d.getTime())) {
-          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        }
-      } catch {}
-    }
-    return '—';
-  };
-
-  const getDeliveryPerformance = (order, historyMap) => {
-    if (!order) return { label: 'On Time', isOnTime: true };
-
-    let deliveryTime = null;
-    const history = (historyMap && historyMap[order.id]) || [];
-    const deliveredHistory = history.find(h => h.new_status === 'delivered');
-    if (deliveredHistory && deliveredHistory.changed_at) {
-      deliveryTime = new Date(deliveredHistory.changed_at);
-    } else if (order.updatedAt) {
-      deliveryTime = new Date(order.updatedAt);
-    }
-
-    const deadlineStr = order.clientDeadline || order.editorDeadline;
-    if (!deadlineStr || deadlineStr === 'No deadline' || deadlineStr === '—') {
-      return { label: 'On Time', isOnTime: true };
-    }
-
-    const deadlineTime = new Date(deadlineStr);
-    if (isNaN(deadlineTime.getTime()) || !deliveryTime || isNaN(deliveryTime.getTime())) {
-      return { label: 'On Time', isOnTime: true };
-    }
-
-    // End of deadline day in local time
-    const deadlineEndOfDay = new Date(deadlineTime);
-    deadlineEndOfDay.setHours(23, 59, 59, 999);
-
-    const diffMs = deliveryTime.getTime() - deadlineEndOfDay.getTime();
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffMs <= 0 || diffDays <= 0) {
-      return {
-        label: 'On Time',
-        isOnTime: true,
-        diffDays: 0,
-      };
-    } else {
-      return {
-        label: `Delayed (+${diffDays}d)`,
-        isOnTime: false,
-        diffDays,
-      };
-    }
-  };
+  const handleGetOrderStageDate = (order, statusKey, stepIndex) =>
+    getOrderStageDate(order, statusKey, stepIndex, statusHistoryMap);
 
   // Assign Project Form State
   const [assignForm, setAssignForm] = useState({
@@ -2520,7 +2068,7 @@ export default function AdminPage() {
                 statusHistoryMap={statusHistoryMap}
                 getExpectedDeliveryDate={getExpectedDeliveryDate}
                 getOrderAcceptedDate={getOrderAcceptedDate}
-                getOrderStageDate={getOrderStageDate}
+                getOrderStageDate={handleGetOrderStageDate}
                 safeHref={safeHref}
                 showActionToast={showToast}
                 handleToggleClientDeliverableAccess={handleToggleClientDeliverableAccess}
@@ -2568,494 +2116,31 @@ export default function AdminPage() {
       </div>
 
       {/* ============================================================== */}
-      {/* ADD NEW EDITOR MODAL                                           */}
+      {/* MODALS                                                         */}
       {/* ============================================================== */}
-      {showAddEditorModal && (
-        <div className="vel-modal-backdrop" onClick={() => setShowAddEditorModal(false)}>
-          <div className="vel-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="vel-modal-head">
-              <div>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>Add New Editor</h3>
-                <p style={{ fontSize: '0.75rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
-                  Register a creator into the MotionNode production studio roster.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowAddEditorModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <AddEditorModal
+        showAddEditorModal={showAddEditorModal}
+        setShowAddEditorModal={setShowAddEditorModal}
+        handleAddNewEditorSubmit={handleAddNewEditorSubmit}
+        newEditorForm={newEditorForm}
+        setNewEditorForm={setNewEditorForm}
+      />
 
-            <form onSubmit={handleAddNewEditorSubmit}>
-              <div className="vel-modal-body">
-                <div className="vel-field-group">
-                  <label className="vel-label">Editor Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g., Lucas Romero"
-                    className="vel-input"
-                    value={newEditorForm.name}
-                    onChange={(e) => setNewEditorForm({ ...newEditorForm, name: e.target.value })}
-                  />
-                </div>
+      <ContactRequestModal
+        selectedContactRequest={selectedContactRequest}
+        setSelectedContactRequest={setSelectedContactRequest}
+        handleUpdateContactStatus={handleUpdateContactStatus}
+        tempContactNotes={tempContactNotes}
+        setTempContactNotes={setTempContactNotes}
+        isSavingNotes={isSavingNotes}
+        handleSaveContactNotes={handleSaveContactNotes}
+        getWhatsAppUrl={getWhatsAppUrl}
+      />
 
-                <div className="vel-form-grid-2">
-                  <div className="vel-field-group">
-                    <label className="vel-label">Primary Specialty</label>
-                    <select
-                      className="vel-select"
-                      value={newEditorForm.category}
-                      onChange={(e) => {
-                        const cat = e.target.value;
-                        let role = 'Senior Editor';
-                        let tagline = '';
-                        let skills = '';
-                        if (cat === 'AI Video Editor') {
-                          role = 'AI Video Synthesis & Neural VFX Lead';
-                          tagline = 'Runway Gen-3, Midjourney v6 & Neural Upscaling';
-                          skills = 'Runway Gen-3, Midjourney, Topaz AI, After Effects';
-                        } else if (cat === 'Motion Graphics') {
-                          role = 'Lead Motion Graphics & 3D Designer';
-                          tagline = 'Kinetic Typography, Cinema 4D & Dynamic UI Motion';
-                          skills = 'Cinema 4D, After Effects, Premiere Pro, Sound Design';
-                        } else if (cat === 'Graphic Designer') {
-                          role = 'Senior Graphic Designer & Key Visuals Lead';
-                          tagline = 'High-CTR YouTube Thumbnails, Key Visuals & Brand Posters';
-                          skills = 'Photoshop, Figma, Midjourney v6, Illustrator';
-                        } else if (cat === 'Short-Form Specialist') {
-                          role = 'Short-Form & Viral Content Specialist';
-                          tagline = 'High-Retention TikToks, Instagram Reels & Hook Mastery';
-                          skills = 'CapCut Pro, Retention Pacing, Speed Ramps, Subtitles';
-                        } else if (cat === 'Colorist') {
-                          role = 'Senior Colorist & Master Finisher';
-                          tagline = 'ACES Color Pipelines, 35mm Film Emulation & HDR10';
-                          skills = 'DaVinci Resolve Studio, FilmConvert, Dehancer Pro';
-                        }
-                        setNewEditorForm({ ...newEditorForm, category: cat, role, tagline, skills });
-                      }}
-                    >
-                      <option value="AI Video Editor">AI Video Editor</option>
-                      <option value="Motion Graphics">Motion Graphics Designer</option>
-                      <option value="Graphic Designer">Graphic Designer</option>
-                      <option value="Short-Form Specialist">Short-Form Specialist</option>
-                      <option value="Colorist">Colorist</option>
-                    </select>
-                  </div>
-
-                  <div className="vel-field-group">
-                    <label className="vel-label">Max Order Capacity</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="10"
-                      className="vel-input"
-                      value={newEditorForm.maxOrders}
-                      onChange={(e) => setNewEditorForm({ ...newEditorForm, maxOrders: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="vel-field-group">
-                  <label className="vel-label">Professional Role Title</label>
-                  <input
-                    type="text"
-                    className="vel-input"
-                    value={newEditorForm.role}
-                    onChange={(e) => setNewEditorForm({ ...newEditorForm, role: e.target.value })}
-                  />
-                </div>
-
-                <div className="vel-field-group">
-                  <label className="vel-label">Specialty Tagline Description</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Runway Gen-3, Midjourney v6 & Neural Upscaling"
-                    className="vel-input"
-                    value={newEditorForm.tagline}
-                    onChange={(e) => setNewEditorForm({ ...newEditorForm, tagline: e.target.value })}
-                  />
-                </div>
-
-                <div className="vel-field-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <label className="vel-label">Key Skills & Tooling (Comma Separated)</label>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--vel-text-tertiary)' }}>Tools</span>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Runway Gen-3, Midjourney, After Effects, Topaz AI"
-                    className="vel-input"
-                    value={newEditorForm.skills}
-                    onChange={(e) => setNewEditorForm({ ...newEditorForm, skills: e.target.value })}
-                  />
-                </div>
-
-                <div className="vel-field-group">
-                  <label className="vel-label">Status</label>
-                  <select
-                    className="vel-select"
-                    value={newEditorForm.status}
-                    onChange={(e) => setNewEditorForm({ ...newEditorForm, status: e.target.value })}
-                  >
-                    <option value="AVAILABLE">AVAILABLE (Accepting Projects)</option>
-                    <option value="AT CAPACITY">AT CAPACITY (Busy)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="vel-modal-foot">
-                <button
-                  type="button"
-                  className="vel-btn-outline"
-                  onClick={() => setShowAddEditorModal(false)}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="vel-btn-solid">
-                  <Plus className="h-4 w-4" />
-                  <span>Register Editor</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================== */}
-      {/* VIEW CONTACT REQUEST DETAILS & NOTES MODAL                     */}
-      {/* ============================================================== */}
-      {selectedContactRequest && (
-        <div className="vel-modal-backdrop" onClick={() => setSelectedContactRequest(null)}>
-          <div className="vel-modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
-            <div className="vel-modal-head">
-              <div>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
-                  Contact Request Details
-                </h3>
-                <p style={{ fontSize: '0.75rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
-                  Submitted on {selectedContactRequest.created_at ? new Date(selectedContactRequest.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recently'}
-                </p>
-              </div>
-              <button
-                onClick={() => setSelectedContactRequest(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="vel-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Contact Info Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="vel-field-group">
-                  <label className="vel-label">Client Name</label>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#FFFFFF' }}>{selectedContactRequest.name}</div>
-                </div>
-
-                <div className="vel-field-group">
-                  <label className="vel-label">Project Type</label>
-                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#C084FC' }}>
-                    {PROJECT_TYPE_LABELS[selectedContactRequest.project_type] || selectedContactRequest.project_type}
-                  </div>
-                </div>
-
-                <div className="vel-field-group">
-                  <label className="vel-label">Email Address</label>
-                  <a href={`mailto:${selectedContactRequest.email}`} style={{ fontSize: '0.85rem', color: '#FFFFFF', textDecoration: 'none' }}>
-                    {selectedContactRequest.email}
-                  </a>
-                </div>
-
-                <div className="vel-field-group">
-                  <label className="vel-label">Phone Number</label>
-                  <div style={{ fontSize: '0.85rem', color: '#FFFFFF' }}>
-                    {selectedContactRequest.phone || 'Not provided'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Status Selector */}
-              <div className="vel-field-group">
-                <label className="vel-label">Inquiry Status</label>
-                <select
-                  value={selectedContactRequest.status || 'new'}
-                  onChange={(e) => handleUpdateContactStatus(selectedContactRequest.id, e.target.value)}
-                  className="vel-select"
-                >
-                  <option value="new">New (Uncontacted)</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="in_discussion">In Discussion</option>
-                  <option value="closed">Closed</option>
-                </select>
-              </div>
-
-              {/* Full Project Details */}
-              <div className="vel-field-group">
-                <label className="vel-label">Project Details / Message</label>
-                <div style={{
-                  background: 'var(--vel-bg-input)',
-                  border: '1px solid var(--vel-border)',
-                  borderRadius: '8px',
-                  padding: '14px',
-                  fontSize: '0.85rem',
-                  lineHeight: 1.6,
-                  color: '#FFFFFF',
-                  whiteSpace: 'pre-wrap',
-                  maxHeight: '220px',
-                  overflowY: 'auto'
-                }}>
-                  {selectedContactRequest.message}
-                </div>
-              </div>
-
-              {/* Internal Admin Notes */}
-              <div className="vel-field-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label className="vel-label" style={{ margin: 0 }}>Internal Admin Notes</label>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--vel-text-tertiary)' }}>Private to admin team</span>
-                </div>
-                <textarea
-                  rows={3}
-                  placeholder="Add notes about pricing discussed, follow-up timeline, client preferences..."
-                  className="vel-input"
-                  style={{ resize: 'vertical' }}
-                  value={tempContactNotes}
-                  onChange={(e) => setTempContactNotes(e.target.value)}
-                />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
-                  <button
-                    type="button"
-                    disabled={isSavingNotes}
-                    onClick={() => handleSaveContactNotes(selectedContactRequest.id)}
-                    className="vel-btn-outline"
-                    style={{ fontSize: '0.76rem', padding: '4px 12px' }}
-                  >
-                    <Save className="h-3.5 w-3.5" />
-                    <span>{isSavingNotes ? 'Saving...' : 'Save Notes'}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="vel-modal-foot">
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {getWhatsAppUrl(selectedContactRequest.phone, selectedContactRequest.name, selectedContactRequest.project_type) && (
-                  <a
-                    href={getWhatsAppUrl(selectedContactRequest.phone, selectedContactRequest.name, selectedContactRequest.project_type)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="vel-btn-solid"
-                    style={{ background: '#25D366', borderColor: '#25D366', color: '#000000', textDecoration: 'none', fontSize: '0.8rem' }}
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    <span>WhatsApp</span>
-                  </a>
-                )}
-                <a
-                  href={`mailto:${selectedContactRequest.email}`}
-                  className="vel-btn-outline"
-                  style={{ textDecoration: 'none', fontSize: '0.8rem' }}
-                >
-                  <Mail className="h-4 w-4" />
-                  <span>Email</span>
-                </a>
-              </div>
-
-              <button
-                type="button"
-                className="vel-btn-outline"
-                onClick={() => setSelectedContactRequest(null)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================== */}
-      {/* CLIENT DETAILS & NAME HISTORY MODAL                            */}
-      {/* ============================================================== */}
-      {selectedClientModal && (
-        <div className="vel-modal-backdrop" onClick={() => setSelectedClientModal(null)}>
-          <div
-            className="vel-modal"
-            style={{ maxWidth: '580px' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="vel-modal-head">
-              <div>
-                <h3 className="vel-modal-title">Client Account Details</h3>
-                <p className="vel-subtext" style={{ fontSize: '0.78rem', marginTop: '2px' }}>
-                  Complete identity, contact, and name modification history.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="vel-icon-btn"
-                onClick={() => setSelectedClientModal(null)}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="vel-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Profile Overview Header Card */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', background: 'rgba(255,255,255,0.03)', padding: '14px', borderRadius: '10px', border: '1px solid var(--vel-border)' }}>
-                <div style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '10px',
-                  background: '#181824',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '1.2rem',
-                  fontWeight: 800,
-                  color: '#FFFFFF'
-                }}>
-                  {selectedClientModal.name ? selectedClientModal.name.charAt(0).toUpperCase() : 'C'}
-                </div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <h4 style={{ fontSize: '1rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-                      {selectedClientModal.name}
-                    </h4>
-                    {selectedClientModal.isGoogle && (
-                      <span style={{ fontSize: '0.66rem', padding: '2px 7px', borderRadius: '6px', background: 'rgba(255, 255, 255, 0.08)', color: '#FFFFFF', border: '1px solid rgba(255, 255, 255, 0.18)', fontWeight: 600 }}>
-                        Google Auth
-                      </span>
-                    )}
-                    <span style={{
-                      fontSize: '0.66rem',
-                      padding: '2px 7px',
-                      borderRadius: '6px',
-                      background: selectedClientModal.status === 'rejected' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.12)',
-                      color: selectedClientModal.status === 'rejected' ? '#F87171' : '#4ADE80',
-                      border: selectedClientModal.status === 'rejected' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(34, 197, 94, 0.25)',
-                      fontWeight: 600
-                    }}>
-                      {selectedClientModal.status === 'rejected' ? 'Suspended / Blocked' : 'Active Client'}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: 'var(--vel-text-secondary)', marginTop: '3px', margin: 0 }}>
-                    User ID: <span style={{ fontFamily: 'monospace', fontSize: '0.74rem' }}>{selectedClientModal.id}</span>
-                  </p>
-                </div>
-              </div>
-
-              {/* Name Change Notice if client previously altered their name */}
-              {selectedClientModal.previous_name && (
-                <div style={{ background: 'rgba(234, 179, 8, 0.08)', border: '1px solid rgba(234, 179, 8, 0.25)', borderRadius: '10px', padding: '12px 16px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#FACC15' }}>
-                      ● Client Name Modification Detected
-                    </span>
-                  </div>
-                  <p style={{ fontSize: '0.78rem', color: '#E2E8F0', marginTop: '4px', margin: 0 }}>
-                    This client previously registered under the name: <strong style={{ color: '#FDE047' }}>{selectedClientModal.previous_name}</strong>
-                  </p>
-                </div>
-              )}
-
-              {/* Details Key-Value Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
-                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
-                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                    Current Display Name
-                  </label>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#FFFFFF', marginTop: '3px' }}>
-                    {selectedClientModal.name || 'Not provided'}
-                  </div>
-                </div>
-
-                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
-                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                    Previous Name (Old Name)
-                  </label>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: selectedClientModal.previous_name ? '#FACC15' : 'var(--vel-text-tertiary)', marginTop: '3px' }}>
-                    {selectedClientModal.previous_name ? selectedClientModal.previous_name : 'No previous name (never changed)'}
-                  </div>
-                </div>
-
-                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
-                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                    Company / Brand
-                  </label>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#FFFFFF', marginTop: '3px' }}>
-                    {selectedClientModal.company_name || 'Not provided'}
-                  </div>
-                </div>
-
-                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
-                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                    Phone Number
-                  </label>
-                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: selectedClientModal.phone ? '#34D399' : 'var(--vel-text-tertiary)', marginTop: '3px' }}>
-                    {selectedClientModal.phone || 'Not provided'}
-                  </div>
-                </div>
-
-                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
-                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                    Email Address
-                  </label>
-                  <div style={{ fontSize: '0.86rem', color: '#FFFFFF', marginTop: '3px', wordBreak: 'break-all' }}>
-                    {selectedClientModal.email}
-                  </div>
-                </div>
-
-                <div style={{ background: '#121218', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px' }}>
-                  <label style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
-                    Registered On
-                  </label>
-                  <div style={{ fontSize: '0.84rem', color: '#FFFFFF', marginTop: '3px' }}>
-                    {selectedClientModal.created_at ? new Date(selectedClientModal.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="vel-modal-foot">
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {selectedClientModal.phone && (
-                  <a
-                    href={`https://wa.me/${selectedClientModal.phone.replace(/[^\\d+]/g, '').replace(/^0+/, '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="vel-btn-solid"
-                    style={{ background: '#25D366', borderColor: '#25D366', color: '#000000', textDecoration: 'none', fontSize: '0.8rem' }}
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    <span>WhatsApp</span>
-                  </a>
-                )}
-                {selectedClientModal.email && (
-                  <a
-                    href={`mailto:${selectedClientModal.email}`}
-                    className="vel-btn-outline"
-                    style={{ textDecoration: 'none', fontSize: '0.8rem' }}
-                  >
-                    <Mail className="h-4 w-4" />
-                    <span>Send Email</span>
-                  </a>
-                )}
-              </div>
-
-              <button
-                type="button"
-                className="vel-btn-outline"
-                onClick={() => setSelectedClientModal(null)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ClientDetailsModal
+        selectedClientModal={selectedClientModal}
+        setSelectedClientModal={setSelectedClientModal}
+      />
     </div>
   );
 }

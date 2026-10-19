@@ -195,6 +195,7 @@ export default function Hero({ isLoaded }) {
                   ref={iframeRef}
                   src="https://www.youtube-nocookie.com/embed/qouiu4CbHU8?autoplay=1&mute=1&loop=1&playlist=qouiu4CbHU8&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&iv_load_policy=3&cc_load_policy=0&fs=0&enablejsapi=1"
                   title="MotionNodeEdits Hero Reel"
+                  loading="lazy"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
                   className="hero-video"

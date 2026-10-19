@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
+  <url>
+    <loc>https://motionnodeedits.com/</loc>
+    <video:video>
+      <video:thumbnail_loc>https://motionnodeedits.com/assets/posters/showreel-poster.webp</video:thumbnail_loc>
+      <video:title>MotionNodeEdits Hero Showreel — AI Video Production &amp; Video Editing</video:title>
+      <video:description>End-to-end AI-powered video production, cinematic commercial visuals, and high-retention video editing by MotionNodeEdits.</video:description>
+      <video:player_loc>https://www.youtube.com/embed/qouiu4CbHU8</video:player_loc>
+      <video:duration>30</video:duration>
+      <video:publication_date>2026-01-01T00:00:00+00:00</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+    </video:video>
+  </url>
+  <url>
+    <loc>https://motionnodeedits.com/work</loc>
+    <video:video>
+      <video:thumbnail_loc>https://motionnodeedits.com/assets/posters/ai-reel.webp</video:thumbnail_loc>
+      <video:title>AI Generative Motion Reel</video:title>
+      <video:description>Dynamic short-form vertical video creation powered by generative AI visual synthesis and motion design.</video:description>
+      <video:player_loc>https://www.youtube.com/embed/k9egdphA9mQ</video:player_loc>
+      <video:duration>25</video:duration>
+      <video:publication_date>2026-01-01T00:00:00+00:00</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+    </video:video>
+    <video:video>
+      <video:thumbnail_loc>https://motionnodeedits.com/assets/posters/ai-coffee.webp</video:thumbnail_loc>
+      <video:title>Cinematic Coffee Powder Commercial</video:title>
+      <video:description>AI-generated coffee brand commercial featuring cinematic product visualization, sound sync, and studio color grading.</video:description>
+      <video:player_loc>https://www.youtube.com/embed/2w_ZO0n9xIg</video:player_loc>
+      <video:duration>41</video:duration>
+      <video:publication_date>2026-01-01T00:00:00+00:00</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+    </video:video>
+    <video:video>
+      <video:thumbnail_loc>https://motionnodeedits.com/assets/posters/ai-sweet.webp</video:thumbnail_loc>
+      <video:title>Mysore Pak Sweet AI Commercial</video:title>
+      <video:description>Sound-synced fluid AI commercial showcasing culinary product motion and macro visual storytelling.</video:description>
+      <video:player_loc>https://www.youtube.com/embed/VYvni7IJaGc</video:player_loc>
+      <video:duration>31</video:duration>
+      <video:publication_date>2026-01-01T00:00:00+00:00</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+    </video:video>
+    <video:video>
+      <video:thumbnail_loc>https://motionnodeedits.com/assets/posters/showreel-poster.webp</video:thumbnail_loc>
+      <video:title>AI Thar Automotive Motion Reveal</video:title>
+      <video:description>Cinematic 3D-style automotive generative AI motion sequence and fluid camera tracking.</video:description>
+      <video:player_loc>https://www.youtube.com/embed/IltFdkq1qRA</video:player_loc>
+      <video:duration>10</video:duration>
+      <video:publication_date>2026-01-01T00:00:00+00:00</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+    </video:video>
+    <video:video>
+      <video:thumbnail_loc>https://motionnodeedits.com/assets/posters/ai-hanuman.webp</video:thumbnail_loc>
+      <video:title>Hanuman Epic Sun Story</video:title>
+      <video:description>Widescreen mythological narrative animation driven by generative AI visual algorithms and sound effects.</video:description>
+      <video:player_loc>https://www.youtube.com/embed/pKvRNSqEBE4</video:player_loc>
+      <video:duration>68</video:duration>
+      <video:publication_date>2026-01-01T00:00:00+00:00</video:publication_date>
+      <video:family_friendly>yes</video:family_friendly>
+      <video:live>no</video:live>
+    </video:video>
+  </url>
+</urlset>

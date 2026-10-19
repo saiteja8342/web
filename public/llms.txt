@@ -1,0 +1,38 @@
+# MotionNodeEdits
+
+> End-to-end AI-powered video production and professional video editing agency serving brands and creators worldwide.
+
+## About Us
+MotionNodeEdits is a creative video production studio combining generative AI tools with cinematic post-production direction. We deliver commercials, high-retention social reels, product videos, and brand films without requiring physical camera crews or on-location shooting.
+
+## Service Model & Workflow
+Clients provide a script, creative brief, or concept idea. MotionNodeEdits executes the complete end-to-end production workflow:
+- **Concept & Storyboarding**: Visual scene breakdown and prompt engineering.
+- **AI Visual Generation**: Generative AI video rendering and visual asset creation.
+- **AI Voice-Overs & Speech**: Synthetic narration, accent matching, and multi-language speech generation.
+- **Sound Design & Foley**: Audio engineering, sound effects sync, and background music arrangement.
+- **Professional Video Editing**: High-retention pacing, dynamic motion graphics, subtitles, and color grading.
+- **Delivery**: Final 4K or vertical format export with revision rounds.
+
+Physical camera shooting and on-location filming are not required.
+
+## Core Capabilities
+- **End-to-End AI Video Production**: Complete video production from idea to final render.
+- **Commercial AI Ads**: High-impact advertising films for D2C brands, e-commerce, and SaaS.
+- **AI Voice-Overs & Audio**: Studio-grade narration and custom sound design.
+- **High-Retention Video Editing**: Editorial pacing tuned for maximum watch time and viewer retention.
+- **Social Media Reels & UGC**: 9:16 vertical videos engineered for Instagram Reels, TikTok, and YouTube Shorts.
+- **Product Videos**: Sleek 3D-style product showcases and atmospheric macro visuals.
+
+## Key Links
+- Homepage: https://motionnodeedits.com/
+- Portfolio & Featured Work: https://motionnodeedits.com/work
+- About Us & FAQ: https://motionnodeedits.com/about
+- Terms of Service: https://motionnodeedits.com/terms
+- Privacy Policy: https://motionnodeedits.com/privacy
+
+## Contact Information
+- Email: hello@motionnodeedits.com
+- Telephone / WhatsApp: +91 8985351756
+- Headquarters: Hyderabad, Telangana, India
+- Service Area: Global / Worldwide

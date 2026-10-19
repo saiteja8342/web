@@ -34,15 +34,32 @@ export default function CustomCursor() {
     if (dotRef.current) gsap.set(dotRef.current, { opacity: 0 });
     if (ringRef.current) gsap.set(ringRef.current, { opacity: 0 });
 
+    let isOverInput = false;
+
     const onMouseMove = (e) => {
       mouseX = e.clientX;
       mouseY = e.clientY;
+
+      const inInput = !!e.target.closest('input, textarea, select, [contenteditable="true"]');
+      if (inInput !== isOverInput) {
+        isOverInput = inInput;
+        if (isOverInput) {
+          if (dotRef.current) gsap.to(dotRef.current, { opacity: 0, duration: 0.1 });
+          if (ringRef.current) gsap.to(ringRef.current, { opacity: 0, duration: 0.1 });
+        } else {
+          if (dotRef.current) gsap.to(dotRef.current, { opacity: 1, duration: 0.15 });
+          if (ringRef.current) gsap.to(ringRef.current, { opacity: 0.4, duration: 0.15 });
+        }
+      }
+
       if (!hasMoved) {
         hasMoved = true;
         ringX = mouseX;
         ringY = mouseY;
-        if (dotRef.current) gsap.set(dotRef.current, { opacity: 1 });
-        if (ringRef.current) gsap.set(ringRef.current, { opacity: 0.4 });
+        if (!isOverInput) {
+          if (dotRef.current) gsap.set(dotRef.current, { opacity: 1 });
+          if (ringRef.current) gsap.set(ringRef.current, { opacity: 0.4 });
+        }
       }
       if (dotRef.current) gsap.set(dotRef.current, { x: mouseX, y: mouseY });
     };
@@ -53,7 +70,7 @@ export default function CustomCursor() {
     };
 
     const onMouseEnter = () => {
-      if (hasMoved) {
+      if (hasMoved && !isOverInput) {
         if (dotRef.current) gsap.to(dotRef.current, { opacity: 1, duration: 0.15 });
         if (ringRef.current) gsap.to(ringRef.current, { opacity: 0.4, duration: 0.15 });
       }
@@ -74,6 +91,7 @@ export default function CustomCursor() {
 
     // Dynamic hover handling via event delegation
     const onMouseOver = (e) => {
+      if (isOverInput) return;
       const hoverEl = e.target.closest('[data-hover-type]');
       if (hoverEl) {
         const type = hoverEl.getAttribute('data-hover-type');

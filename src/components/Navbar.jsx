@@ -188,8 +188,8 @@ export default function Navbar() {
             ) : (
               /* START A PROJECT CTA BUTTON (Only visible when user is signed out) */
               <div
-                onClick={handleStartProjectClick}
-                style={{ display: 'inline-flex', cursor: 'pointer' }}
+                style={{ display: 'inline-flex' }}
+                className="nav-cta-container"
               >
                 <NoiseBackground
                   containerClassName="nav-cta-custom-wrapper"
@@ -204,6 +204,7 @@ export default function Navbar() {
                     onClick={handleStartProjectClick}
                     className="nav-cta-custom-noise"
                     data-hover-type="link"
+                    aria-label="Start a project"
                   >
                     Start a project
                   </a>

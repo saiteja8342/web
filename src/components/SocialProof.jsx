@@ -110,25 +110,29 @@ export default function SocialProof() {
     const el = sectionRef.current;
     if (!el) return;
     
-    // GSAP Scroll reveal
-    const reveals = el.querySelectorAll('.reveal-element');
-    reveals.forEach((element) => {
-      gsap.fromTo(element,
-        { opacity: 0, y: 30 },
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.8,
-          ease: 'power3.out',
-          scrollTrigger: {
-            trigger: element,
-            start: 'top 85%',
-            toggleActions: 'play none none none',
-            once: true
+    // GSAP Scroll reveal with lifecycle cleanup
+    const ctx = gsap.context(() => {
+      const reveals = el.querySelectorAll('.reveal-element');
+      reveals.forEach((element) => {
+        gsap.fromTo(element,
+          { opacity: 0, y: 30 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.8,
+            ease: 'power3.out',
+            scrollTrigger: {
+              trigger: element,
+              start: 'top 85%',
+              toggleActions: 'play none none none',
+              once: true
+            }
           }
-        }
-      );
-    });
+        );
+      });
+    }, sectionRef);
+
+    return () => ctx.revert();
   }, []);
 
   return (

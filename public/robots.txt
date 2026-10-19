@@ -14,4 +14,36 @@ Disallow: /login.html
 Disallow: /feedback
 Disallow: /feedback.html
 
+# AI Search & Research Crawlers
+User-agent: GPTBot
+Allow: /
+Disallow: /admin
+Disallow: /editor
+Disallow: /client
+Disallow: /dashboard/
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /admin
+Disallow: /editor
+Disallow: /client
+Disallow: /dashboard/
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /admin
+Disallow: /editor
+Disallow: /client
+Disallow: /dashboard/
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /admin
+Disallow: /editor
+Disallow: /client
+Disallow: /dashboard/
+
+# Sitemaps
 Sitemap: https://motionnodeedits.com/sitemap.xml
+Sitemap: https://motionnodeedits.com/video-sitemap.xml
+

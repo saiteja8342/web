@@ -388,50 +388,50 @@ export const DEFAULT_SERVICES_SETTINGS = {
   subtitle: "We combine professional visual direction with cutting-edge production to deliver edits that don't just look cinematic — they capture attention.",
   items: [
     {
-      id: "video-editing",
-      icon: "Film",
-      title: "Video Editing",
-      description: "Cinematic editing, professional color grading, and custom sound design to craft highly engaging narratives.",
-      color: "#E5E5EA",
-      is_active: true
-    },
-    {
       id: "ai-video-production",
       icon: "Cpu",
       title: "AI Video Production",
-      description: "Merging cutting-edge generative tools with professional post-production for unmatched visual styling.",
+      description: "End-to-end generative AI video synthesis from script to screen: scene generation, AI voice-overs, and cinematic rendering.",
       color: "#C5C6C9",
       is_active: true
     },
     {
       id: "ai-advertisements",
       icon: "Megaphone",
-      title: "AI Advertisements",
-      description: "Tailored ad campaigns and commercial copy combining algorithmic precision with high-end storytelling.",
+      title: "AI Commercial Ads",
+      description: "Tailored brand campaigns and commercial commercials combining generative AI precision with high-end storytelling.",
       color: "#D1D1D6",
+      is_active: true
+    },
+    {
+      id: "video-editing",
+      icon: "Film",
+      title: "High-Retention Video Editing",
+      description: "Cinematic editing, pacing mastery, professional color grading, and custom sound design to craft engaging narratives.",
+      color: "#E5E5EA",
       is_active: true
     },
     {
       id: "social-media-reels",
       icon: "Smartphone",
-      title: "Social Media Reels",
-      description: "Scroll-stopping TikToks, Instagram Reels, and Shorts engineered specifically to retain views and go viral.",
+      title: "Social Media Reels & Shorts",
+      description: "Scroll-stopping vertical 9:16 edits for TikTok, Instagram Reels, and YouTube Shorts engineered to maximize watch time.",
       color: "#8E8F94",
       is_active: true
     },
     {
       id: "ugc-ads",
       icon: "Users",
-      title: "UGC Ads",
-      description: "Authentic consumer-focused style editing that builds instant trust and converts viewer interest into sales.",
+      title: "AI Voice & UGC Ads",
+      description: "Authentic consumer-style video ads with studio AI voice-overs, realistic avatars, and high-converting hooks.",
       color: "#A2A2A7",
       is_active: true
     },
     {
       id: "product-videos",
       icon: "Box",
-      title: "Product Videos",
-      description: "Sleek, atmospheric product highlights with dynamic macro shots, sound syncs, and 3D camera feel.",
+      title: "Product Visuals & Commercials",
+      description: "Sleek, atmospheric product highlights with dynamic macro angles, sound syncs, and 3D visual storytelling without physical shoots.",
       color: "#FFFFFF",
       is_active: true
     }
