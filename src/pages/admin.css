@@ -3477,41 +3477,55 @@ input:checked + .vel-slider:before {
     gap: 14px !important;
   }
 
-  /* 2. Compact 2-Column KPI Dashboard */
-  .vel-metric-grid {
+  /* 2. Compact 2-Column KPI Dashboard & Orders History KPI */
+  .vel-metric-grid,
+  .vel-kpi-grid {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 8px !important;
   }
 
-  .vel-metric-card {
+  .vel-metric-card,
+  .vel-kpi-card {
     min-height: 90px !important;
     padding: 12px 12px !important;
     border-radius: 12px !important;
   }
 
   /* When odd number of cards, make last card span both columns gracefully */
-  .vel-metric-card:last-child:nth-child(odd) {
+  .vel-metric-card:last-child:nth-child(odd),
+  .vel-kpi-card:last-child:nth-child(odd) {
     grid-column: span 2;
   }
 
-  .vel-metric-number {
+  .vel-metric-number,
+  .vel-kpi-val {
     font-size: 1.35rem !important;
   }
 
-  .vel-metric-label {
+  .vel-metric-label,
+  .vel-kpi-label {
     font-size: 0.7rem !important;
   }
 
-  .vel-metric-top {
+  .vel-metric-top,
+  .vel-kpi-top {
     margin-bottom: 6px !important;
   }
 
-  .vel-metric-icon {
+  .vel-metric-icon,
+  .vel-kpi-icon-wrap {
     width: 24px !important;
     height: 24px !important;
   }
 
-  .vel-metric-pill-badge {
+  .vel-metric-icon svg,
+  .vel-kpi-icon-wrap svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+
+  .vel-metric-pill-badge,
+  .vel-kpi-badge {
     font-size: 0.62rem !important;
     padding: 2px 6px !important;
   }
@@ -3603,9 +3617,12 @@ input:checked + .vel-slider:before {
     padding: 12px !important;
   }
 
-  .vel-modal-box {
+  .vel-modal-box,
+  .vel-modal-dialog {
     max-height: 92vh !important;
     border-radius: 12px !important;
+    width: 100% !important;
+    margin: 0 !important;
   }
 
   .vel-modal-head,
@@ -3615,8 +3632,33 @@ input:checked + .vel-slider:before {
 
   .vel-modal-body {
     padding: 14px !important;
-    max-height: calc(90vh - 110px) !important;
+    max-height: calc(90vh - 120px) !important;
     overflow-y: auto !important;
+  }
+
+  .vel-modal-foot,
+  .vel-modal-footer {
+    padding: 12px 16px !important;
+    gap: 8px !important;
+  }
+
+  .vel-modal-foot button,
+  .vel-modal-footer button {
+    flex: 1 !important;
+    justify-content: center !important;
+  }
+
+  /* 9. Mobile Input Zoom Prevention (iOS 16px threshold) */
+  .vel-input,
+  .vel-select,
+  .vel-textarea {
+    font-size: 16px !important;
+  }
+
+  /* 10. Notification Drawer Mobile Width */
+  .vel-drawer-panel {
+    max-width: 100% !important;
+    width: 100% !important;
   }
 }
 
@@ -3647,6 +3689,11 @@ input:checked + .vel-slider:before {
 
   .vel-topbar-right {
     gap: 8px !important;
+  }
+
+  .vel-drawer-header,
+  .vel-drawer-body {
+    padding: 14px 16px !important;
   }
 }
 

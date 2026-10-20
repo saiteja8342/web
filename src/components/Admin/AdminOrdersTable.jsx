@@ -96,7 +96,7 @@ export default function AdminOrdersTable({
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
               <div style={{
                 display: 'flex',
                 gap: '4px',
@@ -104,7 +104,10 @@ export default function AdminOrdersTable({
                 padding: '4px',
                 borderRadius: '8px',
                 border: '1px solid var(--vel-border)',
-                flexWrap: 'wrap'
+                overflowX: 'auto',
+                maxWidth: '100%',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none'
               }}>
                 {[
                   { id: 'ALL', label: 'All' },
@@ -1316,7 +1319,8 @@ export default function AdminOrdersTable({
 
               return (
                 <div className="vel-card" style={{ padding: '0', overflow: 'hidden' }}>
-                  <table className="vel-order-table">
+                  <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <table className="vel-order-table">
                     <thead>
                       <tr>
                         <th>PROJECT / ORDER</th>
@@ -1419,7 +1423,8 @@ export default function AdminOrdersTable({
                     </tbody>
                   </table>
                 </div>
-              );
+              </div>
+            );
             }
 
             const deliveredOrders = orders
@@ -1459,7 +1464,8 @@ export default function AdminOrdersTable({
 
             return (
               <div className="vel-card" style={{ padding: '0', overflow: 'hidden' }}>
-                <table className="vel-order-table">
+                <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  <table className="vel-order-table">
                   <thead>
                     <tr>
                       <th>PROJECT</th>
@@ -1653,7 +1659,8 @@ export default function AdminOrdersTable({
                   </tbody>
                 </table>
               </div>
-            );
+            </div>
+          );
           })()}
         </>
       )}
