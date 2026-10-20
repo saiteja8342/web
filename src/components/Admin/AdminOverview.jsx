@@ -36,6 +36,7 @@ export default function AdminOverview({
       {pendingUsers.length > 0 && (
         <div
           onClick={() => handleNavClick('approvals')}
+          className="vel-alert-banner"
           style={{
             background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.05))',
             border: '1px solid rgba(245, 158, 11, 0.35)',
@@ -71,6 +72,7 @@ export default function AdminOverview({
       {newContactRequestsCount > 0 && (
         <div
           onClick={() => handleNavClick('contact-requests')}
+          className="vel-alert-banner"
           style={{
             background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.12), rgba(245, 158, 11, 0.04))',
             border: '1px solid rgba(245, 158, 11, 0.3)',

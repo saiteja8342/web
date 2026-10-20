@@ -554,10 +554,10 @@ export default function AdminEditorManager({
                 {/* Currency Selector Toggle */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                   <label className="vel-label" style={{ margin: 0 }}>Select Currency</label>
-                  <div style={{ display: 'flex', background: '#0D0D14', padding: '3px', borderRadius: '8px', border: '1px solid var(--vel-border)' }}>
+                  <div style={{ display: 'flex', background: '#0D0D14', padding: '3px', borderRadius: '8px', border: '1px solid var(--vel-border)', flexWrap: 'wrap', gap: '4px' }}>
                     {[
                       { code: 'USD', symbol: '$', label: '$ USD' },
-                      { code: 'INR', symbol: '₹', label: '₹ INR (Rupees)' },
+                      { code: 'INR', symbol: '₹', label: '₹ INR' },
                       { code: 'EUR', symbol: '€', label: '€ EUR' },
                       { code: 'GBP', symbol: '£', label: '£ GBP' },
                     ].map(cur => (
@@ -673,7 +673,7 @@ export default function AdminEditorManager({
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
+            <div className="vel-form-actions-bar" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
               <button type="button" className="vel-btn-outline" onClick={() => handleNavClick('home')}>
                 Cancel
               </button>
