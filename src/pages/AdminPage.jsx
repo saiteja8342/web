@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   LayoutGrid,
   Inbox,
@@ -17,8 +17,10 @@ import {
   Mail,
   Globe,
   MessageSquareQuote,
-  Laptop
+  Laptop,
+  CheckCircle2
 } from 'lucide-react';
+import { checkRouteAuth } from '../lib/middleware/authGuard';
 import NotificationDrawer from '../components/Admin/NotificationDrawer';
 import AdminOverview from '../components/Admin/AdminOverview';
 import AdminOrdersTable from '../components/Admin/AdminOrdersTable';
@@ -66,20 +68,26 @@ export default function AdminPage() {
   const [adminProfile, setAdminProfile] = useState(null);
 
   useEffect(() => {
+    let isMounted = true;
     async function checkAuth() {
-      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
-      if (sessionErr || !session || !session.user) {
-        window.location.href = '/admin/login';
-        return;
-      }
+      try {
+        const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+        if (sessionErr || !session || !session.user) {
+          window.location.href = '/admin/login';
+          return;
+        }
 
-      const { authorized, profile } = await checkRouteAuth({
-        requiredRole: 'admin',
-        redirectOnFail: '/admin/login',
-      });
-      if (authorized && profile) {
-        setIsAuthenticated(true);
-        setAdminProfile(profile);
+        const { authorized, profile } = await checkRouteAuth({
+          requiredRole: 'admin',
+          redirectOnFail: '/admin/login',
+        });
+        if (isMounted && authorized && profile) {
+          setIsAuthenticated(true);
+          setAdminProfile(profile);
+        }
+      } catch (err) {
+        console.error('[AdminPage] Auth verification error:', err);
+        window.location.href = '/admin/login';
       }
     }
     checkAuth();
@@ -91,6 +99,7 @@ export default function AdminPage() {
     });
 
     return () => {
+      isMounted = false;
       authListener?.subscription?.unsubscribe();
     };
   }, []);
@@ -117,6 +126,8 @@ export default function AdminPage() {
   // ─── Live Data State ──────────────────────────────────────────────
   const [notifications, setNotifications] = useState([]);
   const [orders, setOrders] = useState([]);
+  const ordersRef = useRef(orders);
+  ordersRef.current = orders;
   const [adminRatingsMap, setAdminRatingsMap] = useState({});
   const [historySearch, setHistorySearch] = useState('');
   const [historyFilter, setHistoryFilter] = useState('all');
@@ -188,6 +199,7 @@ export default function AdminPage() {
     if (!error && data) {
       // Authoritative database records: browser storage must never override database truth
       const transformed = data.map(dbOrder => transformOrder(dbOrder));
+      ordersRef.current = transformed;
       setOrders(transformed);
     }
     try {
@@ -267,14 +279,15 @@ export default function AdminPage() {
     if (!error && data) {
       // Count active projects per client from orders
       const orderCounts = {};
-      orders.forEach(o => {
+      const currentOrders = ordersRef.current || [];
+      currentOrders.forEach(o => {
         if (o.clientId && o.dbStatus !== 'delivered') {
           orderCounts[o.clientId] = (orderCounts[o.clientId] || 0) + 1;
         }
       });
       setClientsList(data.map(cl => transformClient(cl, orderCounts[cl.id] || 0)));
     }
-  }, [orders]);
+  }, []);
 
   const handleBlockClient = async (cl) => {
     const displayName = cl.name || cl.contact || cl.email;
@@ -453,28 +466,45 @@ export default function AdminPage() {
   // ─── Initial Load ─────────────────────────────────────────────────
   useEffect(() => {
     if (!isAuthenticated) return;
+    let isMounted = true;
+
+    // Safety timeout: ensure dashboard displays within 2.5s even if an API is slow
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setDataLoaded(true);
+    }, 2500);
+
     async function loadAll() {
-      await Promise.all([fetchOrders(), fetchEditors(), fetchMetrics(), fetchPendingUsers(), fetchContactRequests(), fetchLinkFeedbacks()]);
-      setDataLoaded(true);
+      try {
+        await Promise.allSettled([
+          fetchOrders(),
+          fetchEditors(),
+          fetchMetrics(),
+          fetchPendingUsers(),
+          fetchContactRequests(),
+          fetchLinkFeedbacks(),
+          fetchClients(),
+        ]);
+        if (adminProfile) {
+          await fetchNotifications();
+        }
+      } catch (err) {
+        console.warn('[AdminPage] Initial data load warning:', err);
+      } finally {
+        if (isMounted) {
+          setDataLoaded(true);
+          clearTimeout(safetyTimer);
+        }
+      }
     }
     loadAll();
-  }, [isAuthenticated, fetchOrders, fetchEditors, fetchMetrics, fetchPendingUsers, fetchContactRequests, fetchLinkFeedbacks]);
 
-  // Fetch clients after orders are loaded (depends on order counts)
-  useEffect(() => {
-    if (dataLoaded) {
-      fetchClients();
-    }
-  }, [dataLoaded, fetchClients]);
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimer);
+    };
+  }, [isAuthenticated, adminProfile, fetchOrders, fetchEditors, fetchMetrics, fetchPendingUsers, fetchContactRequests, fetchLinkFeedbacks, fetchClients, fetchNotifications]);
 
-  // Fetch notifications after admin profile is loaded
-  useEffect(() => {
-    if (adminProfile) {
-      fetchNotifications();
-    }
-  }, [adminProfile, fetchNotifications]);
-
-  // ─── Realtime Subscriptions ───────────────────────────────────────
+  // ─── Realtime Subscriptions (Stable & Persistent) ─────────────────
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -508,7 +538,7 @@ export default function AdminPage() {
       unsubscribeChannel(profilesChannel);
       unsubscribeChannel(contactRequestsChannel);
     };
-  }, [isAuthenticated, fetchOrders, fetchMetrics, fetchEditors, fetchClients, fetchPendingUsers, fetchContactRequests]);
+  }, [isAuthenticated]);
 
   // Contact Request Handlers
   const handleUpdateContactStatus = async (id, newStatus) => {
@@ -1245,6 +1275,7 @@ export default function AdminPage() {
       if (createForm.customSectionContent && createForm.customSectionContent.trim()) {
         compiledNotes += `[CUSTOM_SECTION_CONTENT:${encodeURIComponent(createForm.customSectionContent.trim())}] `;
       }
+    }
     if (createForm.currency) {
       compiledNotes += `[INVOICE_CURRENCY:${encodeURIComponent(createForm.currency)}] `;
     }
@@ -1613,8 +1644,36 @@ export default function AdminPage() {
   const fiveStarFeedbackCount = linkFeedbacks.filter(f => Number(f.rating) === 5).length;
   const testimonialConsentCount = linkFeedbacks.filter(f => f.testimonial_consent).length;
 
-  if (!isAuthenticated) {
-    return null;
+  if (!isAuthenticated || !dataLoaded) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: '#08080C',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '16px'
+      }}>
+        <div style={{
+          width: '36px',
+          height: '36px',
+          border: '3px solid rgba(192, 132, 252, 0.2)',
+          borderTopColor: '#C084FC',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite'
+        }} />
+        <p style={{
+          color: '#8E8EA0',
+          fontSize: '0.85rem',
+          letterSpacing: '0.5px',
+          textTransform: 'uppercase'
+        }}>
+          {!isAuthenticated ? 'Verifying Admin Credentials...' : 'Loading Studio Workspace...'}
+        </p>
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
   }
 
   return (
