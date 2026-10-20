@@ -728,9 +728,11 @@ export default function AdminPage() {
     brandAssetsLink: '',
     internalDeadline: '',
     clientDeadline: '',
-    currency: 'USD',
+    currency: 'INR',
     totalAmount: '',
     advancePaid: '',
+    duration: '1 min',
+    clientLocation: '',
     selectedProjectId: ''
   });
 
@@ -1285,6 +1287,12 @@ export default function AdminPage() {
     if (createForm.advancePaid) {
       compiledNotes += `[INVOICE_ADVANCE:${encodeURIComponent(createForm.advancePaid.trim())}] `;
     }
+    if (createForm.duration) {
+      compiledNotes += `[INVOICE_DURATION:${encodeURIComponent(createForm.duration.trim())}] `;
+    }
+    if (createForm.clientLocation) {
+      compiledNotes += `[INVOICE_LOCATION:${encodeURIComponent(createForm.clientLocation.trim())}] `;
+    }
 
     const payload = {
       order_name: createForm.nomenclature.trim(),
@@ -1332,9 +1340,11 @@ export default function AdminPage() {
       brandAssetsLink: '',
       internalDeadline: '',
       clientDeadline: '',
-      currency: 'USD',
+      currency: 'INR',
       totalAmount: '',
       advancePaid: '',
+      duration: '1 min',
+      clientLocation: '',
       selectedProjectId: ''
     });
 

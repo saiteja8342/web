@@ -615,6 +615,30 @@ export default function AdminEditorManager({
                         </div>
                       </div>
 
+                      <div className="vel-form-grid-2" style={{ marginTop: '10px' }}>
+                        <div className="vel-field-group">
+                          <label className="vel-label">Video Duration / QTY (for Invoice)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 1 min"
+                            className="vel-input"
+                            value={createForm.duration || ''}
+                            onChange={(e) => setCreateForm({ ...createForm, duration: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="vel-field-group">
+                          <label className="vel-label">Client City / Location (for Invoice)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. vijayawada, AP"
+                            className="vel-input"
+                            value={createForm.clientLocation || ''}
+                            onChange={(e) => setCreateForm({ ...createForm, clientLocation: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
                       {/* Real-time Balance Calculation Preview */}
                       {(Number(createForm.totalAmount) > 0 || Number(createForm.advancePaid) > 0) && (
                         <div style={{
