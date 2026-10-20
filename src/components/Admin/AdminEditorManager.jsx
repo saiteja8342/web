@@ -14,7 +14,9 @@ import {
   ArrowUpDown,
   ChevronDown,
   Check,
-  Receipt
+  Receipt,
+  Eye,
+  Package
 } from 'lucide-react';
 
 export default function AdminEditorManager({
@@ -46,12 +48,24 @@ export default function AdminEditorManager({
   setEditorCategoryFilter,
   filteredEditors = [],
   expandedEditor,
-  setExpandedEditor
+  setExpandedEditor,
+  selectedEditorModal,
+  setSelectedEditorModal
 }) {
   const handleClientSelectionChange = (clientName) => {
+    if (clientName === '__OFFLINE__') {
+      setCreateForm((prev) => ({
+        ...prev,
+        clientMode: 'offline',
+        existingClient: '__OFFLINE__',
+      }));
+      return;
+    }
+
     if (!clientName) {
       setCreateForm((prev) => ({
         ...prev,
+        clientMode: 'registered',
         existingClient: '',
         selectedProjectId: '',
       }));
@@ -70,6 +84,7 @@ export default function AdminEditorManager({
 
     setCreateForm((prev) => ({
       ...prev,
+      clientMode: 'registered',
       existingClient: clientName,
       nomenclature: prev.nomenclature || defaultName,
     }));
@@ -358,31 +373,160 @@ export default function AdminEditorManager({
           </div>
 
           <form onSubmit={handleCreateOrderSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {/* 1. AVAILABLE CLIENTS */}
+            {/* 1. CLIENT SELECTION (REGISTERED OR OFFLINE DIRECT) */}
             <div className="vel-card">
-              <div className="vel-card-head">
+              <div className="vel-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                 <span className="vel-card-title-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Users className="h-4 w-4" />
-                  <span>Available Clients</span>
+                  <span>Client Selection</span>
                 </span>
+
+                {/* Mode Selector Toggle */}
+                <div style={{ display: 'flex', background: '#0D0D14', padding: '3px', borderRadius: '8px', border: '1px solid var(--vel-border)', gap: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setCreateForm(prev => ({
+                      ...prev,
+                      clientMode: 'registered',
+                      existingClient: prev.existingClient === '__OFFLINE__' ? (clientsList[0]?.name || '') : prev.existingClient
+                    }))}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      borderRadius: '6px',
+                      background: (createForm.clientMode || 'registered') === 'registered' ? '#252538' : 'transparent',
+                      color: (createForm.clientMode || 'registered') === 'registered' ? '#FFFFFF' : '#8E8EA0',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    Registered Clients ({clientsList.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCreateForm(prev => ({
+                      ...prev,
+                      clientMode: 'offline',
+                      existingClient: '__OFFLINE__'
+                    }))}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      borderRadius: '6px',
+                      background: createForm.clientMode === 'offline' ? '#3B2063' : 'transparent',
+                      color: createForm.clientMode === 'offline' ? '#C084FC' : '#8E8EA0',
+                      border: createForm.clientMode === 'offline' ? '1px solid rgba(192, 132, 252, 0.4)' : 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>+ Offline / Direct Client</span>
+                  </button>
+                </div>
               </div>
 
-              <div className="vel-field-group">
-                <label className="vel-label">Select Client</label>
-                <select
-                  className="vel-select"
-                  value={createForm.existingClient}
-                  onChange={(e) => handleClientSelectionChange(e.target.value)}
-                  required
-                >
-                  <option value="">-- Choose Client --</option>
-                  {clientsList.map((cl) => (
-                    <option key={cl.id} value={cl.name}>
-                      {cl.name} {cl.company ? `(${cl.company})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {createForm.clientMode === 'offline' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '6px' }}>
+                  <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(192, 132, 252, 0.08)', border: '1px solid rgba(192, 132, 252, 0.25)', fontSize: '0.78rem', color: '#E4E4E7', lineHeight: 1.5 }}>
+                    <strong style={{ color: '#C084FC' }}>Offline Direct Client Mode:</strong> No account or signup needed! Official Advance Invoice PDF will be emailed to the address below. If this client registers on our website later with this same email, this project will automatically sync to their dashboard.
+                  </div>
+
+                  <div className="vel-form-grid-2">
+                    <div className="vel-field-group">
+                      <label className="vel-label">Client Full Name *</label>
+                      <input
+                        type="text"
+                        className="vel-input"
+                        placeholder="e.g. Rahul Sharma"
+                        value={createForm.offlineClientName || ''}
+                        onChange={(e) => setCreateForm({ ...createForm, offlineClientName: e.target.value })}
+                        required={createForm.clientMode === 'offline'}
+                      />
+                    </div>
+
+                    <div className="vel-field-group">
+                      <label className="vel-label">Client Email Address (for Invoices) *</label>
+                      <input
+                        type="email"
+                        className="vel-input"
+                        placeholder="e.g. rahul@gmail.com"
+                        value={createForm.offlineClientEmail || ''}
+                        onChange={(e) => setCreateForm({ ...createForm, offlineClientEmail: e.target.value })}
+                        required={createForm.clientMode === 'offline'}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Live Account Detection */}
+                  {(() => {
+                    const cleanEmail = (createForm.offlineClientEmail || '').trim().toLowerCase();
+                    if (cleanEmail && cleanEmail.includes('@')) {
+                      const matched = clientsList.find(c => c.email && c.email.toLowerCase() === cleanEmail);
+                      if (matched) {
+                        return (
+                          <div style={{ padding: '8px 12px', borderRadius: '6px', background: 'rgba(34, 197, 94, 0.12)', border: '1px solid rgba(34, 197, 94, 0.35)', color: '#4ADE80', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Check className="h-4 w-4 flex-shrink-0" />
+                            <span>
+                              <strong>Existing registered client detected:</strong> {matched.name} {matched.company ? `(${matched.company})` : ''}. Order will automatically connect directly to their client portal!
+                            </span>
+                          </div>
+                        );
+                      }
+                    }
+                    return null;
+                  })()}
+
+                  <div className="vel-form-grid-2">
+                    <div className="vel-field-group">
+                      <label className="vel-label">Client Phone / WhatsApp (Optional)</label>
+                      <input
+                        type="text"
+                        className="vel-input"
+                        placeholder="e.g. +91 98765 43210"
+                        value={createForm.offlineClientPhone || ''}
+                        onChange={(e) => setCreateForm({ ...createForm, offlineClientPhone: e.target.value })}
+                      />
+                    </div>
+
+                    <div className="vel-field-group">
+                      <label className="vel-label">Brand / Company Name (Optional)</label>
+                      <input
+                        type="text"
+                        className="vel-input"
+                        placeholder="e.g. Acme Corp"
+                        value={createForm.offlineClientCompany || ''}
+                        onChange={(e) => setCreateForm({ ...createForm, offlineClientCompany: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="vel-field-group">
+                  <label className="vel-label">Select Registered Client</label>
+                  <select
+                    className="vel-select"
+                    value={createForm.existingClient}
+                    onChange={(e) => handleClientSelectionChange(e.target.value)}
+                    required={createForm.clientMode !== 'offline'}
+                  >
+                    <option value="">-- Choose Client --</option>
+                    {clientsList.map((cl) => (
+                      <option key={cl.id} value={cl.name}>
+                        {cl.name} {cl.company ? `(${cl.company})` : ''}
+                      </option>
+                    ))}
+                    <option value="__OFFLINE__">+ New Offline Client (Direct / No Account)...</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* 2. CLIENT REQUIREMENTS */}
@@ -878,7 +1022,16 @@ export default function AdminEditorManager({
                 </button>
               </div>
             ) : (
-              filteredEditors.map((ed) => (
+            filteredEditors.map((ed) => {
+              const editorOrders = (orders || []).filter((o) => {
+                if (ed.id && (o.editorId === ed.id || o.editor?.id === ed.id)) return true;
+                if (ed.name && o.editor?.name && o.editor.name.toLowerCase() === ed.name.toLowerCase() && ed.name.toLowerCase() !== 'unassigned') return true;
+                return false;
+              });
+              const activeEditorOrders = editorOrders.filter(o => o.dbStatus !== 'delivered' && o.dbStatus !== 'cancelled');
+              const deliveredEditorOrders = editorOrders.filter(o => o.dbStatus === 'delivered');
+
+              return (
                 <div
                   key={ed.id}
                   style={{
@@ -917,16 +1070,44 @@ export default function AdminEditorManager({
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.72rem', color: ed.statusColor, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', fontWeight: 700 }}>
-                          <span>•</span>
-                          <span>{ed.status}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', textAlign: 'right' }}>
+                        <div>
+                          <span style={{ fontSize: '0.70rem', color: 'var(--vel-text-secondary)', display: 'block' }}>Total Orders</span>
+                          <strong style={{ fontSize: '0.92rem', color: '#60A5FA' }}>{editorOrders.length}</strong>
                         </div>
-                        <div style={{ fontSize: '0.76rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
-                          WORKLOAD: <strong style={{ color: '#FFFFFF' }}>{ed.activeOrders} / {ed.maxOrders} Active</strong>
+                        <div>
+                          <div style={{ fontSize: '0.70rem', color: ed.statusColor, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', fontWeight: 700 }}>
+                            <span>•</span>
+                            <span>{ed.status}</span>
+                          </div>
+                          <div style={{ fontSize: '0.74rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
+                            WORKLOAD: <strong style={{ color: '#4ADE80' }}>{activeEditorOrders.length} Active</strong>
+                          </div>
                         </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (setSelectedEditorModal) setSelectedEditorModal(ed);
+                        }}
+                        className="vel-btn-outline"
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '0.76rem',
+                          color: '#FFFFFF',
+                          borderColor: 'rgba(255, 255, 255, 0.16)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px'
+                        }}
+                        title="View editor order history and completed projects"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>Orders ({editorOrders.length})</span>
+                      </button>
 
                       <ChevronDown
                         className="h-4 w-4 text-white/40"
@@ -937,37 +1118,133 @@ export default function AdminEditorManager({
 
                   {/* Expanded Details Drawer */}
                   {expandedEditor === ed.id && (
-                    <div style={{ paddingTop: '14px', borderTop: '1px solid var(--vel-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                      <div>
-                        <span style={{ fontSize: '0.68rem', color: 'var(--vel-text-tertiary)', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          PRIMARY DESIGN SPECIALIZATION & ROLE
-                        </span>
-                        <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#FFFFFF' }}>{ed.role}</span>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        {ed.skills.map((sk, i) => (
-                          <span key={i} className="vel-tag-skill">
-                            {sk}
+                    <div style={{ paddingTop: '16px', borderTop: '1px solid var(--vel-border)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                        <div>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--vel-text-tertiary)', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            PRIMARY DESIGN SPECIALIZATION & ROLE
                           </span>
-                        ))}
+                          <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#FFFFFF' }}>{ed.role}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          {ed.skills.map((sk, i) => (
+                            <span key={i} className="vel-tag-skill">
+                              {sk}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            type="button"
+                            className="vel-btn-outline"
+                            style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (setSelectedEditorModal) setSelectedEditorModal(ed);
+                            }}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>Full History Modal</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="vel-btn-solid"
+                            style={{ padding: '6px 14px', fontSize: '0.78rem' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAssignForm(prev => ({ ...prev, editor: ed.name }));
+                              handleNavClick('assign');
+                            }}
+                          >
+                            Assign Project
+                          </button>
+                        </div>
                       </div>
 
-                      <button
-                        className="vel-btn-solid"
-                        style={{ padding: '6px 14px', fontSize: '0.78rem' }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setAssignForm(prev => ({ ...prev, editor: ed.name }));
-                          handleNavClick('assign');
-                        }}
-                      >
-                        Assign Project
-                      </button>
+                      {/* Inline Project & Orders History Section */}
+                      <div style={{ background: '#101016', border: '1px solid var(--vel-border)', borderRadius: '8px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                          <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#FFFFFF', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Package className="h-3.5 w-3.5 text-purple-400" />
+                            <span>Editor Assigned Projects ({editorOrders.length})</span>
+                          </span>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.72rem' }}>
+                            <span>Active: <strong style={{ color: '#FBBF24' }}>{activeEditorOrders.length}</strong></span>
+                            <span>Delivered: <strong style={{ color: '#4ADE80' }}>{deliveredEditorOrders.length}</strong></span>
+                          </div>
+                        </div>
+
+                        {editorOrders.length === 0 ? (
+                          <p style={{ fontSize: '0.78rem', color: 'var(--vel-text-secondary)', margin: 0, padding: '8px 0' }}>
+                            No orders assigned to this editor yet. Click "Assign Project" above to allocate an order.
+                          </p>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+                            {editorOrders.map(ord => (
+                              <div
+                                key={ord.id}
+                                style={{
+                                  background: '#161620',
+                                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                                  borderRadius: '6px',
+                                  padding: '10px 12px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '6px'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontSize: '0.70rem', fontFamily: 'monospace', fontWeight: 700, padding: '1px 5px', borderRadius: '3px', background: 'rgba(255,255,255,0.08)', color: '#FFFFFF' }}>
+                                      {ord.displayId}
+                                    </span>
+                                    <strong style={{ fontSize: '0.82rem', color: '#FFFFFF' }}>{ord.title}</strong>
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)' }}>• Client: <span style={{ color: '#E2E8F0' }}>{ord.client}</span></span>
+                                  </div>
+                                  <span className={`vel-badge ${ord.badgeClass}`} style={{ fontSize: '0.64rem', padding: '1px 6px' }}>
+                                    {ord.status}
+                                  </span>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '6px', fontSize: '0.72rem', color: 'var(--vel-text-secondary)', paddingTop: '4px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                                  <div>
+                                    <span style={{ color: 'var(--vel-text-tertiary)', fontSize: '0.64rem', display: 'block' }}>CREATED DATE</span>
+                                    <span style={{ color: '#E2E8F0', fontWeight: 600 }}>{ord.formattedCreatedAt || '—'}</span>
+                                  </div>
+                                  <div>
+                                    <span style={{ color: 'var(--vel-text-tertiary)', fontSize: '0.64rem', display: 'block' }}>
+                                      {ord.isDelivered ? 'DELIVERED DATE' : 'DEADLINE'}
+                                    </span>
+                                    <span style={{ color: ord.isDelivered ? '#4ADE80' : '#FCD34D', fontWeight: 600 }}>
+                                      {ord.isDelivered ? (ord.formattedDeliveredAt || 'Delivered') : (ord.deadline || ord.editorDeadline || 'In Progress')}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span style={{ color: 'var(--vel-text-tertiary)', fontSize: '0.64rem', display: 'block' }}>PRICE / FEE</span>
+                                    {ord.totalAmount ? (
+                                      <span style={{ color: '#C084FC', fontWeight: 700 }}>
+                                        {ord.currencySymbol}{Number(ord.totalAmount).toLocaleString()}
+                                        {ord.advancePaid ? ` (Adv: ${ord.currencySymbol}${Number(ord.advancePaid).toLocaleString()})` : ''}
+                                      </span>
+                                    ) : (
+                                      <span style={{ color: 'var(--vel-text-tertiary)' }}>Price not set</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
-              ))
+              );
+            })
             )}
           </div>
         </>

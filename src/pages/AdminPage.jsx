@@ -31,6 +31,7 @@ import AdminLoginDevices from '../components/Admin/AdminLoginDevices';
 import AddEditorModal from '../components/Admin/modals/AddEditorModal';
 import ContactRequestModal from '../components/Admin/modals/ContactRequestModal';
 import ClientDetailsModal from '../components/Admin/modals/ClientDetailsModal';
+import EditorDetailsModal from '../components/Admin/modals/EditorDetailsModal';
 import {
   safeHref,
   safeIsoDate,
@@ -134,6 +135,7 @@ export default function AdminPage() {
   const [editorsList, setEditorsList] = useState([]);
   const [clientsList, setClientsList] = useState([]);
   const [selectedClientModal, setSelectedClientModal] = useState(null);
+  const [selectedEditorModal, setSelectedEditorModal] = useState(null);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [approvalsSearch, setApprovalsSearch] = useState('');
   const [approvalsActionLoading, setApprovalsActionLoading] = useState({});
@@ -716,6 +718,11 @@ export default function AdminPage() {
 
   // Order Creation Form State
   const [createForm, setCreateForm] = useState({
+    clientMode: 'registered',
+    offlineClientName: '',
+    offlineClientEmail: '',
+    offlineClientPhone: '',
+    offlineClientCompany: '',
     existingClient: '',
     nomenclature: '',
     format: 'YouTube Longform (16:9)',
@@ -1252,14 +1259,51 @@ export default function AdminPage() {
       return;
     }
 
-    // Find the selected client
-    const selectedClient = clientsList.find(cl =>
-      cl.name === createForm.existingClient || cl.company === createForm.existingClient
-    );
+    const isOffline = createForm.clientMode === 'offline' || createForm.existingClient === '__OFFLINE__';
+    let selectedClient = null;
+    let targetClientId = null;
+    let targetClientEmail = null;
+    let targetClientName = null;
 
-    if (!selectedClient) {
-      showToast('Please select a client from Available Clients.');
-      return;
+    if (isOffline) {
+      if (!createForm.offlineClientName || !createForm.offlineClientName.trim()) {
+        showToast('Please enter the client full name.');
+        return;
+      }
+      if (!createForm.offlineClientEmail || !createForm.offlineClientEmail.trim() || !createForm.offlineClientEmail.includes('@')) {
+        showToast('Please enter a valid client email for invoice delivery.');
+        return;
+      }
+
+      targetClientEmail = createForm.offlineClientEmail.trim().toLowerCase();
+      targetClientName = createForm.offlineClientName.trim();
+
+      // Check if this email is already registered in clientsList
+      const existingMatch = clientsList.find(c =>
+        c.email && c.email.toLowerCase() === targetClientEmail
+      );
+
+      if (existingMatch) {
+        selectedClient = existingMatch;
+        targetClientId = existingMatch.id;
+        showToast(`Existing registered client detected (${existingMatch.name}). Order linked to their account!`);
+      } else {
+        // Fallback to adminProfile id so DB foreign key passes if NOT NULL
+        targetClientId = adminProfile?.id || null;
+      }
+    } else {
+      selectedClient = clientsList.find(cl =>
+        cl.name === createForm.existingClient || cl.company === createForm.existingClient
+      );
+
+      if (!selectedClient) {
+        showToast('Please select a client from Available Clients or choose Offline Client.');
+        return;
+      }
+
+      targetClientId = selectedClient.id;
+      targetClientName = selectedClient.name;
+      targetClientEmail = selectedClient.email;
     }
 
     const videoType = UI_TO_VIDEO_TYPE[createForm.format] || 'youtube_longform';
@@ -1267,6 +1311,17 @@ export default function AdminPage() {
 
     // Compile admin notes with tags for Editor's Requirements and Custom Section
     let compiledNotes = '';
+    if (isOffline) {
+      compiledNotes += `[OFFLINE_CLIENT:true] `;
+      compiledNotes += `[OFFLINE_CLIENT_NAME:${encodeURIComponent(targetClientName)}] `;
+      compiledNotes += `[OFFLINE_CLIENT_EMAIL:${encodeURIComponent(targetClientEmail)}] `;
+      if (createForm.offlineClientPhone && createForm.offlineClientPhone.trim()) {
+        compiledNotes += `[OFFLINE_CLIENT_PHONE:${encodeURIComponent(createForm.offlineClientPhone.trim())}] `;
+      }
+      if (createForm.offlineClientCompany && createForm.offlineClientCompany.trim()) {
+        compiledNotes += `[OFFLINE_CLIENT_COMPANY:${encodeURIComponent(createForm.offlineClientCompany.trim())}] `;
+      }
+    }
     if (createForm.editorRequirements && createForm.editorRequirements.trim()) {
       compiledNotes += `[EDITOR_REQUIREMENTS:${encodeURIComponent(createForm.editorRequirements.trim())}] `;
     }
@@ -1302,7 +1357,10 @@ export default function AdminPage() {
       admin_notes: compiledNotes.trim() || null,
       drive_link: createForm.rawFootageLink || null,
       dropbox_link: createForm.brandAssetsLink || null,
-      client_id: selectedClient?.id || adminProfile?.id,
+      client_id: targetClientId,
+      client_email: targetClientEmail || null,
+      client_name: targetClientName || null,
+      client_phone: isOffline && createForm.offlineClientPhone ? createForm.offlineClientPhone.trim() : null,
       admin_id: adminProfile?.id,
       status: 'received',
       editor_deadline: createForm.internalDeadline ? new Date(createForm.internalDeadline).toISOString() : null,
@@ -1317,7 +1375,7 @@ export default function AdminPage() {
 
     showToast(`Order created successfully! (ID: ${orderCode})`);
 
-    // Notify the client
+    // Notify the client if registered
     if (selectedClient?.id) {
       await sendNotification(
         selectedClient.id,
@@ -1328,6 +1386,11 @@ export default function AdminPage() {
 
     // Reset form
     setCreateForm({
+      clientMode: 'registered',
+      offlineClientName: '',
+      offlineClientEmail: '',
+      offlineClientPhone: '',
+      offlineClientCompany: '',
       existingClient: clientsList[0]?.name || '',
       nomenclature: '',
       format: 'YouTube Longform (16:9)',
@@ -2082,6 +2145,8 @@ export default function AdminPage() {
                 filteredEditors={filteredEditors}
                 expandedEditor={expandedEditor}
                 setExpandedEditor={setExpandedEditor}
+                selectedEditorModal={selectedEditorModal}
+                setSelectedEditorModal={setSelectedEditorModal}
               />
 
               {/* ============================================================== */}
@@ -2095,6 +2160,7 @@ export default function AdminPage() {
                 editorsList={editorsList}
                 clientsList={clientsList}
                 filteredClients={filteredClients}
+                orders={orders}
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
                 setSelectedClientModal={setSelectedClientModal}
@@ -2232,6 +2298,15 @@ export default function AdminPage() {
       <ClientDetailsModal
         selectedClientModal={selectedClientModal}
         setSelectedClientModal={setSelectedClientModal}
+        orders={orders}
+      />
+
+      <EditorDetailsModal
+        selectedEditorModal={selectedEditorModal}
+        setSelectedEditorModal={setSelectedEditorModal}
+        orders={orders}
+        handleNavClick={handleNavClick}
+        setAssignForm={setAssignForm}
       />
     </div>
   );

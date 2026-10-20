@@ -815,7 +815,21 @@ serve(async (req: Request) => {
         let clientName = "";
         let clientLocation = "";
 
-        if (record.client_id) {
+        if (record.client_email) {
+          clientEmail = record.client_email.trim();
+        }
+        if (record.client_name) {
+          clientName = record.client_name.trim();
+        }
+
+        if (record.admin_notes) {
+          const offEmailMatch = record.admin_notes.match(/\[OFFLINE_CLIENT_EMAIL:([^\]]+)\]/);
+          if (offEmailMatch && offEmailMatch[1]) clientEmail = decodeURIComponent(offEmailMatch[1]).trim();
+          const offNameMatch = record.admin_notes.match(/\[OFFLINE_CLIENT_NAME:([^\]]+)\]/);
+          if (offNameMatch && offNameMatch[1]) clientName = decodeURIComponent(offNameMatch[1]).trim();
+        }
+
+        if (!clientEmail && record.client_id) {
           const { data: profile, error: profErr } = await supabase
             .from("profiles")
             .select("email, full_name, company_name")
@@ -823,7 +837,7 @@ serve(async (req: Request) => {
             .maybeSingle();
           if (profile) {
             clientEmail = profile.email || "";
-            clientName = profile.full_name || profile.company_name || "";
+            if (!clientName) clientName = profile.full_name || profile.company_name || "";
           }
           if (profErr) {
             console.error("Client profile lookup error (INSERT):", profErr);
@@ -907,7 +921,21 @@ serve(async (req: Request) => {
           let clientName = "";
           let clientLocation = "";
 
-          if (record.client_id) {
+          if (record.client_email) {
+            clientEmail = record.client_email.trim();
+          }
+          if (record.client_name) {
+            clientName = record.client_name.trim();
+          }
+
+          if (record.admin_notes) {
+            const offEmailMatch = record.admin_notes.match(/\[OFFLINE_CLIENT_EMAIL:([^\]]+)\]/);
+            if (offEmailMatch && offEmailMatch[1]) clientEmail = decodeURIComponent(offEmailMatch[1]).trim();
+            const offNameMatch = record.admin_notes.match(/\[OFFLINE_CLIENT_NAME:([^\]]+)\]/);
+            if (offNameMatch && offNameMatch[1]) clientName = decodeURIComponent(offNameMatch[1]).trim();
+          }
+
+          if (!clientEmail && record.client_id) {
             const { data: profile, error: profErr } = await supabase
               .from("profiles")
               .select("email, full_name, company_name")
@@ -915,7 +943,7 @@ serve(async (req: Request) => {
               .maybeSingle();
             if (profile) {
               clientEmail = profile.email || "";
-              clientName = profile.full_name || profile.company_name || "";
+              if (!clientName) clientName = profile.full_name || profile.company_name || "";
             }
             if (profErr) {
               console.error("Client profile lookup error (UPDATE delivered):", profErr);

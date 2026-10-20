@@ -33,6 +33,7 @@ export default function AdminClientManager({
   editorsList = [],
   clientsList = [],
   filteredClients = [],
+  orders = [],
   searchQuery,
   setSearchQuery,
   setSelectedClientModal,
@@ -176,7 +177,19 @@ export default function AdminClientManager({
                 </p>
               </div>
             ) : (
-              filteredClients.map((cl) => (
+            filteredClients.map((cl) => {
+              const clientOrders = (orders || []).filter((o) => {
+                if (cl.id && o.clientId === cl.id) return true;
+                const clEmail = (cl.email || '').toLowerCase();
+                const clName = (cl.name || '').toLowerCase();
+                if (clEmail && o.clientContact?.email?.toLowerCase() === clEmail) return true;
+                if (clEmail && o.rawAdminNotes?.toLowerCase().includes(`[offline_client_email:${clEmail}]`)) return true;
+                if (clName && o.client?.toLowerCase() === clName) return true;
+                return false;
+              });
+              const activeCount = clientOrders.filter(o => o.dbStatus !== 'delivered' && o.dbStatus !== 'cancelled').length;
+
+              return (
                 <div
                   key={cl.id}
                   style={{
@@ -270,9 +283,17 @@ export default function AdminClientManager({
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--vel-text-secondary)', display: 'block' }}>Active Projects</span>
-                      <strong style={{ fontSize: '0.88rem' }}>{cl.activeProjects}</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', textAlign: 'right' }}>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', display: 'block' }}>Total Orders</span>
+                        <strong style={{ fontSize: '0.92rem', color: '#60A5FA' }}>{clientOrders.length}</strong>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)', display: 'block' }}>Active</span>
+                        <strong style={{ fontSize: '0.92rem', color: '#4ADE80' }}>
+                          {cl.activeProjects !== undefined ? cl.activeProjects : activeCount}
+                        </strong>
+                      </div>
                     </div>
 
                     {/* Moderation Actions for Suspicious Accounts */}
@@ -352,7 +373,8 @@ export default function AdminClientManager({
                     </div>
                   </div>
                 </div>
-              ))
+              );
+            })
             )}
           </div>
         </>

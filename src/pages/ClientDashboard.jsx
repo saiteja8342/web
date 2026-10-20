@@ -24,7 +24,7 @@ import {
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { isGoogleUser } from '../lib/auth/authUtils';
-import { getClientOrders, formatOrderCode, STATUS_MAP, VIDEO_TYPE_MAP, parseCancellationReason, stripCancellationTag } from '../lib/db/orders';
+import { getClientOrders, claimOfflineOrdersForClient, formatOrderCode, STATUS_MAP, VIDEO_TYPE_MAP, parseCancellationReason, stripCancellationTag } from '../lib/db/orders';
 import { getProfile, updateProfile } from '../lib/db/profiles';
 import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, notifyAdmins, formatNotificationTime } from '../lib/db/notifications';
 import { submitRevisionRequest, getOrderRevisions } from '../lib/db/revisions';
@@ -427,11 +427,20 @@ export default function ClientDashboard() {
   };
 
   // ─── Data Fetching ────────────────────────────────────────────────
-  const fetchClientData = useCallback(async (userId) => {
+  const fetchClientData = useCallback(async (userId, optionalEmail = null) => {
     if (!userId) return;
     try {
+      const email = optionalEmail || currentUser?.email || null;
+
+      // Auto-claim any past offline orders matching this email in the background
+      if (email) {
+        claimOfflineOrdersForClient(userId, email).catch(err => {
+          console.warn('[ClientDashboard] Auto-claim check error:', err);
+        });
+      }
+
       const [ordersRes, notifRes, profileRes] = await Promise.all([
-        getClientOrders(userId),
+        getClientOrders(userId, email),
         getUserNotifications(userId),
         getProfile(userId),
       ]);
@@ -518,7 +527,7 @@ export default function ClientDashboard() {
         setIsAuthenticated(true);
         setCurrentUser(session.user);
         setClientProfile(profile);
-        await fetchClientData(session.user.id);
+        await fetchClientData(session.user.id, session.user.email);
       }
     }
     checkAuth();

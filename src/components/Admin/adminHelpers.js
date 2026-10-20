@@ -71,17 +71,44 @@ export function parseCustomSection(notes) {
   return { hasCustomSection, title, content };
 }
 
+export function parseOfflineClient(adminNotes, dbOrder = {}) {
+  const notes = adminNotes || dbOrder?.admin_notes || '';
+  const isOffline = (typeof notes === 'string' && (notes.includes('[OFFLINE_CLIENT:true]') || notes.includes('[OFFLINE_CLIENT_EMAIL:')))
+    || Boolean(dbOrder?.client_email);
+
+  let name = dbOrder?.client_name || '';
+  let email = dbOrder?.client_email || '';
+  let phone = dbOrder?.client_phone || '';
+  let company = '';
+
+  if (typeof notes === 'string') {
+    const nameMatch = notes.match(/\[OFFLINE_CLIENT_NAME:([^\]]+)\]/);
+    if (nameMatch && !name) name = decodeURIComponent(nameMatch[1]);
+
+    const emailMatch = notes.match(/\[OFFLINE_CLIENT_EMAIL:([^\]]+)\]/);
+    if (emailMatch && !email) email = decodeURIComponent(emailMatch[1]);
+
+    const phoneMatch = notes.match(/\[OFFLINE_CLIENT_PHONE:([^\]]+)\]/);
+    if (phoneMatch && !phone) phone = decodeURIComponent(phoneMatch[1]);
+
+    const compMatch = notes.match(/\[OFFLINE_CLIENT_COMPANY:([^\]]+)\]/);
+    if (compMatch) company = decodeURIComponent(compMatch[1]);
+  }
+
+  return { isOffline, name, email, phone, company };
+}
+
 export function stripCustomTags(notes) {
   if (!notes || typeof notes !== 'string') return '';
   return notes
-    .replace(/\s*\[(INVOICE_[A-Z0-9_]+|ORDER_CODE|ORDER_CANCELLED|CANCELLATION_REASON|CLIENT_DELIVERABLE_VISIBLE|EDITOR_REQUIREMENTS|CUSTOM_SECTION_TITLE|CUSTOM_SECTION_CONTENT):[^\]]*\]/gi, '')
+    .replace(/\s*\[(INVOICE_[A-Z0-9_]+|ORDER_CODE|ORDER_CANCELLED|CANCELLATION_REASON|CLIENT_DELIVERABLE_VISIBLE|EDITOR_REQUIREMENTS|CUSTOM_SECTION_TITLE|CUSTOM_SECTION_CONTENT|OFFLINE_CLIENT|OFFLINE_CLIENT_NAME|OFFLINE_CLIENT_EMAIL|OFFLINE_CLIENT_PHONE|OFFLINE_CLIENT_COMPANY):[^\]]*\]/gi, '')
     .trim();
 }
 
 export function preserveMetaTags(rawNotes, cleanNotes, extraTag) {
   const metaTags = [];
   if (typeof rawNotes === 'string') {
-    const matches = rawNotes.match(/\[(INVOICE_[A-Z0-9_]+|ORDER_CODE|ORDER_CANCELLED|CANCELLATION_REASON|EDITOR_REQUIREMENTS|CUSTOM_SECTION_TITLE|CUSTOM_SECTION_CONTENT):[^\]]*\]/gi);
+    const matches = rawNotes.match(/\[(INVOICE_[A-Z0-9_]+|ORDER_CODE|ORDER_CANCELLED|CANCELLATION_REASON|EDITOR_REQUIREMENTS|CUSTOM_SECTION_TITLE|CUSTOM_SECTION_CONTENT|OFFLINE_CLIENT|OFFLINE_CLIENT_NAME|OFFLINE_CLIENT_EMAIL|OFFLINE_CLIENT_PHONE|OFFLINE_CLIENT_COMPANY):[^\]]*\]/gi);
     if (matches) {
       const seen = new Set();
       for (const tag of matches) {
@@ -107,6 +134,46 @@ export function parseNotesVisibility(notes, clientLinkVisible) {
   return false;
 }
 
+export function parseInvoiceDetails(adminNotes, dbOrder = {}) {
+  let currency = 'INR';
+  let totalAmount = dbOrder?.amount ? Number(dbOrder.amount) : null;
+  let advancePaid = dbOrder?.advance_amount ? Number(dbOrder.advance_amount) : null;
+  let duration = '';
+  let location = '';
+
+  const notes = adminNotes || dbOrder?.admin_notes || '';
+  if (typeof notes === 'string') {
+    const curMatch = notes.match(/\[INVOICE_CURRENCY:([^\]]+)\]/);
+    if (curMatch) currency = decodeURIComponent(curMatch[1]) || currency;
+
+    const totMatch = notes.match(/\[INVOICE_TOTAL:([^\]]+)\]/);
+    if (totMatch) totalAmount = parseFloat(decodeURIComponent(totMatch[1])) || totalAmount;
+
+    const advMatch = notes.match(/\[INVOICE_ADVANCE:([^\]]+)\]/);
+    if (advMatch) advancePaid = parseFloat(decodeURIComponent(advMatch[1])) || advancePaid;
+
+    const durMatch = notes.match(/\[INVOICE_DURATION:([^\]]+)\]/);
+    if (durMatch) duration = decodeURIComponent(durMatch[1]);
+
+    const locMatch = notes.match(/\[INVOICE_LOCATION:([^\]]+)\]/);
+    if (locMatch) location = decodeURIComponent(locMatch[1]);
+  }
+
+  const symbol = currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '$';
+  const balance = (totalAmount !== null && advancePaid !== null) ? Math.max(0, totalAmount - advancePaid) : null;
+
+  return {
+    currency,
+    symbol,
+    totalAmount,
+    advancePaid,
+    balance,
+    duration,
+    location,
+    hasPrice: totalAmount !== null && totalAmount > 0
+  };
+}
+
 /** Transform a Supabase order row into the shape the existing UI expects. */
 export function transformOrder(dbOrder) {
   const isCancelledByTag = (typeof dbOrder.admin_notes === 'string') && (dbOrder.admin_notes.includes('[ORDER_CANCELLED:true]') || dbOrder.admin_notes.includes('[CANCELLATION_REASON:'));
@@ -119,6 +186,26 @@ export function transformOrder(dbOrder) {
   const displayCode = formatOrderCode(dbOrder);
   const editorReq = parseEditorRequirements(dbOrder.admin_notes);
   const customSec = parseCustomSection(dbOrder.admin_notes);
+  const offline = parseOfflineClient(dbOrder.admin_notes, dbOrder);
+  const invoice = parseInvoiceDetails(dbOrder.admin_notes, dbOrder);
+
+  // If this was an offline direct order and client is not a distinct registered account
+  const isDirectOffline = offline.isOffline && (!clientProfile?.email || clientProfile.id === dbOrder.admin_id);
+
+  let clientDisplayName = clientProfile?.company_name || clientProfile?.full_name;
+  if (isDirectOffline && offline.name) {
+    clientDisplayName = offline.name;
+  } else if (!clientDisplayName) {
+    clientDisplayName = offline.name || 'Direct Client';
+  }
+
+  const isDelivered = effectiveStatus === 'delivered' || dbOrder.status === 'delivered';
+  const formattedCreatedAt = dbOrder.created_at
+    ? new Date(dbOrder.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—';
+  const formattedDeliveredAt = isDelivered && dbOrder.updated_at
+    ? new Date(dbOrder.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : null;
 
   return {
     id: dbOrder.id,
@@ -126,7 +213,7 @@ export function transformOrder(dbOrder) {
     displayId: displayCode,
     orderCode: displayCode,
     title: dbOrder.order_name,
-    client: clientProfile?.company_name || clientProfile?.full_name || 'Unknown',
+    client: clientDisplayName,
     type: VIDEO_TYPE_MAP[dbOrder.video_type] || dbOrder.video_type,
     editor: {
       id: editorProfile?.id || null,
@@ -135,8 +222,11 @@ export function transformOrder(dbOrder) {
       avatar: editorProfile?.avatar_url || '',
     },
     clientContact: {
-      name: clientProfile?.full_name || 'Client',
-      company: clientProfile?.company_name || '',
+      name: isDirectOffline ? (offline.name || 'Direct Client') : (clientProfile?.full_name || offline.name || 'Client'),
+      company: isDirectOffline ? (offline.company || 'Direct Client') : (clientProfile?.company_name || ''),
+      email: isDirectOffline ? (offline.email || '') : (clientProfile?.email || offline.email || ''),
+      phone: isDirectOffline ? (offline.phone || '') : (clientProfile?.phone || offline.phone || ''),
+      isOffline: offline.isOffline,
     },
     deadline: dbOrder.client_deadline
       ? new Date(dbOrder.client_deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -167,6 +257,15 @@ export function transformOrder(dbOrder) {
     adminId: dbOrder.admin_id,
     createdAt: dbOrder.created_at,
     updatedAt: dbOrder.updated_at,
+    invoice,
+    totalAmount: invoice.totalAmount,
+    advancePaid: invoice.advancePaid,
+    balance: invoice.balance,
+    currency: invoice.currency,
+    currencySymbol: invoice.symbol,
+    formattedCreatedAt,
+    formattedDeliveredAt,
+    isDelivered,
   };
 }
 

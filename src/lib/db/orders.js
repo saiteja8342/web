@@ -147,16 +147,70 @@ export const UI_TO_VIDEO_TYPE = Object.fromEntries(
 
 /**
  * Fetch orders for the logged-in client.
+ * Supports matching by client UUID or client email (for offline claimed orders).
  */
-export async function getClientOrders(clientId) {
-  return await supabase
+export async function getClientOrders(clientId, clientEmail = null) {
+  let query = supabase
     .from('orders')
     .select(`
       *,
       editor:editor_id (id, full_name, email, editor_title, avatar_url)
-    `)
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false });
+    `);
+
+  if (clientEmail && clientEmail.trim()) {
+    const cleanEmail = clientEmail.trim().toLowerCase();
+    query = query.or(`client_id.eq.${clientId},client_email.ilike.${cleanEmail},admin_notes.ilike.%[OFFLINE_CLIENT_EMAIL:${cleanEmail}]%`);
+  } else {
+    query = query.eq('client_id', clientId);
+  }
+
+  return await query.order('created_at', { ascending: false });
+}
+
+/**
+ * Auto-claim offline orders for a client who registered or logged in.
+ * Updates past offline orders created with this email to point to their user UUID.
+ */
+export async function claimOfflineOrdersForClient(clientId, clientEmail) {
+  if (!clientId || !clientEmail || !clientEmail.includes('@')) {
+    return { count: 0 };
+  }
+  const cleanEmail = clientEmail.trim().toLowerCase();
+
+  try {
+    // 1. Try invoking the database RPC if available
+    const { data: rpcCount, error: rpcErr } = await supabase.rpc('claim_my_offline_orders');
+    if (!rpcErr && typeof rpcCount === 'number' && rpcCount > 0) {
+      return { count: rpcCount };
+    }
+
+    // 2. Client-side fallback check
+    const { data: matchedOrders, error: findErr } = await supabase
+      .from('orders')
+      .select('id, client_id, admin_notes')
+      .neq('client_id', clientId)
+      .or(`client_email.ilike.${cleanEmail},admin_notes.ilike.%[OFFLINE_CLIENT_EMAIL:${cleanEmail}]%`);
+
+    if (findErr || !matchedOrders || matchedOrders.length === 0) {
+      return { count: 0 };
+    }
+
+    const orderIds = matchedOrders.map((o) => o.id);
+    const { error: updateErr } = await supabase
+      .from('orders')
+      .update({ client_id: clientId, updated_at: new Date().toISOString() })
+      .in('id', orderIds);
+
+    if (updateErr) {
+      console.warn('[orders.js] Auto-claim fallback update error:', updateErr);
+      return { count: 0, error: updateErr };
+    }
+
+    return { count: orderIds.length, orderIds };
+  } catch (err) {
+    console.warn('[orders.js] claimOfflineOrdersForClient error:', err);
+    return { count: 0, error: err };
+  }
 }
 
 /**
@@ -384,7 +438,7 @@ export async function createOrder(orderPayload) {
     admin_notes: notesWithCode,
   };
 
-  // Attempt insert with order_code column
+  // Attempt insert with all provided columns
   let res = await supabase
     .from('orders')
     .insert([payloadWithCode])
@@ -395,18 +449,27 @@ export async function createOrder(orderPayload) {
     `)
     .single();
 
-  // Fallback if order_code column doesn't exist yet in Supabase table
-  if (res.error && res.error.message && res.error.message.toLowerCase().includes('order_code')) {
-    const { order_code: _order_code, ...payloadWithoutCol } = payloadWithCode;
-    res = await supabase
-      .from('orders')
-      .insert([payloadWithoutCol])
-      .select(`
-        *,
-        client:client_id (id, full_name, company_name, email),
-        editor:editor_id (id, full_name, email, editor_title, avatar_url)
-      `)
-      .single();
+  // Fallback if specific columns (order_code, client_email, client_name, client_phone) don't exist yet in Supabase table
+  if (res.error && res.error.message) {
+    const msg = res.error.message.toLowerCase();
+    const hasColError = ['order_code', 'client_email', 'client_name', 'client_phone'].some(col => msg.includes(col));
+    if (hasColError) {
+      const sanitized = { ...payloadWithCode };
+      if (msg.includes('order_code')) delete sanitized.order_code;
+      if (msg.includes('client_email')) delete sanitized.client_email;
+      if (msg.includes('client_name')) delete sanitized.client_name;
+      if (msg.includes('client_phone')) delete sanitized.client_phone;
+
+      res = await supabase
+        .from('orders')
+        .insert([sanitized])
+        .select(`
+          *,
+          client:client_id (id, full_name, company_name, email),
+          editor:editor_id (id, full_name, email, editor_title, avatar_url)
+        `)
+        .single();
+    }
   }
 
   return res;

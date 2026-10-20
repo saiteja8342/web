@@ -207,8 +207,15 @@ export default function AdminOrdersTable({
                                   )
                                 )}
                               </div>
-                              <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)' }}>{ord.client}</span>
-                            </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--vel-text-secondary)' }}>{ord.client}</span>
+                                  {ord.clientContact?.isOffline && (
+                                    <span style={{ fontSize: '0.58rem', fontWeight: 700, padding: '1px 5px', borderRadius: '4px', background: 'rgba(192, 132, 252, 0.15)', color: '#C084FC', border: '1px solid rgba(192, 132, 252, 0.3)' }}>
+                                      Offline
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                           </td>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -591,8 +598,29 @@ export default function AdminOrdersTable({
                         <Users className="h-4 w-4 text-white/70" />
                       </div>
                       <div>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700 }}>{selectedOrder.clientContact.name}</div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{selectedOrder.clientContact.name}</span>
+                          {selectedOrder.clientContact.isOffline && (
+                            <span style={{ fontSize: '0.6rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(192, 132, 252, 0.15)', color: '#C084FC', border: '1px solid rgba(192, 132, 252, 0.3)' }}>
+                              Direct Client
+                            </span>
+                          )}
+                        </div>
                         <div style={{ fontSize: '0.68rem', color: 'var(--vel-text-secondary)' }}>{selectedOrder.clientContact.company}</div>
+                        {selectedOrder.clientContact.email && (
+                          <div style={{ fontSize: '0.68rem', color: '#93C5FD', marginTop: '2px' }}>
+                            <a href={`mailto:${selectedOrder.clientContact.email}`} style={{ color: 'inherit', textDecoration: 'none' }}>
+                              ✉️ {selectedOrder.clientContact.email}
+                            </a>
+                          </div>
+                        )}
+                        {selectedOrder.clientContact.phone && (
+                          <div style={{ fontSize: '0.68rem', color: '#86EFAC', marginTop: '2px' }}>
+                            <a href={`https://wa.me/${selectedOrder.clientContact.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                              💬 {selectedOrder.clientContact.phone}
+                            </a>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
