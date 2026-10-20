@@ -698,6 +698,9 @@ export default function AdminPage() {
     brandAssetsLink: '',
     internalDeadline: '',
     clientDeadline: '',
+    currency: 'USD',
+    totalAmount: '',
+    advancePaid: '',
     selectedProjectId: ''
   });
 
@@ -1242,6 +1245,14 @@ export default function AdminPage() {
       if (createForm.customSectionContent && createForm.customSectionContent.trim()) {
         compiledNotes += `[CUSTOM_SECTION_CONTENT:${encodeURIComponent(createForm.customSectionContent.trim())}] `;
       }
+    if (createForm.currency) {
+      compiledNotes += `[INVOICE_CURRENCY:${encodeURIComponent(createForm.currency)}] `;
+    }
+    if (createForm.totalAmount) {
+      compiledNotes += `[INVOICE_TOTAL:${encodeURIComponent(createForm.totalAmount.trim())}] `;
+    }
+    if (createForm.advancePaid) {
+      compiledNotes += `[INVOICE_ADVANCE:${encodeURIComponent(createForm.advancePaid.trim())}] `;
     }
 
     const payload = {
@@ -1290,6 +1301,9 @@ export default function AdminPage() {
       brandAssetsLink: '',
       internalDeadline: '',
       clientDeadline: '',
+      currency: 'USD',
+      totalAmount: '',
+      advancePaid: '',
       selectedProjectId: ''
     });
 

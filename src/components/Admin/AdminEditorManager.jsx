@@ -13,7 +13,8 @@ import {
   SlidersHorizontal,
   ArrowUpDown,
   ChevronDown,
-  Check
+  Check,
+  Receipt
 } from 'lucide-react';
 
 export default function AdminEditorManager({
@@ -536,6 +537,108 @@ export default function AdminEditorManager({
                     onChange={(e) => setCreateForm({ ...createForm, brandAssetsLink: e.target.value })}
                   />
                 </div>
+              </div>
+
+              {/* 4. BILLING & ADVANCE PAYMENT INVOICE */}
+              <div className="vel-card">
+                <div className="vel-card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="vel-card-title-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Receipt className="h-4 w-4" style={{ color: '#4ADE80' }} />
+                    <span>Project Billing & Advance Invoice</span>
+                  </span>
+                  <span style={{ fontSize: '0.65rem', color: '#A1A1AA', background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: '4px' }}>
+                    Attached to Confirmation Email (PDF)
+                  </span>
+                </div>
+
+                {/* Currency Selector Toggle */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                  <label className="vel-label" style={{ margin: 0 }}>Select Currency</label>
+                  <div style={{ display: 'flex', background: '#0D0D14', padding: '3px', borderRadius: '8px', border: '1px solid var(--vel-border)' }}>
+                    {[
+                      { code: 'USD', symbol: '$', label: '$ USD' },
+                      { code: 'INR', symbol: '₹', label: '₹ INR (Rupees)' },
+                      { code: 'EUR', symbol: '€', label: '€ EUR' },
+                      { code: 'GBP', symbol: '£', label: '£ GBP' },
+                    ].map(cur => (
+                      <button
+                        key={cur.code}
+                        type="button"
+                        onClick={() => setCreateForm({ ...createForm, currency: cur.code })}
+                        style={{
+                          padding: '4px 12px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          borderRadius: '6px',
+                          background: (createForm.currency || 'USD') === cur.code ? '#252538' : 'transparent',
+                          color: (createForm.currency || 'USD') === cur.code ? '#FFFFFF' : '#8E8EA0',
+                          border: 'none',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {cur.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {(() => {
+                  const currSym = createForm.currency === 'INR' ? '₹' : createForm.currency === 'EUR' ? '€' : createForm.currency === 'GBP' ? '£' : '$';
+                  return (
+                    <>
+                      <div className="vel-form-grid-2">
+                        <div className="vel-field-group">
+                          <label className="vel-label">Total Project Fee ({currSym})</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="e.g. 1200"
+                            className="vel-input"
+                            value={createForm.totalAmount || ''}
+                            onChange={(e) => setCreateForm({ ...createForm, totalAmount: e.target.value })}
+                          />
+                        </div>
+
+                        <div className="vel-field-group">
+                          <label className="vel-label">Advance Payment Received ({currSym})</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="e.g. 600"
+                            className="vel-input"
+                            value={createForm.advancePaid || ''}
+                            onChange={(e) => setCreateForm({ ...createForm, advancePaid: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Real-time Balance Calculation Preview */}
+                      {(Number(createForm.totalAmount) > 0 || Number(createForm.advancePaid) > 0) && (
+                        <div style={{
+                          marginTop: '12px',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          background: 'rgba(192, 132, 252, 0.06)',
+                          border: '1px solid rgba(192, 132, 252, 0.2)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          fontSize: '0.8rem'
+                        }}>
+                          <span style={{ color: '#A1A1AA' }}>
+                            Remaining Balance on Delivery ({createForm.currency || 'USD'}):
+                          </span>
+                          <strong style={{ color: '#FACC15', fontFamily: 'monospace', fontSize: '0.95rem' }}>
+                            {currSym}{Math.max(0, (Number(createForm.totalAmount) || 0) - (Number(createForm.advancePaid) || 0)).toFixed(2)}
+                          </strong>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="vel-card">
