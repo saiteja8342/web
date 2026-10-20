@@ -86,6 +86,19 @@
   to { transform: translateY(0); opacity: 1; }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .ed-skeleton {
+    animation: none !important;
+    background: #14151D !important;
+  }
+}
+
 /* Shimmer Skeleton */
 .ed-skeleton {
   background: linear-gradient(90deg, #111116 25%, #1A1A24 50%, #111116 75%);

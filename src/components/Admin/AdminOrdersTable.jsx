@@ -782,23 +782,23 @@ export default function AdminOrdersTable({
                       <select
                         className="vel-select"
                         style={{ flex: 1 }}
-                        value={stagedStatusMap[selectedOrder.id] || selectedOrder.status || 'RECEIVED'}
+                        value={
+                          stagedStatusMap[selectedOrder.id] || (
+                            selectedOrder.status === 'IN PROGRESS' ? 'IN EDITING' :
+                            selectedOrder.status === 'REVIEWING' ? 'IN REVIEW' :
+                            selectedOrder.status === 'COMPLETED' ? 'DELIVERED' :
+                            selectedOrder.status
+                          ) || 'RECEIVED'
+                        }
                         onChange={(e) => {
-                          if (e.target.value === 'CANCELLED') {
-                            handleOpenCancelModal(selectedOrder);
-                          } else {
-                            handleOrderFieldChange('status', e.target.value);
-                          }
+                          handleOrderFieldChange('status', e.target.value);
                         }}
                       >
                         <option value="RECEIVED">Received</option>
                         <option value="ACCEPTED">Accepted</option>
-                        <option value="IN PROGRESS">In Progress</option>
-                        <option value="REVIEWING">Reviewing</option>
-                        <option value="REVISION">Revision Requested</option>
-                        <option value="ON HOLD">On Hold</option>
-                        <option value="COMPLETED">Completed</option>
-                        <option value="CANCELLED">Cancelled</option>
+                        <option value="IN EDITING">In Editing</option>
+                        <option value="IN REVIEW">In Review</option>
+                        <option value="DELIVERED">Delivered</option>
                       </select>
                       <button
                         type="button"
@@ -859,7 +859,7 @@ export default function AdminOrdersTable({
                       className="vel-textarea"
                       style={{ minHeight: '70px' }}
                       placeholder="Add internal notes for production team..."
-                      value={selectedOrder.notes}
+                      value={selectedOrder.notes || ''}
                       onChange={(e) => handleOrderFieldChange('notes', e.target.value)}
                     />
                   </div>

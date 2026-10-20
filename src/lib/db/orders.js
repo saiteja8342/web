@@ -27,11 +27,11 @@ import { supabase } from '../supabase/client';
 export const STATUS_MAP = {
   received:           { label: 'RECEIVED',    badgeClass: 'vel-badge-received',   step: 0 },
   accepted:           { label: 'ACCEPTED',    badgeClass: 'vel-badge-progress',   step: 1 },
-  in_editing:         { label: 'IN PROGRESS', badgeClass: 'vel-badge-progress',   step: 2 },
-  in_review:          { label: 'REVIEWING',   badgeClass: 'vel-badge-reviewing',  step: 3 },
-  revision_requested: { label: 'REVISION',    badgeClass: 'vel-badge-received',   step: 3 },
+  in_editing:         { label: 'IN EDITING',  badgeClass: 'vel-badge-progress',   step: 2 },
+  in_review:          { label: 'IN REVIEW',   badgeClass: 'vel-badge-reviewing',  step: 3 },
+  revision_requested: { label: 'IN REVIEW',   badgeClass: 'vel-badge-received',   step: 3 },
   on_hold:            { label: 'ON HOLD',     badgeClass: 'vel-badge-received',   step: -1 },
-  delivered:          { label: 'COMPLETED',   badgeClass: 'vel-badge-progress',   step: 4 },
+  delivered:          { label: 'DELIVERED',   badgeClass: 'vel-badge-progress',   step: 4 },
   cancelled:          { label: 'CANCELLED',   badgeClass: 'vel-badge-cancelled',  step: -1 },
 };
 
@@ -41,10 +41,13 @@ export const STATUS_MAP = {
 export const UI_TO_DB_STATUS = {
   'RECEIVED':    'received',
   'ACCEPTED':    'accepted',
+  'IN EDITING':  'in_editing',
   'IN PROGRESS': 'in_editing',
+  'IN REVIEW':   'in_review',
   'REVIEWING':   'in_review',
   'REVISION':    'revision_requested',
   'ON HOLD':     'on_hold',
+  'DELIVERED':   'delivered',
   'COMPLETED':   'delivered',
   'CANCELLED':   'cancelled',
 };

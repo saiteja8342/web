@@ -32,7 +32,6 @@ import {
   MessageSquare,
   Smartphone
 } from 'lucide-react';
-import CustomCursor from '../components/CustomCursor';
 import InstallPwaButton from '../components/InstallPwaButton';
 
 import { supabase } from '../supabaseClient';
@@ -607,7 +606,30 @@ export default function EditorDashboard() {
       (updatedNotif) => setNotifications(prev => prev.map(n => n.id === updatedNotif.id ? updatedNotif : n))
     );
 
+    // Cross-tab broadcast listener (syncs updates across tabs in <10ms)
+    let bc = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bc = new BroadcastChannel('mne-order-updates');
+        bc.onmessage = () => {
+          fetchEditorData();
+        };
+      }
+    } catch (_) {}
+
+    // Instant sync on window focus or tab visibility
+    const handleVisibilitySync = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchEditorData();
+      }
+    };
+    window.addEventListener('focus', handleVisibilitySync);
+    document.addEventListener('visibilitychange', handleVisibilitySync);
+
     return () => {
+      if (bc) bc.close();
+      window.removeEventListener('focus', handleVisibilitySync);
+      document.removeEventListener('visibilitychange', handleVisibilitySync);
       unsubscribeChannel(ordersChannel);
       unsubscribeChannel(notifChannel);
     };
@@ -746,7 +768,6 @@ export default function EditorDashboard() {
 
   return (
     <div className="cp-layout ed-layout">
-      <CustomCursor />
       {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div className="cp-sidebar-backdrop" onClick={() => setSidebarOpen(false)} />

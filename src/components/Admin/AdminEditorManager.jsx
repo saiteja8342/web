@@ -151,7 +151,7 @@ export default function AdminEditorManager({
                               client: matched?.client || prev.client,
                               clientDeadline: matched?.clientDeadline || '',
                               internalDeadline: matched?.editorDeadline || '',
-                              brief: matched?.notes || prev.brief,
+                              brief: matched?.brief || matched?.notes || prev.brief,
                             }));
                           }}
                         >

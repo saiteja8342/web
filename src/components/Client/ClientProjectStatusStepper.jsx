@@ -52,14 +52,13 @@ export default function ClientProjectStatusStepper({
 
   // Helper to determine step index
   const getStepIndex = (st) => {
-    switch (st) {
-      case 'received': return 0;
-      case 'accepted': return 1;
-      case 'in_editing': return 2;
-      case 'in_review': return 3;
-      case 'delivered': return 4;
-      default: return 0;
-    }
+    const s = String(st || '').toLowerCase().trim();
+    if (s === 'delivered' || s === 'completed') return 4;
+    if (s === 'in_review' || s === 'reviewing' || s === 'revision' || s === 'revision_requested') return 3;
+    if (s === 'in_editing' || s === 'in progress' || s === 'in_progress') return 2;
+    if (s === 'accepted') return 1;
+    if (s === 'received') return 0;
+    return 0;
   };
 
   const currentStep = getStepIndex(status);

@@ -8,28 +8,18 @@ import {
   Bell,
   Download,
   ExternalLink,
-  ArrowRight,
   CheckCircle2,
-  Check,
   Eye,
   Send,
-  StickyNote,
   Menu,
   X,
-  Calendar,
   Clock,
-  Star,
-  Award,
-  Lock,
-  ShieldCheck,
-  EyeOff,
   ChevronDown,
   ChevronRight,
   Headphones,
   Mail,
   MessageSquare
 } from 'lucide-react';
-import CustomCursor from '../components/CustomCursor';
 
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
@@ -602,13 +592,25 @@ export default function ClientDashboard() {
     window.addEventListener('storage', handleStorageChange);
 
     // Periodic sync every 3 seconds for guaranteed live updates
+    // Instant sync on window focus or tab visibility
+    const handleVisibilitySync = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchClientData(userId);
+      }
+    };
+    window.addEventListener('focus', handleVisibilitySync);
+    document.addEventListener('visibilitychange', handleVisibilitySync);
+
+    // Fallback sync every 30 seconds (relying on Realtime WebSockets for instant updates)
     const pollInterval = setInterval(() => {
       fetchClientData(userId);
-    }, 3000);
+    }, 30000);
 
     return () => {
       if (bc) bc.close();
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('focus', handleVisibilitySync);
+      document.removeEventListener('visibilitychange', handleVisibilitySync);
       clearInterval(pollInterval);
     };
   }, [currentUser, fetchClientData]);
@@ -1021,7 +1023,6 @@ export default function ClientDashboard() {
 
   return (
     <div className="cp-layout">
-      <CustomCursor />
       {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div className="cp-sidebar-backdrop" onClick={() => setSidebarOpen(false)} />

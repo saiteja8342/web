@@ -406,14 +406,15 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<string> 
     color: rgb(1, 1, 1),
   });
 
-  const locationText = data.clientLocation || "vijayawada, AP";
-  page.drawText(locationText, {
-    x: 50,
-    y: headerContentY - 33,
-    size: 11,
-    font: fontBold,
-    color: rgb(1, 1, 1),
-  });
+  if (data.clientLocation && data.clientLocation.trim()) {
+    page.drawText(data.clientLocation.trim(), {
+      x: 50,
+      y: headerContentY - 33,
+      size: 11,
+      font: fontBold,
+      color: rgb(1, 1, 1),
+    });
+  }
 
   // Right: DATE or invoice DATE
   const dateLabel = isFinal ? "invoice  DATE" : "DATE";
@@ -498,7 +499,8 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<string> 
     color: rgb(1, 1, 1),
   });
 
-  const unitPrice = data.unitPrice || data.total;
+  const safeTotal = Number(data.total) > 0 ? Number(data.total) : 1500;
+  const unitPrice = Number(data.unitPrice) > 0 ? Number(data.unitPrice) : safeTotal;
   drawAmountWithCurrency(page, fontBold, unitPrice.toString(), colPriceX, currentY, 11, curCode);
 
   const durationText = data.duration || "1 min";
@@ -510,7 +512,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<string> 
     color: rgb(1, 1, 1),
   });
 
-  const rowTotalFormatted = isFinal ? data.total.toFixed(2) : data.total.toString();
+  const rowTotalFormatted = isFinal ? safeTotal.toFixed(2) : safeTotal.toString();
   drawAmountWithCurrency(page, fontBold, rowTotalFormatted, colTotalX, currentY, 11, curCode);
 
   // 5. Financial Breakdown
@@ -577,7 +579,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<string> 
       font: fontBold,
       color: rgb(1, 1, 1),
     });
-    drawAmountWithCurrency(page, fontBold, data.total.toFixed(2), 445, currentY + 5, 11, curCode);
+    drawAmountWithCurrency(page, fontBold, safeTotal.toFixed(2), 445, currentY + 5, 11, curCode);
 
     currentY -= 32;
     page.drawText("PAID", {
@@ -587,7 +589,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<string> 
       font: fontBold,
       color: rgb(1, 1, 1),
     });
-    drawAmountWithCurrency(page, fontBold, data.total.toFixed(2), 445, currentY, 11, curCode);
+    drawAmountWithCurrency(page, fontBold, safeTotal.toFixed(2), 445, currentY, 11, curCode);
 
     currentY -= 20;
   }
@@ -814,22 +816,24 @@ serve(async (req: Request) => {
         let clientLocation = "";
 
         if (record.client_id) {
-          const { data: profile } = await supabase
+          const { data: profile, error: profErr } = await supabase
             .from("profiles")
-            .select("email, full_name, location, city, address")
+            .select("email, full_name, company_name")
             .eq("id", record.client_id)
-            .single();
+            .maybeSingle();
           if (profile) {
             clientEmail = profile.email || "";
-            clientName = profile.full_name || "";
-            clientLocation = profile.location || profile.city || profile.address || "";
+            clientName = profile.full_name || profile.company_name || "";
+          }
+          if (profErr) {
+            console.error("Client profile lookup error (INSERT):", profErr);
           }
         }
 
         let totalAmount = Number(record.amount) || 0;
         let advancePaid = Number(record.advance_amount) || 0;
         let currency = "INR";
-        let location = clientLocation;
+        let location = "";
         let duration = "1 min";
 
         if (record.admin_notes) {
@@ -843,6 +847,10 @@ serve(async (req: Request) => {
           if (locMatch) location = decodeURIComponent(locMatch[1]) || location;
           const durMatch = record.admin_notes.match(/\[INVOICE_DURATION:([^\]]+)\]/);
           if (durMatch) duration = decodeURIComponent(durMatch[1]) || duration;
+        }
+
+        if (!totalAmount || totalAmount <= 0) {
+          totalAmount = 1500;
         }
 
         payload = {
@@ -891,8 +899,8 @@ serve(async (req: Request) => {
         }
         // Trigger 2: Order Delivered or Final Payment Completed
         else if (
-          (record.status === "delivered" && old_record?.status !== "delivered") ||
-          (record.status === "completed" && old_record?.status !== "completed")
+          (record.status === "delivered" && (!old_record || old_record.status !== "delivered")) ||
+          (record.status === "completed" && (!old_record || old_record.status !== "completed"))
         ) {
           action = "ORDER_DELIVERED_CLIENT";
           let clientEmail = "";
@@ -900,21 +908,23 @@ serve(async (req: Request) => {
           let clientLocation = "";
 
           if (record.client_id) {
-            const { data: profile } = await supabase
+            const { data: profile, error: profErr } = await supabase
               .from("profiles")
-              .select("email, full_name, location, city, address")
+              .select("email, full_name, company_name")
               .eq("id", record.client_id)
-              .single();
+              .maybeSingle();
             if (profile) {
               clientEmail = profile.email || "";
-              clientName = profile.full_name || "";
-              clientLocation = profile.location || profile.city || profile.address || "";
+              clientName = profile.full_name || profile.company_name || "";
+            }
+            if (profErr) {
+              console.error("Client profile lookup error (UPDATE delivered):", profErr);
             }
           }
 
           let totalAmount = Number(record.amount) || 0;
           let currency = "INR";
-          let location = clientLocation;
+          let location = "";
           let duration = "1 min";
 
           if (record.admin_notes) {
@@ -926,6 +936,10 @@ serve(async (req: Request) => {
             if (locMatch) location = decodeURIComponent(locMatch[1]) || location;
             const durMatch = record.admin_notes.match(/\[INVOICE_DURATION:([^\]]+)\]/);
             if (durMatch) duration = decodeURIComponent(durMatch[1]) || duration;
+          }
+
+          if (!totalAmount || totalAmount <= 0) {
+            totalAmount = 1500;
           }
 
           payload = {
@@ -982,7 +996,7 @@ serve(async (req: Request) => {
         throw new Error("clientEmail is required for ORDER_CREATED_CLIENT.");
       }
 
-      const total = Number(totalAmount) || 0;
+      const total = Number(totalAmount) > 0 ? Number(totalAmount) : 1500;
       const advance = Number(advancePaid) || 0;
       const balance = Math.max(0, total - advance);
 
@@ -997,7 +1011,7 @@ serve(async (req: Request) => {
           orderCode: orderCode || "MNE-PROJECT",
           orderName: orderName || "AI video ( AD )",
           clientName: clientName || "Valued Client",
-          clientLocation: clientLocation || "vijayawada, AP",
+          clientLocation: clientLocation || "",
           clientEmail: clientEmail,
           format: format || "AI video ( AD )",
           duration: duration || "1 min",
@@ -1063,13 +1077,13 @@ serve(async (req: Request) => {
           Hi <strong style="color: #FFFFFF;">${clientName || "Valued Client"}</strong>,
         </p>
         <p style="font-size: 14px; line-height: 1.6; color: #8E8F94; margin: 0 0 24px 0;">
-          Thank you for choosing MotionNodeEdits! Your video project has been verified and registered in our active production studio pipeline.
+          Thank you for choosing MotionNodeEdits! Your order has been confirmed. We’ll keep you updated on your project’s progress.
         </p>
 
         <!-- Project Overview Box (No project name row) -->
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: #101016; border: 1px solid #1C1C26; border-radius: 12px; padding: 18px 20px; margin-bottom: 24px;">
           <tr>
-            <td style="padding: 6px 0; font-size: 12px; color: #8E8F94; text-transform: uppercase; letter-spacing: 0.5px;">Order Tracking Code:</td>
+            <td style="padding: 6px 0; font-size: 12px; color: #8E8F94; text-transform: uppercase; letter-spacing: 0.5px;">Project ID:</td>
             <td style="padding: 6px 0; font-size: 13px; font-family: monospace; font-weight: 700; color: #FFFFFF; text-align: right;">${orderCode || "MNE-PROJECT"}</td>
           </tr>
           <tr>
@@ -1111,7 +1125,7 @@ serve(async (req: Request) => {
         <!-- Attached PDF Banner -->
         <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 14px 18px; margin-bottom: 24px;">
           <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #E4E4E7;">
-            📎 <strong style="color: #FFFFFF;">Official PDF Invoice Attached:</strong> Your downloadable invoice (<span style="font-family: monospace; color: #FFFFFF;">Invoice_${orderCode || "MNE"}.pdf</span>) is attached to this email for your official records and accounting.
+            📎 <strong style="color: #FFFFFF;">Payment Invoice Attached:</strong> Please find your payment invoice attached to this email for your records. Thank you for choosing MotionNodeEdits.
           </p>
         </div>
 
@@ -1137,18 +1151,44 @@ serve(async (req: Request) => {
     <tr>
       <td style="padding: 26px 36px; background-color: #08080C; border-top: 1px solid #181822; text-align: center;">
         
-        <!-- Social Links (Instagram, YouTube, Website) -->
-        <div style="margin: 0 0 16px 0; text-align: center;">
-          <a href="https://www.instagram.com/motionnodeedits/" target="_blank" style="display: inline-block; margin: 0 6px; padding: 6px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #E6E6E6; font-size: 11px; font-weight: 600; text-decoration: none;">
-            Instagram ↗
-          </a>
-          <a href="https://www.youtube.com/@motionnodeedits" target="_blank" style="display: inline-block; margin: 0 6px; padding: 6px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #E6E6E6; font-size: 11px; font-weight: 600; text-decoration: none;">
-            YouTube ↗
-          </a>
-          <a href="https://motionnodeedits.com" target="_blank" style="display: inline-block; margin: 0 6px; padding: 6px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #E6E6E6; font-size: 11px; font-weight: 600; text-decoration: none;">
-            Website ↗
-          </a>
-        </div>
+        <!-- Social Links (Icon-Based: Instagram, YouTube, Website) -->
+        <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 16px auto;">
+          <tr>
+            <td style="padding: 0 6px;">
+              <a href="https://www.instagram.com/motionnodeedits/" target="_blank" title="Instagram" style="display: block; width: 36px; height: 36px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; text-decoration: none;">
+                <table role="presentation" width="36" height="36" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" valign="middle">
+                      <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png" width="18" height="18" alt="Instagram" style="display: block; width: 18px; height: 18px; border: 0;" />
+                    </td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+            <td style="padding: 0 6px;">
+              <a href="https://www.youtube.com/@motionnodeedits" target="_blank" title="YouTube" style="display: block; width: 36px; height: 36px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; text-decoration: none;">
+                <table role="presentation" width="36" height="36" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" valign="middle">
+                      <img src="https://img.icons8.com/ios-filled/50/ffffff/youtube-play.png" width="18" height="18" alt="YouTube" style="display: block; width: 18px; height: 18px; border: 0;" />
+                    </td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+            <td style="padding: 0 6px;">
+              <a href="https://motionnodeedits.com" target="_blank" title="Website" style="display: block; width: 36px; height: 36px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; text-decoration: none;">
+                <table role="presentation" width="36" height="36" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" valign="middle">
+                      <img src="https://img.icons8.com/ios-filled/50/ffffff/globe--v1.png" width="18" height="18" alt="Website" style="display: block; width: 18px; height: 18px; border: 0;" />
+                    </td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+          </tr>
+        </table>
 
         <p style="margin: 0; font-size: 11px; color: #52525B;">
           © ${new Date().getFullYear()} MotionNodeEdits. All rights reserved.
@@ -1186,7 +1226,7 @@ serve(async (req: Request) => {
         throw new Error("clientEmail is required for ORDER_DELIVERED_CLIENT.");
       }
 
-      const total = Number(totalAmount) || 0;
+      const total = Number(totalAmount) > 0 ? Number(totalAmount) : 1500;
       const curCode = (currency || "INR").toUpperCase();
       const curHtml = curCode === "INR" ? "₹" : curCode === "EUR" ? "€" : curCode === "GBP" ? "£" : "$";
 
@@ -1198,7 +1238,7 @@ serve(async (req: Request) => {
           orderCode: orderCode || "MNE-PROJECT",
           orderName: orderName || "AI video ( AD )",
           clientName: clientName || "Valued Client",
-          clientLocation: clientLocation || "vijayawada, AP",
+          clientLocation: clientLocation || "",
           clientEmail: clientEmail,
           format: format || "AI video ( AD )",
           duration: duration || "1 min",
@@ -1264,13 +1304,13 @@ serve(async (req: Request) => {
           Hi <strong style="color: #FFFFFF;">${clientName || "Valued Client"}</strong>,
         </p>
         <p style="font-size: 14px; line-height: 1.6; color: #8E8F94; margin: 0 0 24px 0;">
-          Congratulations! Your video project has been completed, reviewed, and finalized by the MotionNodeEdits studio team. Full and final payment has been confirmed.
+          Your video project has been successfully completed by the MotionNodeEdits team, and your payment has been received and confirmed. Thank you for choosing MotionNodeEdits!
         </p>
 
         <!-- Project Overview Box (No project name row) -->
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: #101016; border: 1px solid #1C1C26; border-radius: 12px; padding: 18px 20px; margin-bottom: 24px;">
           <tr>
-            <td style="padding: 6px 0; font-size: 12px; color: #8E8F94; text-transform: uppercase; letter-spacing: 0.5px;">Order Tracking Code:</td>
+            <td style="padding: 6px 0; font-size: 12px; color: #8E8F94; text-transform: uppercase; letter-spacing: 0.5px;">Project ID:</td>
             <td style="padding: 6px 0; font-size: 13px; font-family: monospace; font-weight: 700; color: #4ADE80; text-align: right;">${orderCode || "MNE-PROJECT"}</td>
           </tr>
           <tr>
@@ -1278,27 +1318,12 @@ serve(async (req: Request) => {
             <td style="padding: 6px 0; font-size: 13px; color: #FFFFFF; text-align: right;">${format || "Video"} (${duration || "1 min"})</td>
           </tr>
           <tr>
+            <td style="padding: 6px 0; font-size: 12px; color: #8E8F94; text-transform: uppercase; letter-spacing: 0.5px;">Total Project Price:</td>
+            <td style="padding: 6px 0; font-size: 15px; font-weight: 800; color: #FFFFFF; text-align: right;">${curHtml} ${total.toFixed(2)}</td>
+          </tr>
+          <tr>
             <td style="padding: 6px 0; font-size: 12px; color: #8E8F94; text-transform: uppercase; letter-spacing: 0.5px;">Payment Status:</td>
-            <td style="padding: 6px 0; font-size: 13px; font-weight: 700; color: #4ADE80; text-align: right;">Paid in Full (Zero Balance)</td>
-          </tr>
-        </table>
-
-        <!-- Paid in Full Summary -->
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: #101016; border: 1px solid #1C1C26; border-radius: 12px; padding: 18px 20px; margin-bottom: 24px;">
-          <tr>
-            <td style="padding: 6px 0; font-size: 13px; color: #8E8F94;">Total Project Agreement:</td>
-            <td style="padding: 6px 0; font-size: 14px; font-weight: 700; color: #FFFFFF; text-align: right;">${curHtml} ${total.toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; font-size: 13px; color: #4ADE80;">Paid in Full:</td>
-            <td style="padding: 6px 0; font-size: 14px; font-weight: 700; color: #4ADE80; text-align: right;">${curHtml} ${total.toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td colspan="2" style="padding: 8px 0 0 0; border-top: 1px solid #1C1C26;"></td>
-          </tr>
-          <tr>
-            <td style="padding: 6px 0; font-size: 14px; font-weight: 800; color: #FFFFFF;">Remaining Balance:</td>
-            <td style="padding: 6px 0; font-size: 15px; font-weight: 800; color: #4ADE80; text-align: right;">${curHtml} 0.00</td>
+            <td style="padding: 6px 0; font-size: 13px; font-weight: 700; color: #4ADE80; text-align: right;">Paid in Full</td>
           </tr>
         </table>
 
@@ -1353,18 +1378,44 @@ serve(async (req: Request) => {
     <tr>
       <td style="padding: 26px 36px; background-color: #08080C; border-top: 1px solid #181822; text-align: center;">
         
-        <!-- Social Links (Instagram, YouTube, Website) -->
-        <div style="margin: 0 0 16px 0; text-align: center;">
-          <a href="https://www.instagram.com/motionnodeedits/" target="_blank" style="display: inline-block; margin: 0 6px; padding: 6px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #E6E6E6; font-size: 11px; font-weight: 600; text-decoration: none;">
-            Instagram ↗
-          </a>
-          <a href="https://www.youtube.com/@motionnodeedits" target="_blank" style="display: inline-block; margin: 0 6px; padding: 6px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #E6E6E6; font-size: 11px; font-weight: 600; text-decoration: none;">
-            YouTube ↗
-          </a>
-          <a href="https://motionnodeedits.com" target="_blank" style="display: inline-block; margin: 0 6px; padding: 6px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #E6E6E6; font-size: 11px; font-weight: 600; text-decoration: none;">
-            Website ↗
-          </a>
-        </div>
+        <!-- Social Links (Icon-Based: Instagram, YouTube, Website) -->
+        <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 16px auto;">
+          <tr>
+            <td style="padding: 0 6px;">
+              <a href="https://www.instagram.com/motionnodeedits/" target="_blank" title="Instagram" style="display: block; width: 36px; height: 36px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; text-decoration: none;">
+                <table role="presentation" width="36" height="36" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" valign="middle">
+                      <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png" width="18" height="18" alt="Instagram" style="display: block; width: 18px; height: 18px; border: 0;" />
+                    </td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+            <td style="padding: 0 6px;">
+              <a href="https://www.youtube.com/@motionnodeedits" target="_blank" title="YouTube" style="display: block; width: 36px; height: 36px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; text-decoration: none;">
+                <table role="presentation" width="36" height="36" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" valign="middle">
+                      <img src="https://img.icons8.com/ios-filled/50/ffffff/youtube-play.png" width="18" height="18" alt="YouTube" style="display: block; width: 18px; height: 18px; border: 0;" />
+                    </td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+            <td style="padding: 0 6px;">
+              <a href="https://motionnodeedits.com" target="_blank" title="Website" style="display: block; width: 36px; height: 36px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; text-decoration: none;">
+                <table role="presentation" width="36" height="36" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" valign="middle">
+                      <img src="https://img.icons8.com/ios-filled/50/ffffff/globe--v1.png" width="18" height="18" alt="Website" style="display: block; width: 18px; height: 18px; border: 0;" />
+                    </td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+          </tr>
+        </table>
 
         <p style="margin: 0; font-size: 11px; color: #52525B;">
           © ${new Date().getFullYear()} MotionNodeEdits. All rights reserved.
@@ -1446,7 +1497,7 @@ serve(async (req: Request) => {
           Hi <strong style="color: #FFFFFF;">${editorName || "Editor"}</strong>,
         </p>
         <p style="font-size: 14px; line-height: 1.6; color: #8E8F94; margin: 0 0 24px 0;">
-          You have been designated as lead editor for <strong style="color: #FFFFFF;">${orderName}</strong>. Please review the production brief, download the raw footage, and adhere strictly to the internal timeline below.
+          A new project, <strong style="color: #FFFFFF;">${orderName || "Video Project"}</strong>, has been assigned to you as Lead Editor. Please review the project brief and proceed with the editing.
         </p>
 
         <!-- Deadlines & Info (Order Code removed as requested) -->
@@ -1512,6 +1563,46 @@ serve(async (req: Request) => {
     <!-- Footer -->
     <tr>
       <td style="padding: 24px 36px; background-color: #08080C; border-top: 1px solid #181822; text-align: center;">
+        
+        <!-- Social Links (Icon-Based: Instagram, YouTube, Website) -->
+        <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 16px auto;">
+          <tr>
+            <td style="padding: 0 6px;">
+              <a href="https://www.instagram.com/motionnodeedits/" target="_blank" title="Instagram" style="display: block; width: 36px; height: 36px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; text-decoration: none;">
+                <table role="presentation" width="36" height="36" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" valign="middle">
+                      <img src="https://img.icons8.com/ios-filled/50/ffffff/instagram-new.png" width="18" height="18" alt="Instagram" style="display: block; width: 18px; height: 18px; border: 0;" />
+                    </td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+            <td style="padding: 0 6px;">
+              <a href="https://www.youtube.com/@motionnodeedits" target="_blank" title="YouTube" style="display: block; width: 36px; height: 36px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; text-decoration: none;">
+                <table role="presentation" width="36" height="36" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" valign="middle">
+                      <img src="https://img.icons8.com/ios-filled/50/ffffff/youtube-play.png" width="18" height="18" alt="YouTube" style="display: block; width: 18px; height: 18px; border: 0;" />
+                    </td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+            <td style="padding: 0 6px;">
+              <a href="https://motionnodeedits.com" target="_blank" title="Website" style="display: block; width: 36px; height: 36px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; text-decoration: none;">
+                <table role="presentation" width="36" height="36" cellspacing="0" cellpadding="0">
+                  <tr>
+                    <td align="center" valign="middle">
+                      <img src="https://img.icons8.com/ios-filled/50/ffffff/globe--v1.png" width="18" height="18" alt="Website" style="display: block; width: 18px; height: 18px; border: 0;" />
+                    </td>
+                  </tr>
+                </table>
+              </a>
+            </td>
+          </tr>
+        </table>
+
         <p style="margin: 0; font-size: 11px; color: #52525B;">
           © ${new Date().getFullYear()} MotionNodeEdits Studio Management System
         </p>

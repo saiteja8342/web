@@ -74,23 +74,24 @@ export function parseCustomSection(notes) {
 export function stripCustomTags(notes) {
   if (!notes || typeof notes !== 'string') return '';
   return notes
-    .replace(/\s*\[EDITOR_REQUIREMENTS:[^\]]*\]/g, '')
-    .replace(/\s*\[CUSTOM_SECTION_TITLE:[^\]]*\]/g, '')
-    .replace(/\s*\[CUSTOM_SECTION_CONTENT:[^\]]*\]/g, '')
+    .replace(/\s*\[(INVOICE_[A-Z0-9_]+|ORDER_CODE|ORDER_CANCELLED|CANCELLATION_REASON|CLIENT_DELIVERABLE_VISIBLE|EDITOR_REQUIREMENTS|CUSTOM_SECTION_TITLE|CUSTOM_SECTION_CONTENT):[^\]]*\]/gi, '')
     .trim();
 }
 
 export function preserveMetaTags(rawNotes, cleanNotes, extraTag) {
   const metaTags = [];
   if (typeof rawNotes === 'string') {
-    const editorMatch = rawNotes.match(/\[EDITOR_REQUIREMENTS:[^\]]*\]/);
-    if (editorMatch) metaTags.push(editorMatch[0]);
-    const titleMatch = rawNotes.match(/\[CUSTOM_SECTION_TITLE:[^\]]*\]/);
-    if (titleMatch) metaTags.push(titleMatch[0]);
-    const contentMatch = rawNotes.match(/\[CUSTOM_SECTION_CONTENT:[^\]]*\]/);
-    if (contentMatch) metaTags.push(contentMatch[0]);
-    const orderCodeMatch = rawNotes.match(/\[ORDER_CODE:[^\]]*\]/);
-    if (orderCodeMatch) metaTags.push(orderCodeMatch[0]);
+    const matches = rawNotes.match(/\[(INVOICE_[A-Z0-9_]+|ORDER_CODE|ORDER_CANCELLED|CANCELLATION_REASON|EDITOR_REQUIREMENTS|CUSTOM_SECTION_TITLE|CUSTOM_SECTION_CONTENT):[^\]]*\]/gi);
+    if (matches) {
+      const seen = new Set();
+      for (const tag of matches) {
+        const key = tag.split(':')[0].toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          metaTags.push(tag);
+        }
+      }
+    }
   }
   const parts = [cleanNotes, ...metaTags, extraTag].filter(Boolean);
   return parts.join(' ').trim();

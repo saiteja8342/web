@@ -1282,16 +1282,16 @@ export default function AdminPage() {
       compiledNotes += `[INVOICE_CURRENCY:${encodeURIComponent(createForm.currency)}] `;
     }
     if (createForm.totalAmount) {
-      compiledNotes += `[INVOICE_TOTAL:${encodeURIComponent(createForm.totalAmount.trim())}] `;
+      compiledNotes += `[INVOICE_TOTAL:${encodeURIComponent(String(createForm.totalAmount).trim())}] `;
     }
     if (createForm.advancePaid) {
-      compiledNotes += `[INVOICE_ADVANCE:${encodeURIComponent(createForm.advancePaid.trim())}] `;
+      compiledNotes += `[INVOICE_ADVANCE:${encodeURIComponent(String(createForm.advancePaid).trim())}] `;
     }
     if (createForm.duration) {
-      compiledNotes += `[INVOICE_DURATION:${encodeURIComponent(createForm.duration.trim())}] `;
+      compiledNotes += `[INVOICE_DURATION:${encodeURIComponent(String(createForm.duration).trim())}] `;
     }
     if (createForm.clientLocation) {
-      compiledNotes += `[INVOICE_LOCATION:${encodeURIComponent(createForm.clientLocation.trim())}] `;
+      compiledNotes += `[INVOICE_LOCATION:${encodeURIComponent(String(createForm.clientLocation).trim())}] `;
     }
 
     const payload = {
@@ -1368,12 +1368,21 @@ export default function AdminPage() {
     const safeClientDeadline = safeIsoDate(assignForm.clientDeadline);
     const safeEditorDeadline = safeIsoDate(assignForm.internalDeadline);
 
+    const matchedOrder = orders.find(o => o.id === assignForm.orderId);
+    let updatedAdminNotes = undefined;
+    if (assignForm.brief && matchedOrder) {
+      const cleanBrief = stripCustomTags(stripVisibilityTag(assignForm.brief));
+      updatedAdminNotes = preserveMetaTags(matchedOrder.rawAdminNotes, cleanBrief, null);
+    } else if (matchedOrder) {
+      updatedAdminNotes = matchedOrder.rawAdminNotes || undefined;
+    }
+
     const extraUpdates = {
       editor_deadline: safeEditorDeadline,
       client_deadline: safeClientDeadline,
     };
-    if (assignForm.brief) {
-      extraUpdates.admin_notes = assignForm.brief;
+    if (updatedAdminNotes) {
+      extraUpdates.admin_notes = updatedAdminNotes;
     }
 
     setIsLoading(true);
@@ -1398,7 +1407,7 @@ export default function AdminPage() {
           status: 'accepted',
           editor_deadline: safeEditorDeadline,
           client_deadline: safeClientDeadline,
-          admin_notes: assignForm.brief || undefined,
+          admin_notes: updatedAdminNotes || undefined,
           updated_at: new Date().toISOString(),
         })
         .eq('id', assignForm.orderId);

@@ -183,90 +183,26 @@ h1, h2, h3, h4, .font-serif {
   font-weight: 300;
 }
 
-/* Custom Cursor - Desktop Only */
-@media (min-width: 1025px) and (hover: hover) and (pointer: fine) {
-  body { cursor: none; }
-  a, button, .interactive { cursor: none; }
-  input, textarea, select, [contenteditable="true"] {
-    cursor: text !important;
-  }
-  
-  .cursor-ring {
-    position: fixed;
-    top: 0; left: 0;
-    width: 44px; height: 44px;
-    border: 1px solid var(--accent);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 10000;
-    opacity: 0.4;
-    transform: translate(-50%, -50%);
-    transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1), 
-                height 0.3s cubic-bezier(0.16, 1, 0.3, 1), 
-                border-color 0.3s ease,
-                background-color 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    will-change: transform;
-  }
-  
-  .cursor-ring.hover-active {
-    width: 72px; height: 72px;
-    background-color: rgba(255, 255, 255, 0.08);
-    border-color: #FFFFFF;
-    opacity: 0.8;
-  }
-
-  .cursor-ring.video-hover {
-    width: 90px; height: 90px;
-    background-color: rgba(255, 255, 255, 0.1);
-    border-color: #FFFFFF;
-    opacity: 0.9;
-  }
-
-  .cursor-label {
-    font-family: var(--font-sans);
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 0.15em;
-    color: #FFFFFF;
-    opacity: 0;
-    font-weight: 600;
-    transition: opacity 0.2s;
-  }
-  
-  .cursor-ring.hover-active .cursor-label,
-  .cursor-ring.video-hover .cursor-label {
-    opacity: 1;
-  }
-  
-  .cursor-dot {
-    position: fixed;
-    top: 0; left: 0;
-    width: 6px; height: 6px;
-    background-color: #FFFFFF;
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 10000;
-    transform: translate(-50%, -50%);
-    transition: opacity 0.2s, transform 0.2s;
-    will-change: transform;
-  }
-  .cursor-dot.hidden { opacity: 0; }
+/* Native, High-Precision System Cursor */
+body {
+  cursor: default;
+}
+a, button, [role="button"], select, .interactive, .cursor-pointer {
+  cursor: pointer;
+}
+input, textarea, select, [contenteditable="true"] {
+  cursor: text;
+}
+input[type="checkbox"], input[type="radio"], input[type="button"], input[type="submit"], input[type="range"] {
+  cursor: pointer;
 }
 
-@media (max-width: 1024px), (pointer: coarse), (hover: none) {
-  .cursor-ring,
-  .cursor-dot {
-    display: none !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
-    opacity: 0 !important;
-  }
-  body, a, button, input, textarea, select, .interactive {
-    cursor: auto !important;
-  }
+.cursor-ring,
+.cursor-dot {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
 }
 
 /* Loading Screen */
@@ -2914,7 +2850,7 @@ textarea.contact-input-custom {
   background: none;
   border: none;
   color: var(--text-tertiary);
-  cursor: none;
+  cursor: pointer;
   transition: color 0.2s;
 }
 .wa-popup-close:hover {
