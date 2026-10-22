@@ -30,7 +30,7 @@ export default function Contact() {
   const COOLDOWN_HOURS = 24;
   const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 
-  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [_hasSubmitted, setHasSubmitted] = useState(false);
   const [remainingHours, setRemainingHours] = useState(0);
 
   useEffect(() => {

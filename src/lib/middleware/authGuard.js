@@ -1,4 +1,4 @@
-import { getSession, getUserProfile, signOutUser, isAdmin, isGoogleUser } from '../auth/authUtils';
+import { getUserProfile, signOutUser, isAdmin } from '../auth/authUtils';
 import { supabase } from '../supabase/client';
 
 /**
@@ -26,7 +26,6 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
 
     let profile = await getUserProfile(session.user.id);
     const userIsAdmin = isAdmin(profile) || isAdmin(session.user);
-    const userIsGoogle = isGoogleUser(session.user);
 
     if (!profile) {
       if (userIsAdmin) {
@@ -58,7 +57,9 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
           // SECURITY FIX: Omit role and status from client-side upsert to prevent privilege escalation
           const { role: _r, status: _s, ...safeProfile } = profile;
           supabase.from('profiles').upsert(safeProfile).then(() => {});
-        } catch (_) {}
+        } catch (err) {
+          console.debug('[AuthGuard] Safe profile upsert skipped:', err);
+        }
       }
     }
 
@@ -107,8 +108,8 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
             })
             .then(() => {})
             .catch((uErr) => console.warn('[AuthGuard] Client profile sync notice:', uErr));
-        } catch (_) {
-          // ignore
+        } catch (err) {
+          console.debug('[AuthGuard] Client auto-approve profile sync skipped:', err);
         }
       }
     }

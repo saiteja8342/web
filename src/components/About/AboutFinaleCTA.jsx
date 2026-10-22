@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { ArrowUpRight, Film, ShieldCheck } from 'lucide-react';
+import { ArrowUpRight, Film } from 'lucide-react';
 
 gsap.registerPlugin(ScrollTrigger);
 

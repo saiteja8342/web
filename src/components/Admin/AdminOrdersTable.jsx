@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  SlidersHorizontal,
   Plus,
   ChevronRight,
   UserCheck,
@@ -63,7 +62,7 @@ export default function AdminOrdersTable({
   historySearch,
   setHistorySearch,
   adminRatingsMap = {},
-  adminProfile,
+  adminProfile: _adminProfile,
   handleOpenCancelModal,
   isCancelModalOpen,
   orderToCancel,

@@ -77,7 +77,8 @@ RETURNS BOOLEAN AS $$
     SELECT 1 FROM public.contact_requests
     WHERE LOWER(email) = LOWER(TRIM(p_email))
   );
-$$ LANGUAGE sql SECURITY DEFINER;
+$$ LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp;
 
 GRANT EXECUTE ON FUNCTION public.has_already_submitted_contact(TEXT) TO anon, authenticated;
 

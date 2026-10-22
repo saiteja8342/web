@@ -11,7 +11,6 @@ import {
   RefreshCw,
   LogOut,
   Trash2,
-  CheckCircle2,
   X,
   KeyRound,
   Activity,
@@ -119,6 +118,7 @@ export default function AdminLoginDevices({ showToast }) {
         if (showToast) showToast(res.error || 'Failed to revoke device.', 'error');
       }
     } catch (err) {
+      console.error('[AdminLoginDevices] Error during device revocation:', err);
       if (showToast) showToast('Error during device revocation.', 'error');
     } finally {
       setActionLoading(false);
@@ -138,11 +138,25 @@ export default function AdminLoginDevices({ showToast }) {
         if (showToast) showToast(res.error || 'Failed to sign out other devices.', 'error');
       }
     } catch (err) {
+      console.error('[AdminLoginDevices] Error terminating other sessions:', err);
       if (showToast) showToast('Error terminating other sessions.', 'error');
     } finally {
       setActionLoading(false);
     }
   };
+
+  // Keyboard accessibility for modals
+  useEffect(() => {
+    if (!deviceToRevoke && !showRevokeOthersModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && !actionLoading) {
+        if (deviceToRevoke) setDeviceToRevoke(null);
+        if (showRevokeOthersModal) setShowRevokeOthersModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deviceToRevoke, showRevokeOthersModal, actionLoading]);
 
   const getDeviceIcon = (type) => {
     const t = (type || '').toLowerCase();
@@ -439,17 +453,24 @@ export default function AdminLoginDevices({ showToast }) {
       {/* ------------------------------------------------------------------ */}
       {deviceToRevoke && (
         <div className="vel-modal-backdrop" onClick={() => !actionLoading && setDeviceToRevoke(null)}>
-          <div className="vel-modal-dialog" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="vel-modal-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="revoke-device-title"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="vel-modal-head">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <AlertTriangle className="h-5 w-5 text-rose-400" />
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
+                <h3 id="revoke-device-title" style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
                   Revoke Device Access?
                 </h3>
               </div>
               <button
                 disabled={actionLoading}
                 onClick={() => setDeviceToRevoke(null)}
+                aria-label="Close modal"
                 style={{ background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
               >
                 <X className="h-5 w-5" />
@@ -508,17 +529,24 @@ export default function AdminLoginDevices({ showToast }) {
       {/* ------------------------------------------------------------------ */}
       {showRevokeOthersModal && (
         <div className="vel-modal-backdrop" onClick={() => !actionLoading && setShowRevokeOthersModal(false)}>
-          <div className="vel-modal-dialog" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="vel-modal-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="revoke-others-title"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="vel-modal-head">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <LogOut className="h-5 w-5 text-amber-400" />
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
+                <h3 id="revoke-others-title" style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
                   Sign Out Other Devices?
                 </h3>
               </div>
               <button
                 disabled={actionLoading}
                 onClick={() => setShowRevokeOthersModal(false)}
+                aria-label="Close modal"
                 style={{ background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
               >
                 <X className="h-5 w-5" />

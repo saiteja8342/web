@@ -5,28 +5,19 @@ import {
   History,
   User,
   LogOut,
-  Bell,
-  Download,
-  ExternalLink,
   CheckCircle2,
-  Eye,
-  Send,
   Menu,
   X,
-  Clock,
   ChevronDown,
   ChevronRight,
-  Headphones,
-  Mail,
-  MessageSquare
+  Headphones
 } from 'lucide-react';
 
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
-import { isGoogleUser } from '../lib/auth/authUtils';
-import { getClientOrders, claimOfflineOrdersForClient, formatOrderCode, STATUS_MAP, VIDEO_TYPE_MAP, parseCancellationReason, stripCancellationTag } from '../lib/db/orders';
+import { getClientOrders, claimOfflineOrdersForClient, formatOrderCode, STATUS_MAP, VIDEO_TYPE_MAP, parseCancellationReason } from '../lib/db/orders';
 import { getProfile, updateProfile } from '../lib/db/profiles';
-import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, notifyAdmins, formatNotificationTime } from '../lib/db/notifications';
+import { getUserNotifications, sendNotification, notifyAdmins } from '../lib/db/notifications';
 import { submitRevisionRequest, getOrderRevisions } from '../lib/db/revisions';
 import { submitOrderRating, stripTestimonialTag, parseIsTestimonial } from '../lib/db/ratings';
 import { subscribeToOrders, subscribeToUserNotifications, unsubscribeChannel } from '../lib/supabase/realtime';
@@ -104,7 +95,9 @@ export default function ClientDashboard() {
         const next = !prev;
         try {
           localStorage.setItem('mne_sidebar_collapsed', String(next));
-        } catch (_) {}
+        } catch {
+          // localStorage access might be restricted
+        }
         return next;
       });
     }
@@ -114,18 +107,13 @@ export default function ClientDashboard() {
   const [newNote, setNewNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
-  const [notifOpen, setNotifOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
-  const notifRef = useRef(null);
   const profileMenuRef = useRef(null);
 
-  // Close notifications or profile dropdown when clicking outside
+  // Close profile dropdown when clicking outside
   useEffect(() => {
     const handleOutsideClick = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) {
-        setNotifOpen(false);
-      }
       if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
         setProfileMenuOpen(false);
       }
@@ -136,7 +124,7 @@ export default function ClientDashboard() {
     };
   }, []);
 
-  const [notifications, setNotifications] = useState([]);
+  const [_notifications, setNotifications] = useState([]);
   const [editorNotes, setEditorNotes] = useState([]);
   const [statusHistory, setStatusHistory] = useState([]);
 
@@ -233,8 +221,6 @@ export default function ClientDashboard() {
         });
     }
   }, [clientProfile?.id, clientProfile?.avatar_url, getAccountAvatar]);
-
-  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -467,9 +453,11 @@ export default function ClientDashboard() {
         });
 
         setOrders(transformedOrders);
-        if (transformedOrders.length > 0 && !selectedHistoryId) {
+        if (transformedOrders.length > 0) {
           const firstDelivered = transformedOrders.find(o => o.status === 'delivered');
-          if (firstDelivered) setSelectedHistoryId(firstDelivered.id);
+          if (firstDelivered) {
+            setSelectedHistoryId(prev => prev || firstDelivered.id);
+          }
         }
       }
 
@@ -508,7 +496,7 @@ export default function ClientDashboard() {
     } finally {
       setOrdersLoading(false);
     }
-  }, [selectedHistoryId]);
+  }, []);
 
   useEffect(() => {
     async function checkAuth() {
@@ -600,20 +588,30 @@ export default function ClientDashboard() {
     };
     window.addEventListener('storage', handleStorageChange);
 
-    // Periodic sync every 3 seconds for guaranteed live updates
-    // Instant sync on window focus or tab visibility
+    // Deduplicated sync on window focus or tab visibility
+    let lastSyncTime = 0;
     const handleVisibilitySync = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        fetchClientData(userId);
+        const now = Date.now();
+        if (now - lastSyncTime > 2000) {
+          lastSyncTime = now;
+          fetchClientData(userId);
+        }
       }
     };
     window.addEventListener('focus', handleVisibilitySync);
     document.addEventListener('visibilitychange', handleVisibilitySync);
 
-    // Fallback sync every 30 seconds (relying on Realtime WebSockets for instant updates)
+    // Fallback sync every 60 seconds when tab is active (relying on Realtime WebSockets for instant updates)
     const pollInterval = setInterval(() => {
-      fetchClientData(userId);
-    }, 30000);
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        const now = Date.now();
+        if (now - lastSyncTime > 45000) {
+          lastSyncTime = now;
+          fetchClientData(userId);
+        }
+      }
+    }, 60000);
 
     return () => {
       if (bc) bc.close();
@@ -623,13 +621,6 @@ export default function ClientDashboard() {
       clearInterval(pollInterval);
     };
   }, [currentUser, fetchClientData]);
-
-  const markAllRead = async () => {
-    if (!currentUser) return;
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-    await markAllNotificationsAsRead(currentUser.id);
-    showToast('All notifications marked as read.');
-  };
 
   const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
 
@@ -655,7 +646,9 @@ export default function ClientDashboard() {
         `Revision Requested: ${activeOrder.order_name}`,
         `${clientProfile?.full_name || 'Client'} requested revision on "${activeOrder.order_name}": "${textToSubmit.slice(0, 80)}..."`
       );
-    } catch (_) {}
+    } catch (err) {
+      console.warn('[ClientDashboard] Failed to notify admins of revision:', err);
+    }
 
     // Notify assigned editor
     if (activeOrder.editor_id) {
@@ -665,7 +658,9 @@ export default function ClientDashboard() {
           `Revision Note: ${activeOrder.order_name}`,
           `Client requested revision on "${activeOrder.order_name}": "${textToSubmit.slice(0, 80)}..."`
         );
-      } catch (_) {}
+      } catch (err) {
+        console.warn('[ClientDashboard] Failed to notify editor of revision:', err);
+      }
     }
 
     setEditorNotes(prev => [
@@ -681,11 +676,6 @@ export default function ClientDashboard() {
 
     showToast('Revision request sent to studio admin & editor.');
     setNewNote('');
-  };
-
-  const handleAddNote = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    await handleRequestRevisionWithTimestamp(newNote);
   };
 
   // Reset rating form inputs ONLY when switching to a different project (NOT on polling intervals)
@@ -766,7 +756,9 @@ export default function ClientDashboard() {
           `Client Rating: ${ratingStars}★ on ${targetProject.order_name || targetProject.title}`,
           `${clientProfile?.full_name || 'Client'} gave a ${ratingStars}-star rating${cleanFeedback ? ': "' + cleanFeedback.slice(0, 80) + '..."' : '.'}`
         );
-      } catch (_) {}
+      } catch (err) {
+        console.warn('[ClientDashboard] Failed to notify admins of rating:', err);
+      }
 
       if (targetProject.editorId && targetProject.editorId !== currentUser.id) {
         try {
@@ -775,7 +767,9 @@ export default function ClientDashboard() {
             `Client Rated Your Work: ${ratingStars}★!`,
             `The client rated "${targetProject.order_name || targetProject.title}" with ${ratingStars} stars${cleanFeedback ? ': "' + cleanFeedback.slice(0, 80) + '..."' : '!'}`
           );
-        } catch (_) {}
+        } catch (err) {
+          console.warn('[ClientDashboard] Failed to notify editor of rating:', err);
+        }
       }
 
       // Broadcast cross-tab update for admin panel

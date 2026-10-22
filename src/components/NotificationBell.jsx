@@ -12,8 +12,7 @@ import {
   X, 
   ExternalLink,
   Laptop,
-  Check,
-  AlertCircle
+  Check
 } from 'lucide-react';
 import { 
   getUserNotifications, 

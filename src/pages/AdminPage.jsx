@@ -36,11 +36,8 @@ import {
   safeHref,
   safeIsoDate,
   stripVisibilityTag,
-  parseEditorRequirements,
-  parseCustomSection,
   stripCustomTags,
   preserveMetaTags,
-  parseNotesVisibility,
   transformOrder,
   getExpectedDeliveryDate,
   DEFAULT_STUDIO_EDITORS,
@@ -211,20 +208,26 @@ export default function AdminPage() {
       console.warn('Error loading admin ratings map:', rErr);
     }
     try {
-      const { data: allHistory } = await supabase
-        .from('order_status_history')
-        .select('*')
-        .order('changed_at', { ascending: true });
-      if (allHistory) {
-        const histMap = {};
-        allHistory.forEach(h => {
-          if (!histMap[h.order_id]) histMap[h.order_id] = [];
-          histMap[h.order_id].push(h);
-        });
-        setStatusHistoryMap(prev => ({ ...prev, ...histMap }));
+      const orderIds = (data && data.length > 0) ? data.map(o => o.id) : [];
+      if (orderIds.length > 0) {
+        // Target specifically loaded orders and only select required fields instead of full-table scan
+        const { data: historyRecords } = await supabase
+          .from('order_status_history')
+          .select('order_id, status, changed_at, created_at')
+          .in('order_id', orderIds)
+          .order('changed_at', { ascending: true });
+
+        if (historyRecords) {
+          const histMap = {};
+          historyRecords.forEach(h => {
+            if (!histMap[h.order_id]) histMap[h.order_id] = [];
+            histMap[h.order_id].push(h);
+          });
+          setStatusHistoryMap(prev => ({ ...prev, ...histMap }));
+        }
       }
     } catch (hErr) {
-      console.warn('Error loading all status history:', hErr);
+      console.warn('Error loading status history:', hErr);
     }
   }, []);
 
@@ -247,7 +250,9 @@ export default function AdminPage() {
           if (allProfs && allProfs.length > 0) {
             editorsData = allProfs;
           }
-        } catch (_) {}
+        } catch (err) {
+          console.debug('[AdminPage] profiles fallback query failed:', err);
+        }
       }
 
       // If still 0 editors in database, load default studio editors so the management section is populated
@@ -264,7 +269,9 @@ export default function AdminPage() {
               const rStats = await getEditorRatingStats(ed.id);
               if (rStats && rStats.average) average = rStats.average;
             }
-          } catch (_) {}
+          } catch (err) {
+            console.debug('[AdminPage] rating fetch failed for editor:', ed.id, err);
+          }
           return transformEditor(ed, (orderCounts && orderCounts[ed.id]) || 0, average);
         })
       );
@@ -773,7 +780,9 @@ export default function AdminPage() {
 
       try {
         await sendNotification(clientId, `Status: ${title} (${statusLabel})`, clientMsg);
-      } catch (_) {}
+      } catch (err) {
+        console.warn('[AdminPage] Error notifying client:', err);
+      }
     }
 
     // Notify editor
@@ -785,7 +794,9 @@ export default function AdminPage() {
 
       try {
         await sendNotification(editorId, `Order Update: ${title}`, editorMsg);
-      } catch (_) {}
+      } catch (err) {
+        console.warn('[AdminPage] Error notifying editor:', err);
+      }
     }
   };
 
@@ -888,7 +899,9 @@ export default function AdminPage() {
             `Order Cancelled: ${orderToCancel.title}`,
             `Your order "${orderToCancel.title}" was cancelled by Admin. Reason: ${trimmedReason}`
           );
-        } catch (_) {}
+        } catch (err) {
+          console.warn('[AdminPage] Error notifying client of cancellation:', err);
+        }
       }
 
       if (orderToCancel.editorId) {
@@ -898,7 +911,9 @@ export default function AdminPage() {
             `Order Cancelled: ${orderToCancel.title}`,
             `Project "${orderToCancel.title}" was cancelled by Admin. Reason: ${trimmedReason}`
           );
-        } catch (_) {}
+        } catch (err) {
+          console.warn('[AdminPage] Error notifying editor of cancellation:', err);
+        }
       }
 
       // Cross-tab broadcast
@@ -1015,7 +1030,9 @@ export default function AdminPage() {
       // Send real-time notifications to Client and Editor
       try {
         await notifyOrderStatusChange(order, dbStatus, sm.label);
-      } catch (_) {}
+      } catch (err) {
+        console.warn('[AdminPage] Error in notifyOrderStatusChange:', err);
+      }
 
       // Cross-tab broadcast
       try {
@@ -1123,7 +1140,9 @@ export default function AdminPage() {
       // Send real-time notifications to Client and Editor
       try {
         await notifyOrderStatusChange(order, dbStatus, sm.label);
-      } catch (_) {}
+      } catch (err) {
+        console.warn('[AdminPage] Error in notifyOrderStatusChange:', err);
+      }
 
       // Broadcast cross-tab update
       try {
@@ -1184,7 +1203,9 @@ export default function AdminPage() {
       const visibleMap = JSON.parse(localStorage.getItem('mne_client_visible_orders') || '{}');
       visibleMap[targetId] = newVisibility;
       localStorage.setItem('mne_client_visible_orders', JSON.stringify(visibleMap));
-    } catch (e) {}
+    } catch {
+      // LocalStorage access may be restricted
+    }
 
     // Broadcast across browser tabs immediately
     try {
@@ -1244,7 +1265,9 @@ export default function AdminPage() {
               `Deliverables Approved: ${order.title}`,
               `Admin approved your deliverables for "${order.title}" and made them available to the client!`
             );
-          } catch (_) {}
+          } catch (err) {
+            console.warn('[AdminPage] Could not notify editor:', err);
+          }
         }
       }
     } catch (e) {
@@ -1494,7 +1517,9 @@ export default function AdminPage() {
             `Editor Assigned: ${assignForm.project}`,
             `Your project "${assignForm.project}" has been assigned to an editor and production has officially begun!`
           );
-        } catch (_) {}
+        } catch (err) {
+          console.warn('[AdminPage] Could not notify client of assignment:', err);
+        }
       }
 
       showToast(`Project assigned to ${assignForm.editor} with deadlines successfully saved!`);

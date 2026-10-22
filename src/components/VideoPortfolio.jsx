@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { projects as defaultProjects, categories as defaultCategories } from '../data/projects';
+import { projects as defaultProjects } from '../data/projects';
 import CarouselNavigation from './CarouselNavigation';
 import VideoCarousel from './VideoCarousel';
 import CarouselPagination from './CarouselPagination';

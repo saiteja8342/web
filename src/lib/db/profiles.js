@@ -161,7 +161,7 @@ export async function deleteClient(id) {
     // Attempt RPC delete (removes from auth.users as well if RPC exists)
     const { data, error } = await supabase.rpc('delete_user_by_admin', { target_user_id: id });
     if (!error) return { data, error: null };
-  } catch (_) {
+  } catch {
     // RPC not present, fallback to direct profiles table deletion
   }
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Minus, ArrowUpRight, MessageSquare, Mail } from 'lucide-react';
+import { Plus, Minus, Mail } from 'lucide-react';
 
 export default function AboutEditorialFAQ() {
   const faqs = [

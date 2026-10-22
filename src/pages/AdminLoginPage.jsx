@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, KeyRound, Eye, EyeOff, Loader2, Shield, ArrowLeft, RefreshCw, Check } from 'lucide-react';
+import { User, KeyRound, Eye, EyeOff, Loader2, Shield, ArrowLeft, RefreshCw } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { isAdmin } from '../lib/auth/authUtils';
 import {
@@ -87,8 +87,7 @@ export default function AdminLoginPage() {
               }, 700);
             }
           } else if (!isUserAdmin) {
-            // Clear unverified session
-            await supabase.auth.signOut();
+            // Do not destroy valid non-admin client/editor sessions across other browser tabs
             sessionStorage.removeItem('mne_admin_auth_origin');
             localStorage.removeItem('mne_admin_auth_origin');
           }

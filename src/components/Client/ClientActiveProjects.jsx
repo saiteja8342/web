@@ -6,12 +6,8 @@ import {
   ExternalLink, 
   Calendar, 
   StickyNote, 
-  User, 
-  AlertCircle,
   Sparkles,
-  Lock,
-  Download,
-  CheckCircle2
+  Download
 } from 'lucide-react';
 import GoogleDriveVideoPlayer from '../GoogleDriveVideoPlayer';
 import TimestampedRevisionComposer, { RevisionNoteBadge } from '../TimestampedRevisionComposer';

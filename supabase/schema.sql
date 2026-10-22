@@ -126,7 +126,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, pg_temp
 AS $$
 DECLARE
   v_role TEXT := 'client';
@@ -217,7 +217,8 @@ RETURNS BOOLEAN AS $$
     SELECT 1 FROM public.profiles
     WHERE id = auth.uid() AND role = 'admin'
   );
-$$ LANGUAGE sql SECURITY DEFINER;
+$$ LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public, auth, pg_temp;
 
 -- Privacy-preserving implementation: Prevents account & admin role enumeration
 CREATE OR REPLACE FUNCTION public.check_can_reset_password(target_email TEXT)
@@ -237,7 +238,8 @@ BEGIN
     RETURN jsonb_build_object('allowed', true);
   END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp;
 
 GRANT EXECUTE ON FUNCTION public.check_can_reset_password(TEXT) TO anon, authenticated;
 
@@ -261,7 +263,8 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, auth, pg_temp;
 
 DROP TRIGGER IF EXISTS trg_protect_profile_roles ON public.profiles;
 CREATE TRIGGER trg_protect_profile_roles

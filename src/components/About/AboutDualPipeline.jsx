@@ -1,7 +1,7 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { Film, Cpu, Sliders, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Film, Cpu, Sparkles } from 'lucide-react';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -9,9 +9,6 @@ export default function AboutDualPipeline() {
   const sectionRef = useRef(null);
   const leftColRef = useRef(null);
   const rightColRef = useRef(null);
-  const centerRef = useRef(null);
-
-  const [activeSide, setActiveSide] = useState('both');
 
   useEffect(() => {
     const section = sectionRef.current;

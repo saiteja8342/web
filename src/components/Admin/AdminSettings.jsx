@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Smartphone, Save, Check, RotateCcw, BellRing } from 'lucide-react';
 import WebsiteCMS from './WebsiteCMS';
 import InstallPwaButton from '../InstallPwaButton';

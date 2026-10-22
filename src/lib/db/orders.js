@@ -175,38 +175,20 @@ export async function claimOfflineOrdersForClient(clientId, clientEmail) {
   if (!clientId || !clientEmail || !clientEmail.includes('@')) {
     return { count: 0 };
   }
-  const cleanEmail = clientEmail.trim().toLowerCase();
 
   try {
-    // 1. Try invoking the database RPC if available
+    // Rely exclusively on the secure database RPC function.
+    // The RPC verifies the authenticated caller (auth.uid()) and ensures only
+    // verified offline orders matching the client's verified profile email are claimed,
+    // preventing any client-side tampering or horizontal privilege escalation.
     const { data: rpcCount, error: rpcErr } = await supabase.rpc('claim_my_offline_orders');
-    if (!rpcErr && typeof rpcCount === 'number' && rpcCount > 0) {
-      return { count: rpcCount };
+    if (rpcErr) {
+      console.warn('[orders.js] claim_my_offline_orders RPC warning:', rpcErr);
+      return { count: 0, error: rpcErr };
     }
 
-    // 2. Client-side fallback check
-    const { data: matchedOrders, error: findErr } = await supabase
-      .from('orders')
-      .select('id, client_id, admin_notes')
-      .neq('client_id', clientId)
-      .or(`client_email.ilike.${cleanEmail},admin_notes.ilike.%[OFFLINE_CLIENT_EMAIL:${cleanEmail}]%`);
-
-    if (findErr || !matchedOrders || matchedOrders.length === 0) {
-      return { count: 0 };
-    }
-
-    const orderIds = matchedOrders.map((o) => o.id);
-    const { error: updateErr } = await supabase
-      .from('orders')
-      .update({ client_id: clientId, updated_at: new Date().toISOString() })
-      .in('id', orderIds);
-
-    if (updateErr) {
-      console.warn('[orders.js] Auto-claim fallback update error:', updateErr);
-      return { count: 0, error: updateErr };
-    }
-
-    return { count: orderIds.length, orderIds };
+    const count = typeof rpcCount === 'number' ? rpcCount : 0;
+    return { count };
   } catch (err) {
     console.warn('[orders.js] claimOfflineOrdersForClient error:', err);
     return { count: 0, error: err };

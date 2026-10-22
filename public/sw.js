@@ -39,14 +39,21 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Bypass non-GET, Supabase API/auth/realtime requests, and external analytics
+  // Bypass non-GET, Supabase API/auth/realtime requests, external analytics, and private authenticated dashboards
   if (
     event.request.method !== 'GET' ||
     url.hostname.includes('supabase.co') ||
     url.pathname.includes('/rest/v1/') ||
     url.pathname.includes('/auth/v1/') ||
     url.pathname.includes('/realtime/v1/') ||
-    url.protocol === 'chrome-extension:'
+    url.protocol === 'chrome-extension:' ||
+    url.pathname.startsWith('/dashboard') ||
+    url.pathname.startsWith('/admin') ||
+    url.pathname === '/client' ||
+    url.pathname === '/client.html' ||
+    url.pathname === '/editor' ||
+    url.pathname === '/editor.html' ||
+    url.pathname === '/admin.html'
   ) {
     return;
   }
@@ -122,7 +129,7 @@ self.addEventListener('push', (event) => {
   let data = {};
   try {
     data = event.data ? event.data.json() : {};
-  } catch (e) {
+  } catch {
     data = { title: 'MotionNodeEdits', message: event.data ? event.data.text() : 'New update received' };
   }
 

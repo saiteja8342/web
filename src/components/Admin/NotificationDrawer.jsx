@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, Bell, CheckCheck, Clock, ExternalLink } from 'lucide-react';
+import { X, Bell, CheckCheck, Clock } from 'lucide-react';
 import { formatNotificationTime } from '../../lib/db/notifications';
 
 export default function NotificationDrawer({

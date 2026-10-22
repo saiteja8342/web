@@ -49,7 +49,7 @@ export default function AdminEditorManager({
   filteredEditors = [],
   expandedEditor,
   setExpandedEditor,
-  selectedEditorModal,
+  selectedEditorModal: _selectedEditorModal,
   setSelectedEditorModal
 }) {
   const handleClientSelectionChange = (clientName) => {
@@ -353,7 +353,7 @@ export default function AdminEditorManager({
                   <Send className="h-4 w-4" />
                   <span>Assign Project</span>
                 </button>
-                <button type="button" className="vel-btn-outline" onClick={() => showToast && showToast('Draft saved successfully.')}>
+                <button type="button" className="vel-btn-outline" onClick={() => { if (showToast) showToast('Draft saved successfully.'); }}>
                   Save as Draft
                 </button>
               </div>
@@ -868,7 +868,7 @@ export default function AdminEditorManager({
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', background: '#121217', padding: '3px', borderRadius: '8px', border: '1px solid var(--vel-border)' }}>
                 <button
-                  onClick={() => { setActiveNav && setActiveNav('editors'); setMgmtTab && setMgmtTab('editors'); }}
+                  onClick={() => { if (setActiveNav) setActiveNav('editors'); if (setMgmtTab) setMgmtTab('editors'); }}
                   style={{
                     padding: '6px 16px',
                     borderRadius: '6px',
@@ -883,7 +883,7 @@ export default function AdminEditorManager({
                   Editors ({editorsList.length})
                 </button>
                 <button
-                  onClick={() => { setActiveNav && setActiveNav('clients'); setMgmtTab && setMgmtTab('clients'); }}
+                  onClick={() => { if (setActiveNav) setActiveNav('clients'); if (setMgmtTab) setMgmtTab('clients'); }}
                   style={{
                     padding: '6px 16px',
                     borderRadius: '6px',
@@ -937,7 +937,7 @@ export default function AdminEditorManager({
               onClick={() => {
                 const next = editorStatusFilter === 'ALL' ? 'AVAILABLE' : editorStatusFilter === 'AVAILABLE' ? 'AT CAPACITY' : 'ALL';
                 setEditorStatusFilter(next);
-                showToast && showToast(`Status filter: ${next}`);
+                if (showToast) showToast(`Status filter: ${next}`);
               }}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -972,7 +972,7 @@ export default function AdminEditorManager({
                       onClick={() => {
                         setEditorSortBy(st.key);
                         setShowSortMenu(false);
-                        showToast && showToast(`Sorted by ${st.label}`);
+                        if (showToast) showToast(`Sorted by ${st.label}`);
                       }}
                     >
                       <span>{st.label}</span>

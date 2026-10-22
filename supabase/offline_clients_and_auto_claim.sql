@@ -48,7 +48,8 @@ EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'auto_claim_offline_orders error for %: %', NEW.id, SQLERRM;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, auth, pg_temp;
 
 -- 3. Trigger on public.profiles
 DROP TRIGGER IF EXISTS trg_auto_claim_offline_orders ON public.profiles;
@@ -88,7 +89,8 @@ BEGIN
 
   RETURN v_claimed_count;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, auth, pg_temp;
 
 -- 5. Update RLS policy on orders so clients can select their orders by UUID or email
 DROP POLICY IF EXISTS "Clients can select own orders" ON public.orders;

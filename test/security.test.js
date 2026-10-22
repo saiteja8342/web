@@ -51,7 +51,8 @@ describe('Section 47: Authentication & Privilege Escalation Audits', () => {
   });
 
   it('ADMIN VERIFICATION: Configured admin email passes role check', () => {
-    assert.equal(isAdmin({ email: 'admin@motionnodeedits.com' }), true);
+    process.env.VITE_ADMIN_EMAILS = 'configured-admin@example.com';
+    assert.equal(isAdmin({ email: 'configured-admin@example.com' }), true);
     assert.equal(isAdmin({ email: 'regular@user.com' }), false);
   });
 });
@@ -868,8 +869,8 @@ describe('Section 49: Login Devices & 30-Day Remember Device Security Tests', ()
     const tokenPhone = 'token_iphone_admin';
 
     const devCurrent = store.registerDevice('admin-001', tokenCurrent, { deviceName: 'Studio Mac' });
-    const devLaptop = store.registerDevice('admin-001', tokenLaptop, { deviceName: 'MacBook Air' });
-    const devPhone = store.registerDevice('admin-001', tokenPhone, { deviceName: 'iPhone 15' });
+    const _devLaptop = store.registerDevice('admin-001', tokenLaptop, { deviceName: 'MacBook Air' });
+    const _devPhone = store.registerDevice('admin-001', tokenPhone, { deviceName: 'iPhone 15' });
 
     assert.equal(store.validateDevice('admin-001', tokenCurrent).valid, true);
     assert.equal(store.validateDevice('admin-001', tokenLaptop).valid, true);

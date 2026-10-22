@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, CheckCircle2, Send, Sparkles, Check, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Star, CheckCircle2, Send, Check, ArrowRight } from 'lucide-react';
 import CustomCursor from '../components/CustomCursor';
 import { submitLinkFeedback, updateLinkFeedbackConsent } from '../lib/db/linkFeedback';
 import { notifyAdmins } from '../lib/db/notifications';
@@ -104,7 +104,9 @@ export default function FeedbackPage() {
           `New Feedback: ${rating}★ from ${formData.name || 'Client'}`,
           `${formData.name || 'A client'} submitted a ${rating}-star review for "${formData.project_type}": "${(formData.feedback || '').slice(0, 80)}..."`
         );
-      } catch (_) {}
+      } catch (err) {
+        console.warn('[FeedbackPage] Failed to notify admin of feedback:', err);
+      }
 
       // Only show consent checkbox step if client gave 4 or 5 stars!
       if (isHighRating) {

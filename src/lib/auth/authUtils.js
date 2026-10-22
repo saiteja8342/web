@@ -32,17 +32,18 @@ export function isConfiguredAdminEmail(email) {
   if (!email || typeof email !== 'string') return false;
   const cleanEmail = email.toLowerCase().trim();
 
-  const defaultAdminEmails = ['admin@motionnodeedits.com'];
-
+  // No hardcoded emails. Admin emails must be explicitly configured
+  // via environment variables (VITE_ADMIN_EMAILS) or database profile role.
   const envAdmins = (
     (typeof import.meta !== 'undefined' && import.meta.env && (import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL)) ||
+    (typeof process !== 'undefined' && process.env && (process.env.VITE_ADMIN_EMAILS || process.env.VITE_ADMIN_EMAIL)) ||
     ''
   )
     .split(',')
     .map(e => e.toLowerCase().trim())
     .filter(Boolean);
 
-  const allAdminEmails = new Set([...defaultAdminEmails, ...envAdmins]);
+  const allAdminEmails = new Set(envAdmins);
   return allAdminEmails.has(cleanEmail);
 }
 
@@ -136,7 +137,9 @@ export async function getUserProfile(userId) {
           email: fallbackProfile.email,
           username: fallbackProfile.username,
         }).then(() => {});
-      } catch (_) {}
+      } catch (err) {
+        console.debug('[AuthUtils] profile background upsert notice:', err);
+      }
 
       return fallbackProfile;
     }
@@ -182,7 +185,7 @@ export function isAdmin(profileOrRoleOrUser) {
     return true;
   }
 
-  // 3. Check configured admin email list (e.g. VITE_ADMIN_EMAILS or admin@motionnodeedits.com)
+  // 3. Check configured admin email list (e.g. VITE_ADMIN_EMAILS from environment)
   const email = profileOrRoleOrUser.email;
   if (email && isConfiguredAdminEmail(email)) {
     return true;

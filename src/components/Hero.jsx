@@ -3,7 +3,7 @@ import gsap from 'gsap';
 import { Volume2, VolumeX } from 'lucide-react';
 import BackgroundRippleEffect from './BackgroundRippleEffect';
 
-export default function Hero({ isLoaded }) {
+export default function Hero({ isLoaded = true }) {
   const containerRef = useRef(null);
   const titleRef = useRef(null);
   const subRef = useRef(null);
@@ -12,7 +12,6 @@ export default function Hero({ isLoaded }) {
   const iframeRef = useRef(null);
 
   const [videoLoaded, setVideoLoaded] = useState(false);
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [isMuted, setIsMuted] = useState(true);
 
   // GSAP Entrance Animations
@@ -83,7 +82,7 @@ export default function Hero({ isLoaded }) {
 
 
 
-  // Subtle 3D tilt tracking
+  // Subtle 3D tilt tracking (Direct DOM transform mutation to prevent 60-120fps React re-renders)
   const handleMouseMove = (e) => {
     if (!videoWrapperRef.current) return;
     const rect = videoWrapperRef.current.getBoundingClientRect();
@@ -94,11 +93,13 @@ export default function Hero({ isLoaded }) {
     const rotateX = -((y / rect.height - 0.5) * 10);
     const rotateY = (x / rect.width - 0.5) * 10;
     
-    setTilt({ x: rotateX, y: rotateY });
+    videoWrapperRef.current.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
   };
 
   const handleMouseLeave = () => {
-    setTilt({ x: 0, y: 0 });
+    if (videoWrapperRef.current) {
+      videoWrapperRef.current.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg)';
+    }
   };
 
   // Toggle video mute / unmute using YouTube IFrame Player postMessage API
@@ -171,7 +172,7 @@ export default function Hero({ isLoaded }) {
               onMouseMove={handleMouseMove}
               onMouseLeave={handleMouseLeave}
               style={{
-                transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+                transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg)',
                 transition: 'transform 0.1s ease-out',
                 cursor: 'pointer'
               }}

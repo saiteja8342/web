@@ -5,7 +5,6 @@ import {
   History,
   LogOut,
   User,
-  Bell,
   Clock,
   Download,
   FileText,
@@ -39,7 +38,7 @@ import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { isGoogleUser } from '../lib/auth/authUtils';
 import { updateProfile } from '../lib/db/profiles';
 import { getEditorActiveProject, getEditorProjectHistory, getEditorStats, updateOrderStatus, updateOrder, formatOrderCode } from '../lib/db/orders';
-import { getUserNotifications, markAllNotificationsAsRead, markNotificationAsRead, sendNotification, notifyAdmins, formatNotificationTime } from '../lib/db/notifications';
+import { getUserNotifications, sendNotification, notifyAdmins } from '../lib/db/notifications';
 import { getEditorRatingStats } from '../lib/db/ratings';
 import { subscribeToOrders, subscribeToUserNotifications, unsubscribeChannel } from '../lib/supabase/realtime';
 import './client.css';
@@ -230,18 +229,13 @@ export default function EditorDashboard() {
   const [deliverableLink, setDeliverableLink] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
-  const [notifOpen, setNotifOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
-  const notifRef = useRef(null);
   const profileMenuRef = useRef(null);
 
-  // Close notifications or profile dropdown when clicking outside
+  // Close profile dropdown when clicking outside
   useEffect(() => {
     const handleOutsideClick = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) {
-        setNotifOpen(false);
-      }
       if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
         setProfileMenuOpen(false);
       }
@@ -493,16 +487,7 @@ export default function EditorDashboard() {
   const [activeProject, setActiveProject] = useState(null);
   const [historyData, setHistoryData] = useState([]);
   const [stats, setStats] = useState({ totalProjects: 0, onTime: 0, delayed: 0, rating: 0, ratingCount: 0 });
-  const [notifications, setNotifications] = useState([]);
-
-  const unreadCount = notifications.filter(n => !n.is_read).length;
-
-  const markAllRead = async () => {
-    if (!editorProfile) return;
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-    await markAllNotificationsAsRead(editorProfile.id);
-    showToast('All notifications marked as read.');
-  };
+  const [_notifications, setNotifications] = useState([]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -615,12 +600,19 @@ export default function EditorDashboard() {
           fetchEditorData();
         };
       }
-    } catch (_) {}
+    } catch {
+      // BroadcastChannel may not be supported in some environments
+    }
 
-    // Instant sync on window focus or tab visibility
+    // Deduplicated sync on window focus or tab visibility
+    let lastSyncTime = 0;
     const handleVisibilitySync = () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        fetchEditorData();
+        const now = Date.now();
+        if (now - lastSyncTime > 2000) {
+          lastSyncTime = now;
+          fetchEditorData();
+        }
       }
     };
     window.addEventListener('focus', handleVisibilitySync);
@@ -739,7 +731,9 @@ export default function EditorDashboard() {
         `Editing in Progress: ${activeProject.order_name || activeProject.title}`,
         `Editor ${editorProfile?.full_name || 'Editor'} marked "${activeProject.order_name || activeProject.title}" as Editing in Process.`
       );
-    } catch (_) {}
+    } catch (err) {
+      console.warn('[EditorDashboard] Failed to notify admins:', err);
+    }
 
     showToast('Project status updated to "Editing in Process". Status is now locked.');
     await fetchEditorData();
@@ -980,7 +974,6 @@ export default function EditorDashboard() {
                 }}
                 onClick={() => {
                   setProfileMenuOpen(!profileMenuOpen);
-                  setNotifOpen(false);
                 }}
                 aria-label="Editor profile menu"
               >

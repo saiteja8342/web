@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import Lenis from 'lenis';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -18,8 +18,6 @@ import AboutPage from './pages/AboutPage';
 gsap.registerPlugin(ScrollTrigger);
 
 export default function App() {
-  const [isLoaded, setIsLoaded] = useState(true);
-
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
   const isAboutPage = pathname.includes('about');
 
@@ -68,7 +66,7 @@ export default function App() {
       {/* MAIN CONTENT LANDMARK */}
       <main id="main">
         {/* HERO SECTION */}
-        <Hero isLoaded={isLoaded} />
+        <Hero />
 
         {/* SOCIAL PROOF */}
         <SocialProof />

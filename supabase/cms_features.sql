@@ -56,7 +56,8 @@ BEGIN
   END IF;
   RETURN public.is_admin();
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE
+SET search_path = public, auth, pg_temp;
 
 -- ------------------------------------------------------------------------------
 -- POLICIES: testimonials

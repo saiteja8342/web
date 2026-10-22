@@ -37,8 +37,8 @@ export function registerServiceWorker() {
   const doRegister = () => {
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
-      .then((reg) => {
-        // console.log('[PWA] Service Worker registered:', reg.scope);
+      .then(() => {
+        // Service worker registered
       })
       .catch((err) => {
         console.warn('[PWA] Service Worker registration skipped:', err);
@@ -82,7 +82,9 @@ function notifyListeners(state) {
   listeners.forEach((fn) => {
     try {
       fn(state);
-    } catch (_) {}
+    } catch (err) {
+      console.debug('[PWA] Listener callback error:', err);
+    }
   });
 }
 

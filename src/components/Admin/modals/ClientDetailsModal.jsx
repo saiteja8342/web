@@ -1,11 +1,22 @@
-import React from 'react';
-import { X, MessageSquare, Mail, Package, Calendar, CheckCircle2, Clock, DollarSign, User, ExternalLink, Sparkles } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { X, MessageSquare, Mail, Package } from 'lucide-react';
 
 export default function ClientDetailsModal({
   selectedClientModal,
   setSelectedClientModal,
   orders = []
 }) {
+  useEffect(() => {
+    if (!selectedClientModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedClientModal(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedClientModal, setSelectedClientModal]);
+
   if (!selectedClientModal) return null;
 
   // Find all past and active orders for this client
@@ -32,12 +43,15 @@ export default function ClientDetailsModal({
     <div className="vel-modal-backdrop" onClick={() => setSelectedClientModal(null)}>
       <div
         className="vel-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="client-details-modal-title"
         style={{ maxWidth: '680px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="vel-modal-head">
           <div>
-            <h3 className="vel-modal-title">Client Account & Order History</h3>
+            <h3 id="client-details-modal-title" className="vel-modal-title">Client Account & Order History</h3>
             <p className="vel-subtext" style={{ fontSize: '0.78rem', marginTop: '2px' }}>
               Client identity, contact details, and complete project order history.
             </p>
@@ -46,6 +60,7 @@ export default function ClientDetailsModal({
             type="button"
             className="vel-icon-btn"
             onClick={() => setSelectedClientModal(null)}
+            aria-label="Close modal"
           >
             <X className="h-4 w-4" />
           </button>

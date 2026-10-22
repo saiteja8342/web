@@ -1,5 +1,5 @@
 import React from 'react';
-import { Film, Check } from 'lucide-react';
+import { Film } from 'lucide-react';
 import ClientProjectStatusStepper from './ClientProjectStatusStepper';
 
 export default function ClientOverview({
@@ -17,7 +17,7 @@ export default function ClientOverview({
   setSelectedActiveOrderId,
   setSelectedHistoryId,
   handleNavClick,
-  activeStepIdx,
+  activeStepIdx: _activeStepIdx,
   getStageDate
 }) {
   return (

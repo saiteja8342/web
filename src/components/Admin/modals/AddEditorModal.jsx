@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Plus } from 'lucide-react';
 
 export default function AddEditorModal({
@@ -8,14 +8,31 @@ export default function AddEditorModal({
   newEditorForm,
   setNewEditorForm
 }) {
+  useEffect(() => {
+    if (!showAddEditorModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowAddEditorModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showAddEditorModal, setShowAddEditorModal]);
+
   if (!showAddEditorModal) return null;
 
   return (
     <div className="vel-modal-backdrop" onClick={() => setShowAddEditorModal(false)}>
-      <div className="vel-modal-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="vel-modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-editor-modal-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="vel-modal-head">
           <div>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>Add New Editor</h3>
+            <h3 id="add-editor-modal-title" style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>Add New Editor</h3>
             <p style={{ fontSize: '0.75rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
               Register a creator into the MotionNode production studio roster.
             </p>
@@ -23,6 +40,7 @@ export default function AddEditorModal({
           <button
             type="button"
             onClick={() => setShowAddEditorModal(false)}
+            aria-label="Close modal"
             style={{ background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
           >
             <X className="h-5 w-5" />

@@ -14,7 +14,7 @@ import {
 
 import CustomCursor from '../components/CustomCursor';
 import { supabase, signInWithGoogle } from '../supabaseClient';
-import { isGoogleUser, isAdmin } from '../lib/auth/authUtils';
+import { isAdmin } from '../lib/auth/authUtils';
 import { notifyAdmins, sendNotification } from '../lib/db/notifications';
 import './login.css';
 
@@ -258,7 +258,9 @@ export default function LoginPage() {
               setIsLoading(false);
               return;
             }
-          } catch (_) {}
+          } catch {
+            // RPC check fallback
+          }
           const errLower = (error.message || '').toLowerCase();
           if (errLower.includes('error sending confirmation email')) {
             setErrorMessage('Unable to send confirmation email. The Supabase email rate limit was reached, or Custom SMTP is not configured. Please disable "Confirm email" in your Supabase Dashboard or configure Custom SMTP.');
@@ -280,7 +282,9 @@ export default function LoginPage() {
               setIsLoading(false);
               return;
             }
-          } catch (_) {}
+          } catch {
+            // RPC check fallback
+          }
           setErrorMessage('An account with this email address already exists. Please sign in.');
           setIsLoading(false);
           return;
@@ -351,7 +355,6 @@ export default function LoginPage() {
 
         if (error) {
           const errLower = (error.message || '').toLowerCase();
-          const cleanEmail = (formData.email || '').trim().toLowerCase();
 
           if (errLower.includes('email not confirmed')) {
             setErrorMessage('Check your email and confirm your account before logging in.');
@@ -396,14 +399,13 @@ export default function LoginPage() {
                   .select()
                   .maybeSingle();
                 profile = savedProf || newProf;
-              } catch (_) {
+              } catch {
                 profile = newProf;
               }
             }
 
             const role = (profile?.role || 'client').toLowerCase().trim();
             const status = (profile?.status || 'approved').toLowerCase().trim();
-            const userIsGoogle = isGoogleUser(data.user);
 
             // Block access if account was explicitly rejected or suspended by an administrator
             if (role !== 'admin' && status === 'rejected') {
@@ -417,7 +419,9 @@ export default function LoginPage() {
             if (role === 'client' && status !== 'approved') {
               try {
                 await supabase.from('profiles').update({ status: 'approved' }).eq('id', data.user.id);
-              } catch (_) {}
+              } catch (err) {
+                console.debug('[LoginPage] Client profile auto-approval notice:', err);
+              }
             }
 
 
@@ -436,12 +440,14 @@ export default function LoginPage() {
               return;
             }
 
+            setAuthSuccess(true);
             if (role === 'editor') {
               window.location.href = '/dashboard/editor';
             } else {
               window.location.href = '/dashboard/client';
             }
           } catch (err) {
+            console.debug('[LoginPage] Role redirect query fallback:', err);
             // Default fallback if query fails
             window.location.href = '/dashboard/client';
           }
@@ -463,7 +469,7 @@ export default function LoginPage() {
       const baseOrigin = typeof window !== 'undefined' ? window.location.origin : '';
       const redirectUrl = `${baseOrigin}/dashboard/client`;
 
-      const { data, error } = await signInWithGoogle({
+      const { error } = await signInWithGoogle({
         redirectTo: redirectUrl,
       });
 
@@ -473,35 +479,6 @@ export default function LoginPage() {
       }
     } catch (err) {
       setErrorMessage(err.message || 'Google sign-in is not configured. Please use email and password.');
-      setIsLoading(false);
-    }
-  };
-
-  const handleSocialAuth = async (provider) => {
-    if (provider.toLowerCase() === 'google') {
-      return handleGoogleLogin();
-    }
-    setIsLoading(true);
-    setErrorMessage('');
-    try {
-      const envSiteUrl = import.meta.env.VITE_SITE_URL;
-      const baseOrigin = (envSiteUrl && envSiteUrl.startsWith('http'))
-        ? envSiteUrl.replace(/\/$/, '')
-        : (typeof window !== 'undefined' ? window.location.origin : '');
-      const redirectUrl = `${baseOrigin}/dashboard/client`;
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: provider.toLowerCase(),
-        options: {
-          redirectTo: redirectUrl,
-        },
-      });
-      if (error) {
-        setErrorMessage(`${provider} sign-in is currently unavailable: ${error.message}`);
-        setIsLoading(false);
-      }
-    } catch (err) {
-      setErrorMessage(`${provider} sign-in is not configured. Please use email and password.`);
       setIsLoading(false);
     }
   };
@@ -527,6 +504,7 @@ export default function LoginPage() {
           return;
         }
       } catch (err) {
+        console.debug('[LoginPage] check_can_reset_password fallback:', err);
         // Fallback: proceed to standard flow
       }
 
@@ -549,6 +527,7 @@ export default function LoginPage() {
       setForgotSubmitted(true);
       setForgotLoading(false);
     } catch (err) {
+      console.warn('[LoginPage] Forgot password error:', err);
       setForgotSubmitted(true);
       setForgotLoading(false);
     }
@@ -580,7 +559,7 @@ export default function LoginPage() {
         if (user?.email) {
           userEmail = user.email;
         }
-      } catch (e) {
+      } catch {
         // ignore if not available
       }
 
@@ -1109,6 +1088,9 @@ export default function LoginPage() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               className="auth-modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="recovery-modal-title"
               style={{ maxWidth: '440px' }}
             >
               <div className="auth-modal-icon-wrap" style={{ background: 'rgba(255, 100, 150, 0.15)', borderColor: 'rgba(255, 100, 150, 0.3)' }}>
@@ -1116,7 +1098,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#FFFFFF', marginBottom: '6px' }}>
+                <h3 id="recovery-modal-title" style={{ fontSize: '1.25rem', fontWeight: 700, color: '#FFFFFF', marginBottom: '6px' }}>
                   Create New Password
                 </h3>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>

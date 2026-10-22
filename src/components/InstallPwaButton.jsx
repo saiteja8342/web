@@ -7,7 +7,6 @@ import {
   X, 
   Check, 
   Share,
-  Layers,
   Zap
 } from 'lucide-react';
 import { 
@@ -22,7 +21,7 @@ export default function InstallPwaButton({
   className = '',
   buttonLabel
 }) {
-  const [pwaState, setPwaState] = useState({ isInstallable: false, isInstalled: false });
+  const [_pwaState, setPwaState] = useState({ isInstallable: false, isInstalled: false });
   const [showModal, setShowModal] = useState(false);
   const [installSuccess, setInstallSuccess] = useState(false);
   const [deviceTab, setDeviceTab] = useState('android'); // 'android' | 'ios' | 'desktop'

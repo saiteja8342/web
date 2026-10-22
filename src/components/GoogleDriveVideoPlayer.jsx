@@ -1,13 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  Play, 
   ExternalLink, 
   AlertCircle, 
-  Maximize2, 
   Film, 
-  CheckCircle2,
-  Clock,
-  Sparkles
+  Clock
 } from 'lucide-react';
 
 /**
@@ -48,7 +44,7 @@ export default function GoogleDriveVideoPlayer({
   url,
   title = 'Project Video Preview',
   aspectRatio = '16/9',
-  onCurrentTimeChange = null,
+  onCurrentTimeChange: _onCurrentTimeChange = null,
   showControlsBar = true
 }) {
   const effectiveUrl = videoUrl || driveUrl || url;
@@ -164,7 +160,7 @@ export default function GoogleDriveVideoPlayer({
         )}
 
         {/* EMBEDDED GOOGLE DRIVE IFRAME */}
-        {embedUrl ? (
+        {embedUrl && !hasError ? (
           <iframe
             src={embedUrl}
             title={title}

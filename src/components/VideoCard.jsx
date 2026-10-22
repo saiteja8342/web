@@ -1,13 +1,12 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo, memo } from 'react';
-import { motion } from 'framer-motion';
 import { Play } from 'lucide-react';
 import VideoControls from './VideoControls';
 import { parseYouTubeInput, buildYouTubeEmbedUrl } from '../utils/youtube';
 
 function VideoCardComponent({
   project,
-  index,
-  offset,
+  index: _index,
+  offset: _offset,
   isActive,
   onSelect,
   isReducedMotion = false,
@@ -16,12 +15,12 @@ function VideoCardComponent({
 }) {
   const videoRef = useRef(null);
   const cardRef = useRef(null);
+  const innerRef = useRef(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isCardHovered, setIsCardHovered] = useState(false);
-  const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [imgError, setImgError] = useState(false);
 
   // Parse YouTube video input if available (from youtubeEmbed, youtubeUrl, or video property)
@@ -65,7 +64,7 @@ function VideoCardComponent({
       video.pause();
       try {
         video.currentTime = 0;
-      } catch (e) {
+      } catch {
         // Ignore seek errors on unloaded streams
       }
       setIsPlaying(false);
@@ -89,9 +88,9 @@ function VideoCardComponent({
     };
   }, []);
 
-  // Subtle Mouse Parallax (Active Card only)
+  // Subtle Mouse Parallax (Active Card only, mutating DOM transform directly to avoid 60-120fps React re-renders)
   const handleMouseMove = useCallback((e) => {
-    if (!isActive || isReducedMotion || !cardRef.current) return;
+    if (!isActive || isReducedMotion || !cardRef.current || !innerRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -99,7 +98,7 @@ function VideoCardComponent({
     const rotateX = -((y / rect.height - 0.5) * 4);
     const rotateY = (x / rect.width - 0.5) * 6;
 
-    setTilt({ x: rotateX, y: rotateY });
+    innerRef.current.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
   }, [isActive, isReducedMotion]);
 
   const handleMouseEnter = useCallback(() => {
@@ -108,7 +107,9 @@ function VideoCardComponent({
 
   const handleMouseLeave = useCallback(() => {
     setIsCardHovered(false);
-    setTilt({ x: 0, y: 0 });
+    if (innerRef.current) {
+      innerRef.current.style.transform = 'none';
+    }
   }, []);
 
   // Play / Pause Toggle for direct video
@@ -198,11 +199,10 @@ function VideoCardComponent({
     >
       {/* 3D Parallax Inner Container */}
       <div
+        ref={innerRef}
         className="video-card-inner"
         style={{
-          transform: isActive && !isReducedMotion
-            ? `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`
-            : 'none',
+          transform: 'none',
           transition: 'transform 0.15s ease-out'
         }}
       >

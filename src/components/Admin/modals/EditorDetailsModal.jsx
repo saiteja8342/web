@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Mail, Phone, Package, Calendar, CheckCircle2, Clock, DollarSign, User, ExternalLink, Sparkles, Send } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { X, Package, Send } from 'lucide-react';
 
 export default function EditorDetailsModal({
   selectedEditorModal,
@@ -8,6 +8,17 @@ export default function EditorDetailsModal({
   handleNavClick,
   setAssignForm
 }) {
+  useEffect(() => {
+    if (!selectedEditorModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedEditorModal(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedEditorModal, setSelectedEditorModal]);
+
   if (!selectedEditorModal) return null;
 
   // Find all orders assigned to or completed by this editor
@@ -30,12 +41,15 @@ export default function EditorDetailsModal({
     <div className="vel-modal-backdrop" onClick={() => setSelectedEditorModal(null)}>
       <div
         className="vel-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="editor-details-modal-title"
         style={{ maxWidth: '680px', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="vel-modal-head">
           <div>
-            <h3 className="vel-modal-title">Editor Profile & Project History</h3>
+            <h3 id="editor-details-modal-title" className="vel-modal-title">Editor Profile & Project History</h3>
             <p className="vel-subtext" style={{ fontSize: '0.78rem', marginTop: '2px' }}>
               Specialization, active workload, completed deliveries, and fee breakdown.
             </p>
@@ -44,6 +58,7 @@ export default function EditorDetailsModal({
             type="button"
             className="vel-icon-btn"
             onClick={() => setSelectedEditorModal(null)}
+            aria-label="Close modal"
           >
             <X className="h-4 w-4" />
           </button>

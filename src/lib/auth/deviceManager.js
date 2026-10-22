@@ -62,16 +62,16 @@ export function detectDeviceInfo() {
   // 2. Detect Browser
   let browser = 'Browser';
   if (/Edg\//i.test(ua)) {
-    const match = ua.match(/Edg\/(\d+[\.\d]*)/);
+    const match = ua.match(/Edg\/(\d+[.\d]*)/);
     browser = match ? `Microsoft Edge ${match[1].split('.')[0]}` : 'Microsoft Edge';
   } else if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua) && !/OPR\//i.test(ua)) {
-    const match = ua.match(/Chrome\/(\d+[\.\d]*)/);
+    const match = ua.match(/Chrome\/(\d+[.\d]*)/);
     browser = match ? `Google Chrome ${match[1].split('.')[0]}` : 'Google Chrome';
   } else if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) {
-    const match = ua.match(/Version\/(\d+[\.\d]*)/);
+    const match = ua.match(/Version\/(\d+[.\d]*)/);
     browser = match ? `Apple Safari ${match[1].split('.')[0]}` : 'Apple Safari';
   } else if (/Firefox\//i.test(ua)) {
-    const match = ua.match(/Firefox\/(\d+[\.\d]*)/);
+    const match = ua.match(/Firefox\/(\d+[.\d]*)/);
     browser = match ? `Mozilla Firefox ${match[1].split('.')[0]}` : 'Mozilla Firefox';
   } else if (/OPR\//i.test(ua) || /Opera/i.test(ua)) {
     browser = 'Opera';
@@ -460,7 +460,9 @@ export async function revokeDevice(deviceId, isCurrent = false) {
       }
       return { success: true };
     }
-  } catch (_) {}
+  } catch {
+    // Fallback if RPC is not installed
+  }
 
   // Fallback update
   try {
@@ -490,7 +492,9 @@ export async function revokeOtherDevices(currentDeviceId) {
     if (!error && data?.success) {
       return { success: true, count: data.revoked_count };
     }
-  } catch (_) {}
+  } catch {
+    // Fallback if RPC is not installed
+  }
 
   // Fallback update
   try {

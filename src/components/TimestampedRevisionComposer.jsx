@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
-import { 
-  Send, 
-  Clock, 
-  Sparkles, 
-  Plus, 
-  X, 
-  MessageSquare,
-  CheckCircle2,
-  AlertCircle
-} from 'lucide-react';
+import { Send, Clock, X } from 'lucide-react';
 import { parseRevisionTimestamp, formatRevisionWithTimestamp } from '../lib/db/revisions';
 
 /**

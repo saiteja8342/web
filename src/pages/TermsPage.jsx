@@ -7,15 +7,10 @@ import {
   ShieldCheck, 
   AlertCircle, 
   Clock, 
-  CreditCard, 
-  Sparkles, 
-  Scale, 
-  Lock, 
   CheckCircle2, 
   Mail, 
   Phone, 
-  Globe, 
-  ArrowUpRight 
+  Globe 
 } from 'lucide-react';
 
 import CustomCursor from '../components/CustomCursor';

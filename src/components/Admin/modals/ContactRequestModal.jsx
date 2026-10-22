@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Save, MessageSquare, Mail } from 'lucide-react';
 import { PROJECT_TYPE_LABELS } from '../../../lib/db/contactRequests';
 
@@ -12,14 +12,32 @@ export default function ContactRequestModal({
   handleSaveContactNotes,
   getWhatsAppUrl
 }) {
+  useEffect(() => {
+    if (!selectedContactRequest) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedContactRequest(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedContactRequest, setSelectedContactRequest]);
+
   if (!selectedContactRequest) return null;
 
   return (
     <div className="vel-modal-backdrop" onClick={() => setSelectedContactRequest(null)}>
-      <div className="vel-modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
+      <div
+        className="vel-modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="contact-request-modal-title"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '640px' }}
+      >
         <div className="vel-modal-head">
           <div>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
+            <h3 id="contact-request-modal-title" style={{ fontSize: '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>
               Contact Request Details
             </h3>
             <p style={{ fontSize: '0.75rem', color: 'var(--vel-text-secondary)', marginTop: '2px' }}>
@@ -29,6 +47,7 @@ export default function ContactRequestModal({
           <button
             type="button"
             onClick={() => setSelectedContactRequest(null)}
+            aria-label="Close modal"
             style={{ background: 'transparent', border: 'none', color: 'var(--vel-text-tertiary)', cursor: 'pointer' }}
           >
             <X className="h-5 w-5" />

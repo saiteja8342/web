@@ -497,6 +497,7 @@ if (contactForm) {
         if (errorMsg) errorMsg.style.display = 'block';
       }
     } catch (error) {
+      console.error('[main.js] Contact form submission failed:', error);
       if (errorMsg) errorMsg.style.display = 'block';
     } finally {
       if (btnText) btnText.textContent = 'Send Message →';

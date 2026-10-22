@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Clock, Sparkles, AlertCircle, PlayCircle, Film, CheckCircle2, Ban } from 'lucide-react';
+import { Check, Clock, Sparkles, PlayCircle, Film, CheckCircle2, Ban } from 'lucide-react';
 
 const STAGES = [
   {
@@ -79,20 +79,26 @@ export default function ClientProjectStatusStepper({
       if (matched && matched.changed_at) {
         try {
           return new Date(matched.changed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        } catch (_) {}
+        } catch {
+          // invalid date
+        }
       }
     }
 
     if (stepIndex === 0 && orderCreatedAt) {
       try {
         return new Date(orderCreatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      } catch (_) {}
+      } catch {
+        // invalid date
+      }
     }
 
     if (stepIndex === currentStep && orderUpdatedAt) {
       try {
         return new Date(orderUpdatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      } catch (_) {}
+      } catch {
+        // invalid date
+      }
     }
 
     if (stepIndex > currentStep) {
