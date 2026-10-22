@@ -5,7 +5,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 import CustomCursor from '../components/CustomCursor';
 import Navbar from '../components/Navbar';
-import VideoPortfolio from '../components/VideoPortfolio';
+import WorkStudioShowcase from '../components/WorkStudioShowcase';
 import WhatsAppWidget from '../components/WhatsAppWidget';
 import Footer from '../components/Footer';
 
@@ -60,8 +60,8 @@ export default function WorkPage() {
           position: 'relative'
         }}
       >
-        {/* CINEMATIC VIDEO PORTFOLIO CAROUSEL */}
-        <VideoPortfolio isHeadingH1={true} />
+        {/* CONCEPT 2: SPLIT CINEMA STUDIO & INTERACTIVE PLAYLIST */}
+        <WorkStudioShowcase isHeadingH1={true} />
 
         {/* EDITORIAL CAPABILITIES & CASE STUDY HIGHLIGHTS */}
         <section className="work-editorial-overview" style={{ padding: '60px 0 20px', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>

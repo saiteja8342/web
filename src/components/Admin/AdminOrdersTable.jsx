@@ -164,7 +164,10 @@ export default function AdminOrdersTable({
             </div>
           </div>
 
-          <div className="vel-pipeline-layout">
+          <div
+            className="vel-pipeline-layout"
+            style={!(selectedOrder && selectedOrder.id) ? { gridTemplateColumns: '1fr' } : undefined}
+          >
             {/* Left: Orders Table or Motion Graphics Radar Empty State */}
             <div className="vel-card" style={{ padding: '0', overflow: 'hidden' }}>
               {filteredOrders.length > 0 ? (
@@ -963,144 +966,7 @@ export default function AdminOrdersTable({
                   </div>
                 )}
               </div>
-            ) : (
-              /* STUDIO MISSION CONTROL TELEMETRY CONSOLE (WHEN 0 ORDERS OR NONE SELECTED) */
-              <div className="vel-card" style={{ gap: '22px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                    <span className="vel-studio-pill">
-                      <span className="vel-rec-dot" style={{ background: '#22C55E', boxShadow: '0 0 8px #22C55E' }} />
-                      <span>STUDIO MISSION CONTROL</span>
-                    </span>
-                    <span style={{
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: '0.68rem',
-                      color: '#FCD34D'
-                    }}>
-                      NODES: 100% HEALTH
-                    </span>
-                  </div>
-                  <h2 style={{ fontSize: '1.4rem', fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif" }}>
-                    Studio Production Telemetry
-                  </h2>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--vel-text-secondary)', marginTop: '4px' }}>
-                    Live telemetry overview of creative editing suites, GPU render nodes, and project delivery velocity.
-                  </p>
-                </div>
-
-                {/* Telemetry Stat Cards */}
-                <div className="vel-telemetry-grid">
-                  <div className="vel-telemetry-stat">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--vel-text-secondary)', textTransform: 'uppercase' }}>GPU Nodes</span>
-                      <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                    </div>
-                    <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#FFFFFF', fontFamily: "'Space Grotesk', sans-serif" }}>12 Active</span>
-                    <span style={{ fontSize: '0.65rem', color: '#10B981', fontWeight: 600 }}>Topaz AI & Gen-3 Online</span>
-                  </div>
-
-                  <div className="vel-telemetry-stat">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--vel-text-secondary)', textTransform: 'uppercase' }}>Editors Ready</span>
-                      <Users className="h-3.5 w-3.5 text-white/70" />
-                    </div>
-                    <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#FFFFFF', fontFamily: "'Space Grotesk', sans-serif" }}>
-                      {editorsList.filter(e => e.status === 'approved').length} Active
-                    </span>
-                    <span style={{ fontSize: '0.65rem', color: '#FCD34D', fontWeight: 600 }}>Ready for Dispatch</span>
-                  </div>
-
-                  <div className="vel-telemetry-stat">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--vel-text-secondary)', textTransform: 'uppercase' }}>Historical Jobs</span>
-                      <Archive className="h-3.5 w-3.5 text-amber-400" />
-                    </div>
-                    <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#FFFFFF', fontFamily: "'Space Grotesk', sans-serif" }}>
-                      {orders.filter(o => o.dbStatus === 'delivered').length} Delivered
-                    </span>
-                    <span style={{ fontSize: '0.65rem', color: '#FCD34D', fontWeight: 600 }}>Verified Testimonials</span>
-                  </div>
-
-                  <div className="vel-telemetry-stat">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--vel-text-secondary)', textTransform: 'uppercase' }}>Turnaround SLA</span>
-                      <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                    </div>
-                    <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#FFFFFF', fontFamily: "'Space Grotesk', sans-serif" }}>99.4%</span>
-                    <span style={{ fontSize: '0.65rem', color: '#10B981', fontWeight: 600 }}>48h Target SLA Met</span>
-                  </div>
-                </div>
-
-                {/* Live Frequency Spectrum & Visualizer */}
-                <div style={{
-                  padding: '16px',
-                  borderRadius: '12px',
-                  background: 'rgba(10, 11, 16, 0.7)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Clapperboard className="h-3.5 w-3.5 text-white/70" />
-                      <span>AUDIO/VIDEO RENDER SPECTRUM</span>
-                    </span>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.68rem', color: '#E2E8F0' }}>
-                      23.976 FPS // DCI-P3
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', height: '36px', gap: '3px' }}>
-                    {[12, 18, 24, 16, 32, 28, 14, 20, 36, 22, 18, 30, 24, 16, 28, 34, 20, 14, 22, 10, 18, 26, 30, 16].map((h, i) => (
-                      <span
-                        key={i}
-                        className="vel-eq-bar"
-                        style={{
-                          height: `${h}px`,
-                          flex: 1,
-                          animationDelay: `${i * 0.05}s`
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Quick Action Dispatch Buttons */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <button
-                    className="vel-btn-solid"
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      background: 'linear-gradient(135deg, #FFFFFF 0%, #E2E8F0 100%)',
-                      color: '#000000',
-                      fontWeight: 700
-                    }}
-                    onClick={() => handleNavClick('create')}>
-                    <Plus className="h-4 w-4" />
-                    <span>Create New Client Order</span>
-                  </button>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <button
-                      className="vel-btn-outline"
-                      onClick={() => handleNavClick('editors')}
-                    >
-                      <Users className="h-3.5 w-3.5" />
-                      <span>Manage Editors</span>
-                    </button>
-                    <button
-                      className="vel-btn-outline"
-                      onClick={() => handleNavClick('cms')}
-                    >
-                      <Globe className="h-3.5 w-3.5" />
-                      <span>Website CMS</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            ) : null}
           </div>
         </>
       )}

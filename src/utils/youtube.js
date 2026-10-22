@@ -94,7 +94,7 @@ export function buildYouTubeEmbedUrl(videoId, options = {}) {
     autoplay = true,
     mute = true,
     loop = true,
-    controls = true,
+    controls = false,
     playsinline = true
   } = options;
 
@@ -107,7 +107,10 @@ export function buildYouTubeEmbedUrl(videoId, options = {}) {
     playsinline: playsinline ? '1' : '0',
     rel: '0',
     modestbranding: '1',
-    enablejsapi: '1'
+    enablejsapi: '1',
+    fs: '0',
+    iv_load_policy: '3',
+    disablekb: '1'
   });
 
   return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;

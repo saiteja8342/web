@@ -1,12 +1,17 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { projects as defaultProjects } from '../data/projects';
-import CarouselNavigation from './CarouselNavigation';
 import VideoCarousel from './VideoCarousel';
 import CarouselPagination from './CarouselPagination';
 import ShimmerText from './ShimmerText';
+import WorkStudioShowcase from './WorkStudioShowcase';
 import { getPublicPortfolioVideos, getOurWorkSettings, DEFAULT_OUR_WORK_SETTINGS } from '../lib/db/cms';
 
-export default function VideoPortfolio({ isHeadingH1 = false }) {
+export default function VideoPortfolio({ isHeadingH1 = false, layout = 'coverflow' }) {
+  if (layout === 'split') {
+    return <WorkStudioShowcase isHeadingH1={isHeadingH1} />;
+  }
+
   const [allProjects, setAllProjects] = useState(defaultProjects);
   const [headerSettings, setHeaderSettings] = useState(DEFAULT_OUR_WORK_SETTINGS);
   const [activeCategory, setActiveCategory] = useState('ALL');
@@ -97,41 +102,45 @@ export default function VideoPortfolio({ isHeadingH1 = false }) {
           </p>
         </div>
 
-        {/* Category Filter Pills (Centered in the middle) */}
+        {/* Category Filter Pills (Centered in the middle with sliding spring highlight) */}
         <div className="portfolio-category-filters" role="tablist" aria-label="Filter portfolio by category">
-          {categories.map((category) => {
-            const isActive = activeCategory === category;
-            return (
-              <button
-                key={category}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                className={`category-filter-pill ${isActive ? 'active' : ''}`}
-                onClick={() => handleSelectCategory(category)}
-                data-hover-type="link"
-              >
-                {category}
-              </button>
-            );
-          })}
+          <div className="portfolio-filters-track">
+            {categories.map((category) => {
+              const isActive = activeCategory === category;
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`category-filter-pill ${isActive ? 'active' : ''}`}
+                  onClick={() => handleSelectCategory(category)}
+                  data-hover-type="link"
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeFilterPill"
+                      className="category-pill-indicator"
+                      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                    />
+                  )}
+                  <span className="category-pill-text">{category}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       <div className="portfolio-content-container">
-        {/* Carousel Top Navigation Bar */}
-        <CarouselNavigation
-          total={total}
-          onPrev={handlePrev}
-          onNext={handleNext}
-        />
-
         {/* Cinematic Horizontal Video Carousel */}
         <VideoCarousel
           key={activeCategory}
           projects={filteredProjects}
           currentIndex={safeIndex}
           onChangeIndex={handleSelectIndex}
+          onPrev={handlePrev}
+          onNext={handleNext}
         />
 
         {/* Carousel Pagination & Indicator Footer */}
