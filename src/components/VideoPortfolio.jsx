@@ -78,9 +78,12 @@ export default function VideoPortfolio({ isHeadingH1 = false, layout = 'coverflo
     setCurrentIndex(index);
   }, []);
 
-  const handleSelectCategory = (category) => {
+  const handleSelectCategory = (category, e) => {
     setActiveCategory(category);
     setCurrentIndex(0);
+    if (e?.currentTarget) {
+      e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
   };
 
   return (
@@ -114,7 +117,7 @@ export default function VideoPortfolio({ isHeadingH1 = false, layout = 'coverflo
                   role="tab"
                   aria-selected={isActive}
                   className={`category-filter-pill ${isActive ? 'active' : ''}`}
-                  onClick={() => handleSelectCategory(category)}
+                  onClick={(e) => handleSelectCategory(category, e)}
                   data-hover-type="link"
                 >
                   {isActive && (

@@ -12,7 +12,6 @@ import {
   User,
   LogIn
 } from 'lucide-react';
-import InstallPwaButton from './InstallPwaButton';
 
 export default function MobileSidebar({ isOpen, onClose, sessionUser, userRole, onStartProject }) {
   const isAboutPage = typeof window !== 'undefined' && window.location.pathname.includes('about');
@@ -154,9 +153,6 @@ export default function MobileSidebar({ isOpen, onClose, sessionUser, userRole, 
 
             {/* Bottom Actions */}
             <div className="mobile-sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {/* Chrome App / PWA Install Button */}
-              <InstallPwaButton variant="mobile" />
-
               {sessionUser ? (
                 <a
                   href={dashboardUrl}

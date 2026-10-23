@@ -157,9 +157,12 @@ export default function WorkStudioShowcase({ isHeadingH1 = true }) {
   const safeIndex = total > 0 ? (selectedIndex >= total ? 0 : selectedIndex) : 0;
   const currentProject = filteredProjects[safeIndex] || allProjects[0] || {};
 
-  const handleSelectCategory = (cat) => {
+  const handleSelectCategory = (cat, e) => {
     setActiveCategory(cat);
     setSelectedIndex(0);
+    if (e?.currentTarget) {
+      e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
   };
 
   // Parse active video input
@@ -210,7 +213,7 @@ export default function WorkStudioShowcase({ isHeadingH1 = true }) {
                     role="tab"
                     aria-selected={isActive}
                     className={`work-studio-pill ${isActive ? 'active' : ''}`}
-                    onClick={() => handleSelectCategory(cat)}
+                    onClick={(e) => handleSelectCategory(cat, e)}
                   >
                     {isActive && (
                       <motion.div

@@ -67,6 +67,12 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
     let userStatus = (profile.status || '').toLowerCase().trim();
 
     if (!userIsAdmin) {
+      // Default empty, null, or 'user' role to 'client' so normal authenticated users can access the client hub
+      if (!userRole || userRole === 'user') {
+        userRole = 'client';
+        profile.role = 'client';
+      }
+
       if (userStatus === 'rejected') {
         // Suspended or blocked by administrator: deny access!
         await signOutUser();
@@ -124,8 +130,10 @@ export async function checkRouteAuth({ requiredRole = null, redirectOnFail = nul
           // Route user to their own valid dashboard instead of unauthorized page
           if (userRole === 'editor') {
             window.location.href = '/dashboard/editor';
-          } else {
+          } else if (userRole === 'client') {
             window.location.href = '/dashboard/client';
+          } else {
+            window.location.href = finalRedirect || '/login';
           }
         }
         return { authorized: false, session, profile };

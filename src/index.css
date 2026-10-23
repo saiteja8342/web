@@ -3516,15 +3516,28 @@ textarea.contact-input-custom {
   display: flex;
   align-items: center;
   justify-content: center;
+  justify-content: safe center;
   width: 100%;
-  margin: 36px auto 30px;
+  max-width: 100%;
+  margin: 32px auto 26px;
   text-align: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 6px 12px;
+  box-sizing: border-box;
+}
+
+.portfolio-category-filters::-webkit-scrollbar {
+  display: none;
 }
 
 .portfolio-filters-track {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -3534,6 +3547,8 @@ textarea.contact-input-custom {
   -webkit-backdrop-filter: blur(14px);
   gap: 4px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  margin: 0 auto;
+  flex-shrink: 0;
 }
 
 .category-filter-pill {
@@ -3549,8 +3564,12 @@ textarea.contact-input-custom {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, transform 0.15s ease;
   z-index: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 .category-filter-pill:hover {
@@ -4272,7 +4291,23 @@ textarea.contact-input-custom {
     height: 540px;
   }
   .portfolio-top-header {
-    margin-bottom: 36px;
+    margin-bottom: 24px;
+  }
+  .portfolio-category-filters,
+  .work-studio-filters {
+    margin: 20px auto 20px;
+    padding: 4px 12px;
+  }
+  .portfolio-filters-track,
+  .work-studio-filters-track {
+    padding: 3px;
+    gap: 3px;
+  }
+  .category-filter-pill,
+  .work-studio-pill {
+    padding: 7px 16px;
+    font-size: 0.78rem;
+    letter-spacing: 0.05em;
   }
   .carousel-nav-header {
     margin-bottom: 20px;
@@ -4289,6 +4324,31 @@ textarea.contact-input-custom {
   }
 }
 
+@media (max-width: 480px) {
+  .portfolio-top-header {
+    margin-bottom: 18px;
+  }
+  .portfolio-subtext {
+    margin: 16px 0 0;
+  }
+  .portfolio-category-filters,
+  .work-studio-filters {
+    margin: 16px auto 16px;
+    padding: 3px 8px;
+  }
+  .portfolio-filters-track,
+  .work-studio-filters-track {
+    padding: 3px;
+    gap: 2px;
+  }
+  .category-filter-pill,
+  .work-studio-pill {
+    padding: 6px 12px;
+    font-size: 0.73rem;
+    letter-spacing: 0.03em;
+  }
+}
+
 @media (max-width: 430px) {
   .video-carousel-stage {
     height: 480px;
@@ -4298,6 +4358,15 @@ textarea.contact-input-custom {
   }
   .card-project-title {
     font-size: 1.05rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .category-filter-pill,
+  .work-studio-pill {
+    padding: 5px 9px;
+    font-size: 0.69rem;
+    letter-spacing: 0.02em;
   }
 }
 
@@ -4338,13 +4407,27 @@ textarea.contact-input-custom {
   display: flex;
   align-items: center;
   justify-content: center;
+  justify-content: safe center;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 6px 12px;
+  box-sizing: border-box;
+}
+
+.work-studio-filters::-webkit-scrollbar {
+  display: none;
 }
 
 .work-studio-filters-track {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: center;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border);
@@ -4353,6 +4436,8 @@ textarea.contact-input-custom {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   gap: 4px;
+  margin: 0 auto;
+  flex-shrink: 0;
 }
 
 .work-studio-pill {
@@ -4368,8 +4453,12 @@ textarea.contact-input-custom {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, transform 0.15s ease;
   z-index: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 
 .work-studio-pill:hover {

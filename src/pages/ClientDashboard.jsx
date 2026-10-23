@@ -15,6 +15,7 @@ import {
 
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
+import { isGoogleUser } from '../lib/auth/authUtils';
 import { getClientOrders, claimOfflineOrdersForClient, formatOrderCode, STATUS_MAP, VIDEO_TYPE_MAP, parseCancellationReason } from '../lib/db/orders';
 import { getProfile, updateProfile } from '../lib/db/profiles';
 import { getUserNotifications, sendNotification, notifyAdmins } from '../lib/db/notifications';
@@ -500,22 +501,40 @@ export default function ClientDashboard() {
 
   useEffect(() => {
     async function checkAuth() {
-      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
-      if (sessionErr || !session || !session.user) {
+      try {
+        const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+        if (sessionErr || !session || !session.user) {
+          window.location.href = '/login';
+          return;
+        }
+
+        const { authorized, profile } = await checkRouteAuth({
+          requiredRole: 'client',
+          redirectOnFail: '/login',
+        });
+
+        if (authorized) {
+          const activeProfile = profile || {
+            id: session.user.id,
+            email: session.user.email,
+            full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || (session.user.email ? session.user.email.split('@')[0] : 'Client'),
+            role: 'client',
+            status: 'approved',
+          };
+          setIsAuthenticated(true);
+          setCurrentUser(session.user);
+          setClientProfile(activeProfile);
+          try {
+            await fetchClientData(session.user.id, session.user.email);
+          } catch (dataErr) {
+            console.warn('[ClientDashboard] fetchClientData non-blocking error:', dataErr);
+          }
+        } else {
+          window.location.href = '/login';
+        }
+      } catch (err) {
+        console.error('[ClientDashboard] Auth check error:', err);
         window.location.href = '/login';
-        return;
-      }
-
-      const { authorized, profile } = await checkRouteAuth({
-        requiredRole: 'client',
-        redirectOnFail: '/login',
-      });
-
-      if (authorized && profile) {
-        setIsAuthenticated(true);
-        setCurrentUser(session.user);
-        setClientProfile(profile);
-        await fetchClientData(session.user.id, session.user.email);
       }
     }
     checkAuth();
@@ -1021,7 +1040,44 @@ export default function ClientDashboard() {
   };
 
   if (!isAuthenticated) {
-    return null;
+    return (
+      <div style={{
+        minHeight: '100vh',
+        width: '100%',
+        backgroundColor: '#050507',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '20px',
+        color: '#FFFFFF',
+        fontFamily: 'var(--font-sans, system-ui, sans-serif)',
+        padding: '24px'
+      }}>
+        <div style={{
+          width: '48px',
+          height: '48px',
+          borderRadius: '50%',
+          border: '3px solid rgba(255, 255, 255, 0.08)',
+          borderTopColor: '#4ADE80',
+          animation: 'cp-spin 0.8s linear infinite'
+        }} />
+        <style>{`
+          @keyframes cp-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '1.05rem', fontWeight: 600, color: '#FFFFFF', marginBottom: '6px' }}>
+            Loading Client Workspace
+          </div>
+          <div style={{ fontSize: '0.84rem', color: '#A1A1AA' }}>
+            Preparing your dashboard and active projects...
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
