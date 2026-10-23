@@ -7,6 +7,7 @@ import {
   ShieldCheck,
   Smartphone
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { isGoogleUser } from '../../lib/auth/authUtils';
 import InstallPwaButton from '../InstallPwaButton';
 
@@ -66,38 +67,67 @@ export default function ClientProfileSettings({
             </div>
           </div>
 
-          {/* Bottom Card: Navigation Menu */}
+          {/* Bottom Card: Navigation Menu with Motion Tabs */}
           <div className="cp-profile-subnav-card">
             <button
               type="button"
               className={`cp-profile-subnav-btn ${profileSubTab === 'profile' ? 'active' : ''}`}
               onClick={() => setProfileSubTab('profile')}
             >
-              <User className="h-4 w-4" />
-              <span>Profile</span>
+              {profileSubTab === 'profile' && (
+                <motion.div
+                  layoutId="profileSubnavIndicator"
+                  className="cp-profile-subnav-active-glow"
+                  transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                />
+              )}
+              <User className="h-4 w-4 relative z-10" />
+              <span className="relative z-10">Profile</span>
             </button>
             <button
               type="button"
               className={`cp-profile-subnav-btn ${profileSubTab === 'password' ? 'active' : ''}`}
               onClick={() => setProfileSubTab('password')}
             >
-              <Eye className="h-4 w-4" />
-              <span>Change Password</span>
+              {profileSubTab === 'password' && (
+                <motion.div
+                  layoutId="profileSubnavIndicator"
+                  className="cp-profile-subnav-active-glow"
+                  transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                />
+              )}
+              <Eye className="h-4 w-4 relative z-10" />
+              <span className="relative z-10">Change Password</span>
             </button>
             <button
               type="button"
               className={`cp-profile-subnav-btn ${profileSubTab === 'app' ? 'active' : ''}`}
               onClick={() => setProfileSubTab('app')}
             >
-              <Smartphone className="h-4 w-4" />
-              <span>Mobile & Web App</span>
+              {profileSubTab === 'app' && (
+                <motion.div
+                  layoutId="profileSubnavIndicator"
+                  className="cp-profile-subnav-active-glow"
+                  transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                />
+              )}
+              <Smartphone className="h-4 w-4 relative z-10" />
+              <span className="relative z-10">Mobile & Web App</span>
             </button>
           </div>
         </div>
 
-        {/* Right Column: Active Tab Content */}
+        {/* Right Column: Active Tab Content with Smooth Motion Transition */}
         <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
           <div className="cp-profile-main-card">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={profileSubTab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              >
             {profileSubTab === 'app' ? (
               /* TAB: Install Web App */
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -321,6 +351,8 @@ export default function ClientProfileSettings({
                 )}
               </div>
             )}
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           {/* Centered Brand Copyright Footer */}

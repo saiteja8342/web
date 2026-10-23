@@ -153,6 +153,8 @@ export default function VideoCarousel({
 
   const transitionConfig = isReducedMotion
     ? { duration: 0.01 }
+    : isMobile
+    ? { type: 'tween', duration: 0.28, ease: [0.16, 1, 0.3, 1] }
     : {
         type: 'spring',
         stiffness: 240,
@@ -212,12 +214,18 @@ export default function VideoCarousel({
 
           const absDiff = Math.abs(diff);
           const isActive = diff === 0;
+
+          // GPU Optimization for mobile: don't render off-screen cards beyond immediate neighbors
+          if (isMobile && absDiff > 1) {
+            return null;
+          }
+
           const { width: cardWidth, height: cardHeight } = getCardDimensions(project);
 
           let targetX = 0;
           let targetScale = 1;
           let targetOpacity = 1;
-          let targetFilter = 'brightness(1) blur(0px)';
+          let targetFilter = 'none';
           let targetRotateY = 0;
           let targetZIndex = 10;
           let pointerEvents = 'auto';
@@ -226,30 +234,30 @@ export default function VideoCarousel({
             targetX = 0;
             targetScale = 1;
             targetOpacity = 1;
-            targetFilter = 'brightness(1) blur(0px)';
+            targetFilter = isMobile ? 'none' : 'brightness(1) blur(0px)';
             targetRotateY = 0;
             targetZIndex = 10;
           } else if (absDiff === 1) {
             targetX = diff * spacing1;
             targetScale = 0.84;
-            targetOpacity = isMobile ? 0.35 : 0.65;
-            targetFilter = 'brightness(0.6) blur(1.5px)';
+            targetOpacity = isMobile ? 0.45 : 0.65;
+            targetFilter = isMobile ? 'none' : 'brightness(0.6) blur(1.5px)';
             targetRotateY = isMobile ? 0 : (diff > 0 ? -9 : 9);
             targetZIndex = 5;
           } else if (absDiff === 2) {
             targetX = diff > 0 ? (spacing1 + spacing2) : -(spacing1 + spacing2);
             targetScale = 0.68;
             targetOpacity = (isMobile || isTablet) ? 0 : 0.35;
-            targetFilter = 'brightness(0.35) blur(3.5px)';
-            targetRotateY = diff > 0 ? -14 : 14;
+            targetFilter = isMobile ? 'none' : 'brightness(0.35) blur(3.5px)';
+            targetRotateY = isMobile ? 0 : (diff > 0 ? -14 : 14);
             targetZIndex = 2;
             if (isMobile || isTablet) pointerEvents = 'none';
           } else {
             targetX = diff > 0 ? 1000 : -1000;
             targetScale = 0.45;
             targetOpacity = 0;
-            targetFilter = 'brightness(0.2) blur(8px)';
-            targetRotateY = diff > 0 ? -16 : 16;
+            targetFilter = isMobile ? 'none' : 'brightness(0.2) blur(8px)';
+            targetRotateY = isMobile ? 0 : (diff > 0 ? -16 : 16);
             targetZIndex = 0;
             pointerEvents = 'none';
           }
@@ -266,10 +274,16 @@ export default function VideoCarousel({
                 marginTop: `-${cardHeight / 2}px`,
                 width: `${cardWidth}px`,
                 height: `${cardHeight}px`,
-                pointerEvents
+                pointerEvents,
+                transform: 'translateZ(0)',
               }}
               initial={false}
-              animate={{
+              animate={isMobile ? {
+                x: targetX,
+                scale: targetScale,
+                opacity: targetOpacity,
+                zIndex: targetZIndex
+              } : {
                 x: targetX,
                 scale: targetScale,
                 opacity: targetOpacity,

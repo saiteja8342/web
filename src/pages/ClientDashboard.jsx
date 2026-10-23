@@ -10,8 +10,10 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Headphones
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { supabase } from '../supabaseClient';
 import { checkRouteAuth } from '../lib/middleware/authGuard';
@@ -1141,7 +1143,7 @@ export default function ClientDashboard() {
           {/* Section Header */}
           <div className="cp-sidebar-section-title">MEMBER</div>
 
-          {/* Primary Nav Links */}
+          {/* Primary Nav Links with Motion Indicator */}
           <nav className="cp-nav-list">
             <button
               type="button"
@@ -1149,8 +1151,15 @@ export default function ClientDashboard() {
               onClick={() => handleNavClick('home')}
               title="Home"
             >
-              <Home className="h-4 w-4 shrink-0" />
-              <span>Home</span>
+              {activeNav === 'home' && (
+                <motion.div
+                  layoutId="desktopNavActiveIndicator"
+                  className="cp-nav-active-glow"
+                  transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                />
+              )}
+              <Home className="h-4 w-4 shrink-0 relative z-10" />
+              <span className="relative z-10">Home</span>
             </button>
 
             <button
@@ -1159,8 +1168,18 @@ export default function ClientDashboard() {
               onClick={() => handleNavClick('current')}
               title="Current Projects"
             >
-              <Film className="h-4 w-4 shrink-0" />
-              <span>{runningOrders.length > 1 ? `Current Projects (${runningOrders.length})` : 'Current Project'}</span>
+              {activeNav === 'current' && (
+                <motion.div
+                  layoutId="desktopNavActiveIndicator"
+                  className="cp-nav-active-glow"
+                  transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                />
+              )}
+              <Film className="h-4 w-4 shrink-0 relative z-10" />
+              <span className="relative z-10">{runningOrders.length > 1 ? `Current Projects (${runningOrders.length})` : 'Current Project'}</span>
+              {runningOrders.length > 0 && (
+                <span className="cp-dropdown-pill ml-auto relative z-10">{runningOrders.length}</span>
+              )}
             </button>
 
             <button
@@ -1169,8 +1188,15 @@ export default function ClientDashboard() {
               onClick={() => handleNavClick('history')}
               title="Project History"
             >
-              <History className="h-4 w-4 shrink-0" />
-              <span>Project History</span>
+              {activeNav === 'history' && (
+                <motion.div
+                  layoutId="desktopNavActiveIndicator"
+                  className="cp-nav-active-glow"
+                  transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                />
+              )}
+              <History className="h-4 w-4 shrink-0 relative z-10" />
+              <span className="relative z-10">Project History</span>
             </button>
 
             <button
@@ -1179,8 +1205,15 @@ export default function ClientDashboard() {
               onClick={() => handleNavClick('profile')}
               title="Profile"
             >
-              <User className="h-4 w-4 shrink-0" />
-              <span>Profile</span>
+              {activeNav === 'profile' && (
+                <motion.div
+                  layoutId="desktopNavActiveIndicator"
+                  className="cp-nav-active-glow"
+                  transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                />
+              )}
+              <User className="h-4 w-4 shrink-0 relative z-10" />
+              <span className="relative z-10">Profile</span>
             </button>
 
             <button
@@ -1189,8 +1222,15 @@ export default function ClientDashboard() {
               onClick={() => handleNavClick('faq')}
               title="Support / FAQ"
             >
-              <Headphones className="h-4 w-4 shrink-0" />
-              <span>Support / FAQ</span>
+              {activeNav === 'faq' && (
+                <motion.div
+                  layoutId="desktopNavActiveIndicator"
+                  className="cp-nav-active-glow"
+                  transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                />
+              )}
+              <Headphones className="h-4 w-4 shrink-0 relative z-10" />
+              <span className="relative z-10">Support / FAQ</span>
             </button>
           </nav>
         </div>
@@ -1431,6 +1471,26 @@ export default function ClientDashboard() {
 
         {/* Content Body with Skeleton Shimmer Support */}
         <main className="cp-content">
+          {/* Mobile subtopbar for non-home views (except current projects which has its own custom reference app bar) */}
+          {activeNav !== 'home' && activeNav !== 'current' && (
+            <div className="cp-mobile-subtopbar">
+              <button
+                type="button"
+                className="cp-mobile-back-btn"
+                onClick={() => handleNavClick('home')}
+                aria-label="Back to home"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <h2 className="cp-mobile-subtopbar-title">
+                {activeNav === 'history' && 'Project History'}
+                {activeNav === 'profile' && 'Profile & Security'}
+                {activeNav === 'faq' && 'Support / FAQ'}
+              </h2>
+              <div style={{ width: '36px' }} />
+            </div>
+          )}
+
           {isLoading ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div className="cp-skeleton" style={{ height: '32px', width: '220px' }} />
@@ -1441,116 +1501,165 @@ export default function ClientDashboard() {
               </div>
             </div>
           ) : (
-            <>
-              {/* ============================================================== */}
-              {/* VIEW 1: HOME (Reference Image 1)                               */}
-              {/* ============================================================== */}
-              {activeNav === 'home' && (
-                <ClientOverview
-                  clientProfile={clientProfile}
-                  orders={orders}
-                  ordersLoading={ordersLoading}
-                  formatOrderCode={formatOrderCode}
-                  getStatusBadgeBg={getStatusBadgeBg}
-                  getStatusColor={getStatusColor}
-                  getStatusBorder={getStatusBorder}
-                  STATUS_MAP={STATUS_MAP}
-                  runningOrders={runningOrders}
-                  completedOrders={completedOrders}
-                  activeOrder={activeOrder}
-                  setSelectedActiveOrderId={setSelectedActiveOrderId}
-                  setSelectedHistoryId={setSelectedHistoryId}
-                  handleNavClick={handleNavClick}
-                  activeStepIdx={activeStepIdx}
-                  getStageDate={getStageDate}
-                />
-              )}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeNav}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="cp-view-motion-wrapper"
+              >
+                {/* ============================================================== */}
+                {/* VIEW 1: HOME (Reference Image 1)                               */}
+                {/* ============================================================== */}
+                {activeNav === 'home' && (
+                  <ClientOverview
+                    clientProfile={clientProfile}
+                    orders={orders}
+                    ordersLoading={ordersLoading}
+                    formatOrderCode={formatOrderCode}
+                    getStatusBadgeBg={getStatusBadgeBg}
+                    getStatusColor={getStatusColor}
+                    getStatusBorder={getStatusBorder}
+                    STATUS_MAP={STATUS_MAP}
+                    runningOrders={runningOrders}
+                    completedOrders={completedOrders}
+                    activeOrder={activeOrder}
+                    setSelectedActiveOrderId={setSelectedActiveOrderId}
+                    setSelectedHistoryId={setSelectedHistoryId}
+                    handleNavClick={handleNavClick}
+                    activeStepIdx={activeStepIdx}
+                    getStageDate={getStageDate}
+                    accountAvatar={getAccountAvatar()}
+                    notifications={_notifications}
+                    showToast={showToast}
+                  />
+                )}
 
-              {/* ============================================================== */}
-              {/* VIEW 2: CURRENT PROJECT / ACTIVE PIPELINE                      */}
-              {/* ============================================================== */}
-              {activeNav === 'current' && (
-                <ClientActiveProjects
-                  runningOrders={runningOrders}
-                  activeOrder={activeOrder}
-                  setSelectedActiveOrderId={setSelectedActiveOrderId}
-                  isDeliverablePermitted={isDeliverablePermitted}
-                  activeOrderExp={activeOrderExp}
-                  editorNotes={editorNotes}
-                  statusHistory={statusHistory}
-                  getStageDate={getStageDate}
-                  onSendRevisionNote={handleRequestRevisionWithTimestamp}
-                  isSubmittingNote={isSubmittingRevision}
-                  safeOpenUrl={safeOpenUrl}
-                  getExpectedDeliveryDate={getExpectedDeliveryDate}
-                  STATUS_MAP={STATUS_MAP}
-                  formatOrderCode={formatOrderCode}
-                />
-              )}
+                {/* ============================================================== */}
+                {/* VIEW 2: CURRENT PROJECT / ACTIVE PIPELINE                      */}
+                {/* ============================================================== */}
+                {activeNav === 'current' && (
+                  <ClientActiveProjects
+                    runningOrders={runningOrders}
+                    activeOrder={activeOrder}
+                    setSelectedActiveOrderId={setSelectedActiveOrderId}
+                    isDeliverablePermitted={isDeliverablePermitted}
+                    activeOrderExp={activeOrderExp}
+                    editorNotes={editorNotes}
+                    statusHistory={statusHistory}
+                    getStageDate={getStageDate}
+                    onSendRevisionNote={handleRequestRevisionWithTimestamp}
+                    isSubmittingNote={isSubmittingRevision}
+                    safeOpenUrl={safeOpenUrl}
+                    getExpectedDeliveryDate={getExpectedDeliveryDate}
+                    STATUS_MAP={STATUS_MAP}
+                    formatOrderCode={formatOrderCode}
+                    handleNavClick={handleNavClick}
+                    showToast={showToast}
+                  />
+                )}
 
-              {/* ============================================================== */}
-              {/* VIEW 3: PROJECT HISTORY (Reference Image 4)                    */}
-              {/* ============================================================== */}
-              {activeNav === 'history' && (
-                <ClientProjectHistory
-                  historyProjects={historyProjects}
-                  selectedProject={selectedProject}
-                  setSelectedHistoryId={setSelectedHistoryId}
-                  ratingsMap={ratingsMap}
-                  handleSubmitRating={handleSubmitRating}
-                  ratingStars={ratingStars}
-                  setRatingStars={setRatingStars}
-                  hoverStars={hoverStars}
-                  setHoverStars={setHoverStars}
-                  feedbackText={feedbackText}
-                  setFeedbackText={setFeedbackText}
-                  isTestimonialConsent={isTestimonialConsent}
-                  setIsTestimonialConsent={setIsTestimonialConsent}
-                  isSubmittingRating={isSubmittingRating}
-                  safeOpenUrl={safeOpenUrl}
-                />
-              )}
+                {/* ============================================================== */}
+                {/* VIEW 3: PROJECT HISTORY (Reference Image 4)                    */}
+                {/* ============================================================== */}
+                {activeNav === 'history' && (
+                  <ClientProjectHistory
+                    historyProjects={historyProjects}
+                    selectedProject={selectedProject}
+                    setSelectedHistoryId={setSelectedHistoryId}
+                    ratingsMap={ratingsMap}
+                    handleSubmitRating={handleSubmitRating}
+                    ratingStars={ratingStars}
+                    setRatingStars={setRatingStars}
+                    hoverStars={hoverStars}
+                    setHoverStars={setHoverStars}
+                    feedbackText={feedbackText}
+                    setFeedbackText={setFeedbackText}
+                    isTestimonialConsent={isTestimonialConsent}
+                    setIsTestimonialConsent={setIsTestimonialConsent}
+                    isSubmittingRating={isSubmittingRating}
+                    safeOpenUrl={safeOpenUrl}
+                  />
+                )}
 
-              {/* ============================================================== */}
-              {/* VIEW 4: PROFILE & SECURITY                                     */}
-              {/* ============================================================== */}
-              {activeNav === 'profile' && (
-                <ClientProfileSettings
-                  clientProfile={clientProfile}
-                  currentUser={currentUser}
-                  getAccountAvatar={getAccountAvatar}
-                  defaultAvatar={DEFAULT_CARTOON_AVATAR}
-                  profileSubTab={profileSubTab}
-                  setProfileSubTab={setProfileSubTab}
-                  profileForm={profileForm}
-                  setProfileForm={setProfileForm}
-                  handleUpdateProfile={handleUpdateProfile}
-                  isSavingProfile={isSavingProfile}
-                  hasProfileChanges={hasProfileChanges}
-                  handleChangePassword={handleChangePassword}
-                  passwordForm={passwordForm}
-                  setPasswordForm={setPasswordForm}
-                  showCurrentPassword={showCurrentPassword}
-                  setShowCurrentPassword={setShowCurrentPassword}
-                  showNewPassword={showNewPassword}
-                  setShowNewPassword={setShowNewPassword}
-                  showConfirmPassword={showConfirmPassword}
-                  setShowConfirmPassword={setShowConfirmPassword}
-                  isChangingPassword={isChangingPassword}
-                  hasPasswordChanges={hasPasswordChanges}
-                />
-              )}
+                {/* ============================================================== */}
+                {/* VIEW 4: PROFILE & SECURITY                                     */}
+                {/* ============================================================== */}
+                {activeNav === 'profile' && (
+                  <ClientProfileSettings
+                    clientProfile={clientProfile}
+                    currentUser={currentUser}
+                    getAccountAvatar={getAccountAvatar}
+                    defaultAvatar={DEFAULT_CARTOON_AVATAR}
+                    profileSubTab={profileSubTab}
+                    setProfileSubTab={setProfileSubTab}
+                    profileForm={profileForm}
+                    setProfileForm={setProfileForm}
+                    handleUpdateProfile={handleUpdateProfile}
+                    isSavingProfile={isSavingProfile}
+                    hasProfileChanges={hasProfileChanges}
+                    handleChangePassword={handleChangePassword}
+                    passwordForm={passwordForm}
+                    setPasswordForm={setPasswordForm}
+                    showCurrentPassword={showCurrentPassword}
+                    setShowCurrentPassword={setShowCurrentPassword}
+                    showNewPassword={showNewPassword}
+                    setShowNewPassword={setShowNewPassword}
+                    showConfirmPassword={showConfirmPassword}
+                    setShowConfirmPassword={setShowConfirmPassword}
+                    isChangingPassword={isChangingPassword}
+                    hasPasswordChanges={hasPasswordChanges}
+                  />
+                )}
 
-              {/* ============================================================== */}
-              {/* VIEW 5: SUPPORT & FREQUENTLY ASKED QUESTIONS                   */}
-              {/* ============================================================== */}
-              {activeNav === 'faq' && (
-                <ClientFAQ />
-              )}
-            </>
+                {/* ============================================================== */}
+                {/* VIEW 5: SUPPORT & FREQUENTLY ASKED QUESTIONS                   */}
+                {/* ============================================================== */}
+                {activeNav === 'faq' && (
+                  <ClientFAQ />
+                )}
+              </motion.div>
+            </AnimatePresence>
           )}
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar with Motion Tabs (Screens <= 768px only) */}
+      <nav className="cp-mobile-bottom-nav">
+        {[
+          { id: 'home', label: 'Home', icon: Home },
+          { id: 'current', label: 'Projects', icon: Film, badge: runningOrders.length },
+          { id: 'history', label: 'History', icon: History },
+          { id: 'faq', label: 'Support', icon: Headphones },
+          { id: 'profile', label: 'Profile', icon: User },
+        ].map((item) => {
+          const Icon = item.icon;
+          const isActive = activeNav === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`cp-mobile-nav-item ${isActive ? 'active' : ''}`}
+              onClick={() => handleNavClick(item.id)}
+            >
+              {isActive && (
+                <motion.div
+                  layoutId="mobileBottomNavActivePill"
+                  className="cp-mobile-nav-active-pill"
+                  transition={{ type: 'spring', stiffness: 500, damping: 34 }}
+                />
+              )}
+              <Icon className="cp-mobile-nav-icon" />
+              <span>{item.label}</span>
+              {item.badge > 0 && (
+                <span className="cp-mobile-nav-badge">{item.badge}</span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }

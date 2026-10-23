@@ -109,6 +109,7 @@ function VideoCardComponent({
 
   // Subtle Mouse Parallax (Active Card only, mutating DOM transform directly to avoid 60-120fps React re-renders)
   const handleMouseMove = useCallback((e) => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) return;
     if (!isActive || isReducedMotion || !cardRef.current || !innerRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;

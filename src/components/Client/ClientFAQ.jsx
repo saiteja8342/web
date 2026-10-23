@@ -1,5 +1,6 @@
 import React from 'react';
 import { MessageSquare, Mail, Send } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 // Parses markdown-style inline backticks (`tag`) into sleek badge tags
 export const renderFaqTextWithTags = (text) => {
@@ -119,7 +120,13 @@ export default function ClientFAQ({ faqs = CLIENT_FAQS }) {
 
       <div className="cp-faq-list">
         {faqs.map((faq, idx) => (
-          <div key={idx} className="cp-faq-card">
+          <motion.div
+            key={idx}
+            className="cp-faq-card"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, delay: Math.min(idx * 0.03, 0.25) }}
+          >
             <h3 className="cp-faq-card-title">{faq.q}</h3>
             {faq.a && (
               <p className="cp-faq-card-body">
@@ -154,7 +161,7 @@ export default function ClientFAQ({ faqs = CLIENT_FAQS }) {
                 ))}
               </div>
             )}
-          </div>
+          </motion.div>
         ))}
       </div>
 

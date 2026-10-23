@@ -8,6 +8,7 @@ import {
   Clock,
   Download
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function ClientProjectHistory({
   historyProjects = [],
@@ -49,8 +50,9 @@ export default function ClientProjectHistory({
             </div>
 
             {historyProjects.map((proj) => (
-              <div
+              <motion.div
                 key={proj.id}
+                whileTap={{ scale: 0.98 }}
                 className={`cp-history-item ${selectedProject?.id === proj.id ? 'selected' : ''}`}
                 onClick={() => setSelectedHistoryId(proj.id)}
               >
@@ -70,13 +72,20 @@ export default function ClientProjectHistory({
                   </div>
                 </div>
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-              </div>
+              </motion.div>
             ))}
           </div>
 
           {/* Right: Selected Project Status & Notes */}
           {selectedProject && (
-            <div className="cp-card" style={{ gap: '22px' }}>
+            <motion.div
+              key={selectedProject.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+              className="cp-card"
+              style={{ gap: '22px' }}
+            >
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
                   <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Delivery Status</h3>
@@ -100,7 +109,7 @@ export default function ClientProjectHistory({
               </div>
 
               {/* 4 Metadata Boxes */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
                 <div style={{ background: '#101015', padding: '14px', borderRadius: '8px', border: '1px solid var(--cp-border)' }}>
                   <span style={{ fontSize: '0.68rem', color: 'var(--cp-text-secondary)', display: 'block' }}>Project Type</span>
                   <strong style={{ fontSize: '0.88rem', color: '#FFFFFF' }}>{selectedProject.type}</strong>
@@ -290,7 +299,7 @@ export default function ClientProjectHistory({
                   </button>
                 ) : null}
               </div>
-            </div>
+            </motion.div>
           )}
         </div>
       )}

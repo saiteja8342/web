@@ -1866,6 +1866,113 @@ section {
   transform: scale(1.06);
 }
 
+/* ==============================================================================
+   RESPONSIVE MOBILE TESTIMONIAL SNAP CAROUSEL (Reference Design Match)
+   ============================================================================== */
+.trust-desktop-only {
+  display: block;
+  width: 100%;
+}
+
+.trust-mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .social-proof-exact-style {
+    padding: 60px 0 50px 0 !important;
+  }
+
+  .testimonials-site-header {
+    margin: 0 auto 28px auto !important;
+    padding: 0 16px;
+  }
+
+  .testimonials-site-subtitle {
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+
+  .trust-desktop-only {
+    display: none !important;
+  }
+
+  .trust-mobile-only {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    margin-top: 14px;
+  }
+
+  .trust-mobile-carousel {
+    display: flex;
+    gap: 16px;
+    width: 100%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 24px 20px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    align-items: stretch;
+  }
+
+  .trust-mobile-carousel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .trust-mobile-card {
+    scroll-snap-align: center;
+    flex: 0 0 calc(100vw - 64px);
+    max-width: 350px;
+    background-color: #0C0C10;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 28px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 270px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+
+  .trust-mobile-card:active {
+    transform: scale(0.99);
+  }
+
+  .trust-editorial-stars {
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.4));
+  }
+
+  .trust-mobile-dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .trust-mobile-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.25);
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .trust-mobile-dot.active {
+    width: 18px;
+    background: #FFFFFF;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+  }
+}
+
 /* Contact Section Card Layout */
 .contact-section {
   border-top: 1px solid var(--border);
@@ -4321,6 +4428,30 @@ textarea.contact-input-custom {
   .video-controls-bar {
     bottom: 16px;
     right: 16px;
+  }
+
+  /* GPU & Battery Optimization on Mobile */
+  .carousel-ambient-spotlight {
+    animation: none !important;
+    filter: blur(16px) !important;
+    opacity: 0.25 !important;
+    width: 280px !important;
+    height: 280px !important;
+  }
+  .carousel-card-slot {
+    will-change: transform, opacity !important;
+    transform-style: flat !important;
+    filter: none !important;
+  }
+  .video-card-container {
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6) !important;
+  }
+  .video-card-container.is-vertical-reel.card-active {
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.75) !important;
+  }
+  .video-card-inner {
+    transform: none !important;
+    transition: none !important;
   }
 }
 

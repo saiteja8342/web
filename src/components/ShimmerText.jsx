@@ -28,6 +28,15 @@ export default function ShimmerText({ text, children, className = "", as = "h2" 
     }
   }
 
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    const check = () => setIsMobile(typeof window !== 'undefined' && window.innerWidth <= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   const HeadingTag = as === 'h1' ? motion.h1 : motion.h2;
 
   return (
@@ -39,11 +48,11 @@ export default function ShimmerText({ text, children, className = "", as = "h2" 
         transition={{ duration: 0.5 }}
       >
         <HeadingTag
-          animate={{
+          animate={isMobile ? undefined : {
             backgroundPosition: ["200% center", "-200% center"],
           }}
           className="shimmer-text"
-          transition={{
+          transition={isMobile ? undefined : {
             duration: 2.5,
             ease: "linear",
             repeat: Infinity,
