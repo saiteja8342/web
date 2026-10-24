@@ -207,6 +207,7 @@ export async function getClientActiveOrder(clientId) {
     `)
     .eq('client_id', clientId)
     .neq('status', 'delivered')
+    .neq('status', 'cancelled')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();

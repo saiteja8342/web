@@ -16,7 +16,8 @@ import {
   Lock,
   X,
   MessageSquare,
-  ArrowUpRight
+  ArrowUpRight,
+  Ban
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GoogleDriveVideoPlayer from '../GoogleDriveVideoPlayer';
@@ -75,6 +76,16 @@ const isUnderReviewOrAbove = (status) => {
 
 const getMilestoneState = (status) => {
   const s = String(status || '').toLowerCase().trim();
+  if (s.includes('cancelled') || s.includes('rejected')) {
+    return {
+      activeStageIdx: -1,
+      pct: 0,
+      label: 'Cancelled',
+      pillBg: '#EF4444',
+      pillColor: '#FFFFFF',
+      isCancelled: true,
+    };
+  }
   if (s.includes('delivered') || s.includes('completed')) {
     return {
       activeStageIdx: 3,
@@ -262,30 +273,32 @@ export default function ClientActiveProjects({
     return null;
   })();
 
+  const isOrderCancelled = currentOrder?.status === 'cancelled' || milestoneInfo.isCancelled;
+
   const steps = [
     {
       title: 'Order Confirmed',
       time: step1Date,
-      isCompleted: milestoneInfo.activeStageIdx >= 0,
-      isActive: milestoneInfo.activeStageIdx === 0,
+      isCompleted: !isOrderCancelled && milestoneInfo.activeStageIdx >= 0,
+      isActive: !isOrderCancelled && milestoneInfo.activeStageIdx === 0,
     },
     {
       title: 'Editing in Progress',
       time: step2Date,
-      isCompleted: milestoneInfo.activeStageIdx >= 1,
-      isActive: milestoneInfo.activeStageIdx === 1,
+      isCompleted: !isOrderCancelled && milestoneInfo.activeStageIdx >= 1,
+      isActive: !isOrderCancelled && milestoneInfo.activeStageIdx === 1,
     },
     {
       title: 'Ready for Review',
       time: step3Date,
-      isCompleted: milestoneInfo.activeStageIdx >= 2,
-      isActive: milestoneInfo.activeStageIdx === 2,
+      isCompleted: !isOrderCancelled && milestoneInfo.activeStageIdx >= 2,
+      isActive: !isOrderCancelled && milestoneInfo.activeStageIdx === 2,
     },
     {
       title: 'Completed',
       time: step4Date,
-      isCompleted: milestoneInfo.activeStageIdx >= 3,
-      isActive: milestoneInfo.activeStageIdx === 3,
+      isCompleted: !isOrderCancelled && milestoneInfo.activeStageIdx >= 3,
+      isActive: !isOrderCancelled && milestoneInfo.activeStageIdx === 3,
     },
   ];
 
@@ -475,7 +488,7 @@ export default function ClientActiveProjects({
         {/* Due Date & Status Pill Row */}
         <div className="cp-mob-detail-meta-row">
           <div className="cp-mob-detail-due">
-            Due: {dueDateText}
+            {isOrderCancelled ? 'Status: Cancelled' : `Due: ${dueDateText}`}
           </div>
 
           <span
@@ -489,48 +502,77 @@ export default function ClientActiveProjects({
           </span>
         </div>
 
-        {/* Progress Bar Row */}
-        <div className="cp-mob-detail-progress-row">
-          <div className="cp-mob-detail-progress-track">
-            <div
-              className="cp-mob-detail-progress-fill"
-              style={{
-                width: `${milestoneInfo.pct}%`,
-                background: milestoneInfo.pillBg,
-              }}
-            />
-          </div>
-          <span className="cp-mob-detail-progress-pct">{milestoneInfo.pct}%</span>
-        </div>
-
-        {/* Vertical Timeline Stepper (4 Steps Matching Reference Image) */}
-        <div className="cp-mob-timeline">
-          {steps.map((step, idx) => (
-            <div key={idx} className="cp-mob-timeline-item">
-              <div className="cp-mob-timeline-node-col">
-                <div className={`cp-mob-timeline-node ${step.isCompleted ? 'completed' : 'pending'}`}>
-                  {step.isCompleted ? (
-                    <Check className="h-3.5 w-3.5 stroke-[3]" />
-                  ) : (
-                    <span className="cp-mob-timeline-dot" />
-                  )}
-                </div>
-                {idx < steps.length - 1 && (
-                  <div className={`cp-mob-timeline-line ${idx < milestoneInfo.activeStageIdx ? 'active' : 'inactive'}`} />
-                )}
+        {/* Cancelled Alert Banner for Mobile View */}
+        {isOrderCancelled ? (
+          <div className="cp-stepper-cancelled-card" style={{ marginTop: '16px', marginBottom: '20px' }}>
+            <div className="cp-stepper-cancelled-glow" />
+            <div className="cp-stepper-cancelled-inner">
+              <div className="cp-stepper-cancelled-icon-wrap">
+                <Ban className="h-6 w-6 text-red-400" />
               </div>
-
-              <div className="cp-mob-timeline-content">
-                <h3 className={`cp-mob-timeline-title ${step.isCompleted || step.isActive ? 'active' : 'pending'}`}>
-                  {step.title}
-                </h3>
-                {step.time && (
-                  <div className="cp-mob-timeline-time">{step.time}</div>
-                )}
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="cp-stepper-cancelled-badge">ORDER CANCELLED</span>
+                </div>
+                <div style={{ fontSize: '0.74rem', color: '#94A3B8', marginTop: '4px' }}>
+                  Production Halted by Studio
+                </div>
+                <p className="cp-stepper-cancelled-reason">
+                  <strong>Reason: </strong>
+                  {currentOrder?.cancellation_reason || 'No cancellation description provided.'}
+                </p>
+                <div style={{ marginTop: '10px', fontSize: '0.74rem', color: '#94A3B8', lineHeight: 1.4 }}>
+                  If you have questions regarding this cancellation, tap below to contact your Studio Account Director.
+                </div>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <>
+            {/* Progress Bar Row */}
+            <div className="cp-mob-detail-progress-row">
+              <div className="cp-mob-detail-progress-track">
+                <div
+                  className="cp-mob-detail-progress-fill"
+                  style={{
+                    width: `${milestoneInfo.pct}%`,
+                    background: milestoneInfo.pillBg,
+                  }}
+                />
+              </div>
+              <span className="cp-mob-detail-progress-pct">{milestoneInfo.pct}%</span>
+            </div>
+
+            {/* Vertical Timeline Stepper (4 Steps Matching Reference Image) */}
+            <div className="cp-mob-timeline">
+              {steps.map((step, idx) => (
+                <div key={idx} className="cp-mob-timeline-item">
+                  <div className="cp-mob-timeline-node-col">
+                    <div className={`cp-mob-timeline-node ${step.isCompleted ? 'completed' : 'pending'}`}>
+                      {step.isCompleted ? (
+                        <Check className="h-3.5 w-3.5 stroke-[3]" />
+                      ) : (
+                        <span className="cp-mob-timeline-dot" />
+                      )}
+                    </div>
+                    {idx < steps.length - 1 && (
+                      <div className={`cp-mob-timeline-line ${idx < milestoneInfo.activeStageIdx ? 'active' : 'inactive'}`} />
+                    )}
+                  </div>
+
+                  <div className="cp-mob-timeline-content">
+                    <h3 className={`cp-mob-timeline-title ${step.isCompleted || step.isActive ? 'active' : 'pending'}`}>
+                      {step.title}
+                    </h3>
+                    {step.time && (
+                      <div className="cp-mob-timeline-time">{step.time}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {/* Bottom Button: Chat with Team */}
         <button
@@ -580,6 +622,7 @@ export default function ClientActiveProjects({
             }}>
               {runningOrders.map((ord) => {
                 const isSelected = ord.id === currentOrder?.id;
+                const isItemCancelled = ord.status === 'cancelled';
                 const itemSm = STATUS_MAP[ord.status] || STATUS_MAP.received;
                 const itemCode = formatOrderCode(ord);
 
@@ -590,14 +633,20 @@ export default function ClientActiveProjects({
                     style={{
                       padding: '12px 14px',
                       borderRadius: '8px',
-                      background: isSelected ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.03)',
-                      border: isSelected ? '1.5px solid #FFFFFF' : '1px solid rgba(255, 255, 255, 0.07)',
+                      background: isSelected 
+                        ? (isItemCancelled ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 255, 255, 0.08)') 
+                        : (isItemCancelled ? 'rgba(239, 68, 68, 0.04)' : 'rgba(255, 255, 255, 0.03)'),
+                      border: isSelected 
+                        ? (isItemCancelled ? '1.5px solid #EF4444' : '1.5px solid #FFFFFF') 
+                        : (isItemCancelled ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(255, 255, 255, 0.07)'),
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '6px',
-                      boxShadow: isSelected ? '0 0 16px rgba(255, 255, 255, 0.15)' : 'none'
+                      boxShadow: isSelected 
+                        ? (isItemCancelled ? '0 0 16px rgba(239, 68, 68, 0.25)' : '0 0 16px rgba(255, 255, 255, 0.15)') 
+                        : 'none'
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -842,13 +891,19 @@ export default function ClientActiveProjects({
               </div>
 
               {/* TIMESTAMPED REVISION COMPOSER */}
-              <div className="mt-2 pt-2 border-t border-white/5">
-                <TimestampedRevisionComposer
-                  onSubmitNote={onSendRevisionNote}
-                  isSubmitting={isSubmittingNote}
-                  placeholder="Describe changes or tag video time (e.g. 01:24 cut background music)..."
-                />
-              </div>
+              {isOrderCancelled ? (
+                <div style={{ marginTop: '10px', padding: '14px 16px', background: 'rgba(239, 68, 68, 0.06)', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#F87171', fontSize: '0.78rem', textAlign: 'center', lineHeight: 1.4 }}>
+                  This project has been cancelled. Revisions and timeline changes are closed.
+                </div>
+              ) : (
+                <div className="mt-2 pt-2 border-t border-white/5">
+                  <TimestampedRevisionComposer
+                    onSubmitNote={onSendRevisionNote}
+                    isSubmitting={isSubmittingNote}
+                    placeholder="Describe changes or tag video time (e.g. 01:24 cut background music)..."
+                  />
+                </div>
+              )}
             </div>
           </div>
         )}

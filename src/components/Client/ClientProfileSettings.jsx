@@ -5,7 +5,8 @@ import {
   EyeOff,
   Lock,
   ShieldCheck,
-  Smartphone
+  Smartphone,
+  LogOut
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { isGoogleUser } from '../../lib/auth/authUtils';
@@ -14,6 +15,7 @@ import InstallPwaButton from '../InstallPwaButton';
 export default function ClientProfileSettings({
   clientProfile,
   currentUser,
+  handleLogout,
   getAccountAvatar,
   defaultAvatar,
   profileSubTab,
@@ -114,6 +116,35 @@ export default function ClientProfileSettings({
               <Smartphone className="h-4 w-4 relative z-10" />
               <span className="relative z-10">Mobile & Web App</span>
             </button>
+
+            {handleLogout && (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <button
+                  type="button"
+                  className="cp-profile-logout-btn"
+                  onClick={handleLogout}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.22)',
+                    color: '#F87171',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                  title="Sign out of your client portal account"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -232,6 +263,60 @@ export default function ClientProfileSettings({
                 >
                   {isSavingProfile ? 'Saving...' : 'Save Changes'}
                 </button>
+
+                {/* Account Session & Sign Out Section */}
+                {handleLogout && (
+                  <div
+                    style={{
+                      marginTop: '28px',
+                      padding: '18px 20px',
+                      borderRadius: '12px',
+                      background: 'rgba(239, 68, 68, 0.04)',
+                      border: '1px solid rgba(239, 68, 68, 0.22)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <LogOut className="h-4 w-4 text-red-400" />
+                          <h3 style={{ fontSize: '0.94rem', fontWeight: 700, color: '#FFFFFF', margin: 0 }}>
+                            Account Sign Out
+                          </h3>
+                        </div>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--cp-text-secondary)', margin: '4px 0 0 0', lineHeight: 1.4 }}>
+                          Signed in as <strong style={{ color: '#FFFFFF' }}>{clientProfile?.email || currentUser?.email || 'Active Client'}</strong>. You will need to log back in to access your projects.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '9px 18px',
+                          borderRadius: '8px',
+                          background: '#EF4444',
+                          color: '#FFFFFF',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          border: 'none',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 14px rgba(239, 68, 68, 0.3)',
+                          transition: 'all 0.15s ease',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Sign Out</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </form>
             ) : (
               /* TAB 2: Change Password */

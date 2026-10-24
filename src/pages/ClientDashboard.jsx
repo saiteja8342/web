@@ -11,7 +11,8 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronLeft,
-  Headphones
+  Headphones,
+  Bell
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -20,7 +21,7 @@ import { checkRouteAuth } from '../lib/middleware/authGuard';
 import { isGoogleUser } from '../lib/auth/authUtils';
 import { getClientOrders, claimOfflineOrdersForClient, formatOrderCode, STATUS_MAP, VIDEO_TYPE_MAP, parseCancellationReason } from '../lib/db/orders';
 import { getProfile, updateProfile } from '../lib/db/profiles';
-import { getUserNotifications, sendNotification, notifyAdmins } from '../lib/db/notifications';
+import { getUserNotifications, markNotificationAsRead, markAllNotificationsAsRead, sendNotification, notifyAdmins } from '../lib/db/notifications';
 import { submitRevisionRequest, getOrderRevisions } from '../lib/db/revisions';
 import { submitOrderRating, stripTestimonialTag, parseIsTestimonial } from '../lib/db/ratings';
 import { subscribeToOrders, subscribeToUserNotifications, unsubscribeChannel } from '../lib/supabase/realtime';
@@ -28,6 +29,7 @@ import ClientOverview from '../components/Client/ClientOverview';
 import ClientActiveProjects from '../components/Client/ClientActiveProjects';
 import ClientProjectHistory from '../components/Client/ClientProjectHistory';
 import ClientProfileSettings from '../components/Client/ClientProfileSettings';
+import ClientNotificationDrawer from '../components/Client/ClientNotificationDrawer';
 import ClientFAQ from '../components/Client/ClientFAQ';
 import './client.css';
 
@@ -128,8 +130,15 @@ export default function ClientDashboard() {
   }, []);
 
   const [_notifications, setNotifications] = useState([]);
+  const [isNotifDrawerOpen, setIsNotifDrawerOpen] = useState(false);
+  const unreadNotifCount = _notifications.filter(n => !n.is_read).length;
   const [editorNotes, setEditorNotes] = useState([]);
   const [statusHistory, setStatusHistory] = useState([]);
+
+  const currentUserRef = useRef(null);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
 
   // Rating and Testimonial state for Project History
   const [ratingsMap, setRatingsMap] = useState({});
@@ -419,7 +428,7 @@ export default function ClientDashboard() {
   const fetchClientData = useCallback(async (userId, optionalEmail = null) => {
     if (!userId) return;
     try {
-      const email = optionalEmail || currentUser?.email || null;
+      const email = optionalEmail || currentUserRef.current?.email || null;
 
       // Auto-claim any past offline orders matching this email in the background
       if (email) {
@@ -439,6 +448,11 @@ export default function ClientDashboard() {
       }
 
       if (!ordersRes.error && ordersRes.data) {
+        let localCancelledMap = new Map();
+        try {
+          localCancelledMap = new Map(JSON.parse(localStorage.getItem('mne_cancelled_order_map') || '[]'));
+        } catch {}
+
         const transformedOrders = ordersRes.data.map(ord => {
           let effStatus = (ord.status || 'received').toLowerCase();
           let cancelReason = ord.cancellation_reason || '';
@@ -446,6 +460,12 @@ export default function ClientDashboard() {
           if (ord.admin_notes && (ord.admin_notes.includes('[ORDER_CANCELLED:true]') || ord.admin_notes.includes('[CANCELLATION_REASON:'))) {
             effStatus = 'cancelled';
             cancelReason = cancelReason || parseCancellationReason(ord.admin_notes);
+          }
+
+          if (localCancelledMap.has(ord.id)) {
+            const loc = localCancelledMap.get(ord.id);
+            effStatus = 'cancelled';
+            cancelReason = cancelReason || loc?.reason || '';
           }
 
           return {
@@ -556,18 +576,29 @@ export default function ClientDashboard() {
   useEffect(() => {
     if (!currentUser) return;
     const userId = currentUser.id;
+    const userEmail = currentUser.email;
 
-    // Listen to orders table changes and verify client ID in callback.
-    // This bypasses the PostgreSQL replica identity filter drop issue on UPDATE events!
+    // Listen to orders table changes.
+    // If newRow.client_id is undefined because replica identity is not FULL on partial updates,
+    // we still trigger fetchClientData so the client's view stays 100% in sync with the database.
     const ordersChannel = subscribeToOrders({
       onInsert: (newRow) => {
-        if (!newRow || newRow.client_id === userId) fetchClientData(userId);
+        const email = userEmail?.toLowerCase();
+        if (!newRow || !newRow.client_id || newRow.client_id === userId || (email && newRow.client_email?.toLowerCase() === email)) {
+          fetchClientData(userId, userEmail);
+        }
       },
       onUpdate: (newRow) => {
-        if (!newRow || newRow.client_id === userId) fetchClientData(userId);
+        const email = userEmail?.toLowerCase();
+        if (!newRow || !newRow.client_id || newRow.client_id === userId || (email && newRow.client_email?.toLowerCase() === email)) {
+          fetchClientData(userId, userEmail);
+        }
       },
       onDelete: (oldRow) => {
-        if (!oldRow || oldRow.client_id === userId) fetchClientData(userId);
+        const email = userEmail?.toLowerCase();
+        if (!oldRow || !oldRow.client_id || oldRow.client_id === userId || (email && oldRow.client_email?.toLowerCase() === email)) {
+          fetchClientData(userId, userEmail);
+        }
       },
     });
 
@@ -587,14 +618,18 @@ export default function ClientDashboard() {
   useEffect(() => {
     if (!currentUser?.id) return;
     const userId = currentUser.id;
+    const userEmail = currentUser.email;
 
     // Cross-tab broadcast listener (updates across tabs in <10ms)
     let bc = null;
     try {
       if (typeof BroadcastChannel !== 'undefined') {
         bc = new BroadcastChannel('mne-order-updates');
-        bc.onmessage = () => {
-          fetchClientData(userId);
+        bc.onmessage = (ev) => {
+          if (ev?.data?.type === 'ORDER_CANCELLED' && ev?.data?.orderId) {
+            setOrders(prev => prev.map(o => o.id === ev.data.orderId ? { ...o, status: 'cancelled' } : o));
+          }
+          fetchClientData(userId, userEmail);
         };
       }
     } catch (e) {
@@ -604,7 +639,7 @@ export default function ClientDashboard() {
     // Storage event listener for instant multi-tab sync
     const handleStorageChange = (e) => {
       if (e.key === 'mne_client_visible_orders' || e.key === 'mne_cancelled_order_map') {
-        fetchClientData(userId);
+        fetchClientData(userId, userEmail);
       }
     };
     window.addEventListener('storage', handleStorageChange);
@@ -616,20 +651,20 @@ export default function ClientDashboard() {
         const now = Date.now();
         if (now - lastSyncTime > 2000) {
           lastSyncTime = now;
-          fetchClientData(userId);
+          fetchClientData(userId, userEmail);
         }
       }
     };
     window.addEventListener('focus', handleVisibilitySync);
     document.addEventListener('visibilitychange', handleVisibilitySync);
 
-    // Fallback sync every 60 seconds when tab is active (relying on Realtime WebSockets for instant updates)
+    // Fallback sync every 60 seconds when tab is active
     const pollInterval = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
         const now = Date.now();
         if (now - lastSyncTime > 45000) {
           lastSyncTime = now;
-          fetchClientData(userId);
+          fetchClientData(userId, userEmail);
         }
       }
     }, 60000);
@@ -641,7 +676,7 @@ export default function ClientDashboard() {
       document.removeEventListener('visibilitychange', handleVisibilitySync);
       clearInterval(pollInterval);
     };
-  }, [currentUser, fetchClientData]);
+  }, [currentUser?.id, currentUser?.email, fetchClientData]);
 
   const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
 
@@ -880,10 +915,25 @@ export default function ClientDashboard() {
     };
   };
 
-  // Completed history projects and Running active projects
+  // Completed history projects, Active running projects, and Cancelled projects
   const completedOrders = orders.filter(o => o.status === 'delivered');
+  const activeRunningOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled');
+  const cancelledOrders = orders.filter(o => o.status === 'cancelled');
   const runningOrders = orders.filter(o => o.status !== 'delivered');
-  const activeOrder = (selectedActiveOrderId && runningOrders.find(o => o.id === selectedActiveOrderId)) || runningOrders[0] || null;
+  const activeOrder = (selectedActiveOrderId && runningOrders.find(o => o.id === selectedActiveOrderId)) || activeRunningOrders[0] || cancelledOrders[0] || runningOrders[0] || null;
+
+  // Notification management handlers
+  const handleMarkAllNotificationsRead = async () => {
+    if (!currentUser?.id) return;
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    await markAllNotificationsAsRead(currentUser.id);
+    showToast('All notifications marked as read.');
+  };
+
+  const handleMarkNotificationRead = async (notifId) => {
+    setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n));
+    await markNotificationAsRead(notifId);
+  };
 
   // Fetch status history and revisions whenever the selected activeOrder changes
   useEffect(() => {
@@ -1307,6 +1357,25 @@ export default function ClientDashboard() {
             </a>
 
 
+            {/* Desktop Topbar Notification Bell Button */}
+            <button
+              type="button"
+              className="cp-topbar-bell-btn"
+              onClick={() => {
+                setIsNotifDrawerOpen(true);
+                setProfileMenuOpen(false);
+              }}
+              title="Notifications"
+              aria-label="View notifications"
+            >
+              <Bell className="h-4 w-4" />
+              {unreadNotifCount > 0 && (
+                <span className="cp-topbar-bell-badge">
+                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </span>
+              )}
+            </button>
+
             {/* Profile Shortcuts Dropdown */}
             <div className="cp-user-menu-wrapper" ref={profileMenuRef}>
               <button
@@ -1328,7 +1397,7 @@ export default function ClientDashboard() {
                 }}
                 onClick={() => {
                   setProfileMenuOpen(!profileMenuOpen);
-                  setNotifOpen(false);
+                  setIsNotifDrawerOpen(false);
                 }}
                 aria-label="User profile menu"
               >
@@ -1533,6 +1602,7 @@ export default function ClientDashboard() {
                     getStageDate={getStageDate}
                     accountAvatar={getAccountAvatar()}
                     notifications={_notifications}
+                    onOpenNotifications={() => setIsNotifDrawerOpen(true)}
                     showToast={showToast}
                   />
                 )}
@@ -1591,6 +1661,7 @@ export default function ClientDashboard() {
                   <ClientProfileSettings
                     clientProfile={clientProfile}
                     currentUser={currentUser}
+                    handleLogout={handleLogout}
                     getAccountAvatar={getAccountAvatar}
                     defaultAvatar={DEFAULT_CARTOON_AVATAR}
                     profileSubTab={profileSubTab}
@@ -1660,6 +1731,20 @@ export default function ClientDashboard() {
           );
         })}
       </nav>
+
+      {/* Client Notification Slide-over Drawer */}
+      <ClientNotificationDrawer
+        isOpen={isNotifDrawerOpen}
+        onClose={() => setIsNotifDrawerOpen(false)}
+        notifications={_notifications}
+        onMarkAllRead={handleMarkAllNotificationsRead}
+        onMarkRead={handleMarkNotificationRead}
+        onSelectOrder={(orderId) => {
+          setSelectedActiveOrderId(orderId);
+          handleNavClick('current');
+          setIsNotifDrawerOpen(false);
+        }}
+      />
     </div>
   );
 }

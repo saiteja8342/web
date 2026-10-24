@@ -165,6 +165,13 @@ export default function PrivacyPolicyPage() {
               We use <strong>Google Analytics</strong> to collect anonymous, aggregated data about website visitors — such as page views, session duration, and general traffic counts. This data does not personally identify any individual visitor.
             </p>
           </div>
+
+          <div className="privacy-subsection">
+            <h3 className="privacy-subheading">3.5 Technical, Device & Log Information</h3>
+            <p>
+              When you browse our website or interact with our client dashboard, our web servers and security infrastructure automatically collect standard technical log data. This includes your Internet Protocol (IP) address, browser type and version, device and operating system characteristics, referral URLs, pages viewed, and access timestamps. This technical information is used exclusively to maintain stable network routing, diagnose system errors, analyze performance, and defend against security incidents or malicious attacks.
+            </p>
+          </div>
         </>
       )
     },
@@ -228,6 +235,14 @@ export default function PrivacyPolicyPage() {
               <div className="privacy-feature-title">Website Improvement</div>
               <div className="privacy-feature-desc">Google Analytics data is used to analyze aggregate visitor metrics and continually optimize our platform performance and UX.</div>
             </div>
+            <div className="privacy-feature-item">
+              <div className="privacy-feature-title">Platform Security & Fraud Prevention</div>
+              <div className="privacy-feature-desc">We monitor technical logs and system interactions to prevent unauthorized account access, detect abusive behaviors, defend against cyber threats, and safeguard our platform infrastructure.</div>
+            </div>
+            <div className="privacy-feature-item">
+              <div className="privacy-feature-title">Transactional & Service Updates</div>
+              <div className="privacy-feature-desc">We send strictly service-related communications (such as sign-up verification, project status updates, and order confirmations). We do not send unsolicited marketing spam; any optional service announcements provide an immediate opt-out mechanism.</div>
+            </div>
             <div className="privacy-feature-item" style={{ gridColumn: '1 / -1' }}>
               <div className="privacy-feature-title">AI Video Generation</div>
               <div className="privacy-feature-desc">We use the latest AI video generation models available in the market to create AI-generated video content as per client project requirements. Client project briefs and requirements may be used as input for these AI tools to fulfill the requested service.</div>
@@ -286,6 +301,13 @@ export default function PrivacyPolicyPage() {
               There is <strong>no direct communication channel</strong> between clients and editors within the platform. All project coordination is managed internally by our production lead team.
             </div>
           </div>
+
+          <div className="privacy-highlight-box" style={{ marginTop: '16px' }}>
+            <Lock size={18} className="privacy-alert-icon" />
+            <span>
+              <strong>Encryption & Transmission Disclaimer:</strong> All interactions across our web application and client portal are encrypted in transit using industry-standard <strong>SSL/TLS (HTTPS)</strong> protocols. While we employ commercially reasonable administrative, technical, and physical precautions to safeguard your personal data, no method of transmission over the Internet or method of electronic storage is 100% secure. Therefore, while we strive to protect your data with modern enterprise standards, we cannot guarantee absolute, invulnerable security.
+            </span>
+          </div>
         </>
       )
     },
@@ -296,9 +318,12 @@ export default function PrivacyPolicyPage() {
       content: (
         <>
           <ul className="privacy-list">
+            <li>
+              <strong>Essential Session Storage & Authentication Tokens:</strong> When you log into the MotionNodeEdits client dashboard, we use secure browser <code>localStorage</code> and session tokens (managed via Supabase authentication) strictly to keep you securely signed in between page views. These tokens are essential for application functionality and are never used to track your activities across external third-party sites.
+            </li>
             <li>Our website uses <strong>Google Analytics</strong>, which may use cookies to collect anonymous traffic and usage data.</li>
-            <li>These cookies do not collect personally identifiable information.</li>
-            <li>You may disable cookies in your browser settings at any time. However, this may affect your user experience on the website.</li>
+            <li>These analytics cookies do not collect personally identifiable information.</li>
+            <li>You may disable cookies in your browser settings at any time. However, disabling essential web storage will prevent you from logging into or maintaining an active session in the client portal.</li>
             <li>We do <strong>not</strong> use any other tracking tools such as Meta Pixel, Hotjar, session recorders, or third-party advertising cookies.</li>
           </ul>
         </>
@@ -311,9 +336,12 @@ export default function PrivacyPolicyPage() {
       content: (
         <>
           <p>
-            <strong>We do not sell, rent, or trade your personal data to any third parties.</strong> We may share limited information only in the following clearly defined cases:
+            <strong>We do not sell, rent, or trade your personal data to any third parties.</strong> We share limited information only with vetted, trusted processors in the following strictly defined cases:
           </p>
           <ul className="privacy-list">
+            <li>
+              <strong>Cloud Infrastructure & Database Hosting</strong> — Authenticated account profiles, project records, and status updates are stored securely on enterprise cloud database infrastructure (Supabase / AWS cloud hosting) configured with encryption at rest and in transit. These cloud providers act strictly as data processors under contractual confidentiality.
+            </li>
             <li>
               <strong>Google Analytics</strong> — Anonymous, aggregated website usage data is shared with Google for traffic and performance analytics.
             </li>
@@ -324,7 +352,10 @@ export default function PrivacyPolicyPage() {
               <strong>AI Video Generation Tools</strong> — Client project requirements and briefs may be processed by third-party AI video generation models to create the requested content. We select the latest and most appropriate AI models based on project requirements.
             </li>
             <li>
-              <strong>Legal Compliance</strong> — If required by Indian law, a court of law, or a competent legal authority, we may disclose information as strictly mandated.
+              <strong>External Links & Third-Party Platforms</strong> — Our website or client portal may include links to third-party services (such as Google Drive, WhatsApp, Vimeo, or YouTube). Once you follow an external link, you leave our platform. We have no control over and assume no liability for the content, privacy policies, or practices of any third-party websites or services.
+            </li>
+            <li>
+              <strong>Legal Compliance</strong> — If required by applicable law, a court of law, or a competent legal authority, we may disclose information as strictly mandated.
             </li>
           </ul>
         </>
@@ -336,7 +367,7 @@ export default function PrivacyPolicyPage() {
       title: 'Data Retention',
       content: (
         <>
-          <p>We retain your data only for as long as strictly necessary to fulfill our service commitments:</p>
+          <p>We retain your data only for as long as strictly necessary to fulfill our service commitments, resolve disputes, enforce our agreements, and satisfy applicable statutory, tax, and legal record-keeping obligations:</p>
           <div className="privacy-table-wrapper">
             <table className="privacy-table">
               <thead>
@@ -446,6 +477,39 @@ export default function PrivacyPolicyPage() {
               To exercise any of these rights, please contact our Data Grievance channel as outlined in Section 14.
             </p>
           </div>
+
+          <div className="privacy-subsection" style={{ marginTop: '24px' }}>
+            <h3 className="privacy-subheading">International Privacy Rights (GDPR & CCPA/CPRA Compliance)</h3>
+            <p>
+              For our international clients—including individuals residing in the European Union / United Kingdom (under the <strong>GDPR</strong>) and the United States (including California under the <strong>CCPA/CPRA</strong>)—we guarantee the following data protection rights:
+            </p>
+            <div className="privacy-rights-grid">
+              <div className="privacy-right-pill">
+                <CheckCircle2 size={14} className="privacy-pill-icon" />
+                <div>
+                  <strong>Right to Data Portability:</strong> Request an export of your personal data in a structured, commonly used, and machine-readable format.
+                </div>
+              </div>
+              <div className="privacy-right-pill">
+                <CheckCircle2 size={14} className="privacy-pill-icon" />
+                <div>
+                  <strong>Right to Restrict or Object:</strong> Object to or request the restriction of data processing under legitimate grounds.
+                </div>
+              </div>
+              <div className="privacy-right-pill" style={{ gridColumn: '1 / -1' }}>
+                <CheckCircle2 size={14} className="privacy-pill-icon" />
+                <div>
+                  <strong>No Sale or Sharing of Personal Data (CCPA):</strong> MotionNodeEdits does not sell, rent, or share personal data with third parties for monetary consideration or cross-context behavioral advertising.
+                </div>
+              </div>
+              <div className="privacy-right-pill" style={{ gridColumn: '1 / -1' }}>
+                <CheckCircle2 size={14} className="privacy-pill-icon" />
+                <div>
+                  <strong>International Cross-Border Transfers:</strong> MotionNodeEdits operates globally with primary operations in India and enterprise cloud data centers. Cross-border transfers of your personal information are performed in compliance with appropriate contractual and technical safeguards to ensure equivalent data protection.
+                </div>
+              </div>
+            </div>
+          </div>
         </>
       )
     },
@@ -538,11 +602,21 @@ export default function PrivacyPolicyPage() {
                   </a>
                 </div>
               </div>
+
+              <div className="privacy-contact-item">
+                <ShieldCheck size={16} className="privacy-c-icon" />
+                <div>
+                  <span className="privacy-c-label">Grievance & Data Protection Inquiries</span>
+                  <a href="mailto:support@motionnodeedits.com?subject=Privacy%20%2F%20Grievance%20Inquiry" className="privacy-c-link">
+                    support@motionnodeedits.com
+                  </a>
+                </div>
+              </div>
             </div>
 
             <div className="privacy-contact-notice">
               <FileCheck size={14} style={{ color: '#FFFFFF', flexShrink: 0, marginTop: '2px' }} />
-              <span>For account deletion requests, please reach out to us through the above contact details with your registered email address.</span>
+              <span>For account deletion, data rights, or statutory DPDP/GDPR grievance inquiries, contact us via email from your registered address. Inquiries are acknowledged within 48 hours and addressed within statutory timelines.</span>
             </div>
           </div>
         </>
@@ -593,7 +667,7 @@ export default function PrivacyPolicyPage() {
               </div>
               <div className="privacy-date-badge">
                 <Clock size={13} />
-                <span>Last Updated: September 20, 2026</span>
+                <span>Last Updated: October 24, 2026</span>
               </div>
             </div>
 

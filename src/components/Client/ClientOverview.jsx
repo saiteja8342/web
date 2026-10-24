@@ -86,23 +86,30 @@ export default function ClientOverview({
   getStageDate,
   accountAvatar,
   notifications = [],
+  onOpenNotifications,
   showToast
 }) {
   const greeting = useMemo(() => getTimeGreeting(), []);
-  const activeCount = runningOrders.length;
+  const activeCount = useMemo(() => {
+    return orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length;
+  }, [orders]);
   const inReviewCount = useMemo(() => {
     return orders.filter(o => {
       const s = (o.status || '').toLowerCase();
-      return s.includes('review') || s.includes('revision');
+      return (s.includes('review') || s.includes('revision')) && s !== 'cancelled';
     }).length;
   }, [orders]);
   const completedCount = completedOrders.length;
   const inQueueCount = useMemo(() => {
     return orders.filter(o => {
       const s = (o.status || '').toLowerCase();
-      return ['received', 'accepted', 'planning', 'on_hold'].includes(s);
+      return ['received', 'accepted', 'planning'].includes(s) && s !== 'cancelled';
     }).length;
   }, [orders]);
+
+  const unreadNotifCount = useMemo(() => {
+    return (notifications || []).filter(n => !n.is_read).length;
+  }, [notifications]);
 
   const recentOrders = useMemo(() => {
     return orders.slice(0, 5);
@@ -130,16 +137,19 @@ export default function ClientOverview({
               type="button"
               className="cp-mob-bell-btn"
               onClick={() => {
-                if (notifications && notifications.length > 0) {
+                if (typeof onOpenNotifications === 'function') {
+                  onOpenNotifications();
+                } else if (notifications && notifications.length > 0) {
                   showToast?.(`You have ${notifications.length} notification${notifications.length > 1 ? 's' : ''}`);
                 } else {
                   showToast?.('All caught up! No unread notifications');
                 }
               }}
-              aria-label="Notifications"
+              aria-label="Open notifications"
+              title="Open notifications"
             >
               <Bell className="h-5 w-5" />
-              {notifications && notifications.length > 0 && (
+              {(unreadNotifCount > 0 || (notifications && notifications.length > 0)) && (
                 <span className="cp-mob-bell-dot" />
               )}
             </button>
